@@ -1,14 +1,14 @@
 # Expense Planning & Smart Check-in — Design Specification
 
-# I. Expense Model and Algorithms
+## I. Expense Model and Algorithms
 
-## 1. Overall Workflow
+### 1. Overall Workflow
 
 The intended workflow is:
 
 Confirmed monthly plan from BUDGET MODULE  → Expense source adapter → Local plan-item representation → Scheduled task occurrences → Day/Month/Year navigation → Check-in and actual records → Spending summaries and history.
 
-## 2. Schedule Generation Algorithm
+### 2. Schedule Generation Algorithm
 
 The scheduling function receives a recurrence tag, an inclusive start date, an inclusive end date, and any tag-specific fields. It returns only dates that both satisfy the recurrence rule and fall inside the requested range.
 
@@ -20,21 +20,21 @@ The scheduling function receives a recurrence tag, an inclusive start date, an i
 | DAY_OF_MONTH | The chosen day in each month; if the day does not exist, use that month's final day. Include it only if it falls within the range. | day_of_month (1–31). |
 | DATE | Exactly the configured date, if it falls within the requested range. | specific_date. |
 
-### Idempotency and duplicate task prevention
+#### Idempotency and duplicate task prevention
 
 For every plan-item/date pair, at most one task may exist. The service may check existing pairs before inserting, but a database unique constraint on (plan_item_id, assigned_date) is the final guard. Re-running task generation must preserve existing tasks, records, and check-in results.
 
-### Payment due date is independent
+#### Payment due date is independent
 
 The assigned date and payment due date represent different concepts. A task's payment_due_date starts unset. A user may configure or clear the due date for that individual task. A monthly occurrence is scheduled for the last day of the month, but this does not automatically set its payment due date.
 
 Under the selected design, moving a payment obligation from October into November means changing its payment_due_date. Its original assigned_date and original assigned-plan total remain unchanged. In November, it appears as a due-only task; its planned amount is not added again to November's assigned-plan total. This rule prevents the same planned allocation from being counted twice. If the group intends a full transfer of the task's assigned budget period instead, that is a different business rule and must be approved explicitly.
 
-## 3. Hierarchical Navigation: Year → Month → Day
+### 3. Hierarchical Navigation: Year → Month → Day
 
 The top-level UI has exactly three modes: Day, Month, and Year.
 
-### 3.1 Day view
+#### 3.1 Day view
 
 - Display a monthly calendar with the selected day highlighted.
 
@@ -46,27 +46,27 @@ The top-level UI has exactly three modes: Day, Month, and Year.
 
 - Open a modal when the user clicks Check-in.
 
-### 3.2 Month view
+#### 3.2 Month view
 
 - Display a monthly calendar with drill-down to each day.
 
-- List non-daily tasks (MONTHLY, DAY_OF_MONTH, DATE) and tasks due in the selected month.
+- List non-daily tasks (WEEKLY, MONTHLY, DAY_OF_MONTH, DATE) and tasks due in the selected month.
 
 - Show tasks due this month but assigned in another month separately from the monthly plan total.
 
 - Display DATE expenses in the month containing their specific_date, if it falls within the generated plan period.
 
-### 3.3 Year view and filters
+#### 3.3 Year view and filters
 
 - Display the yearly summary and 12 monthly cards, with links to drill down.
 
-- Default to all four recurrence tags (DAILY, MONTHLY, DAY_OF_MONTH, DATE) and allow multiple tags to be selected or deselected.
+- Default to all five recurrence tags (DAILY, WEEKLY, MONTHLY, DAY_OF_MONTH, DATE) and allow multiple tags to be selected or deselected.
 
 - Update task lists and related summaries according to the selected tags. Keep unexpected expenses under a separate filter.
 
 - Clearly distinguish filtered totals from overall actual spending.
 
-## 4. Check-in Workflow
+### 4. Check-in Workflow
 
 Clicking Check-in opens a modal. The modal provides three user actions:
 
@@ -78,7 +78,7 @@ Clicking Check-in opens a modal. The modal provides three user actions:
 
 For the actual-amount action, the amount input is prefilled with the task's planned amount for convenience but the user may change it. The UI also supports recording additional individual transactions for a task.
 
-### Multi-transaction rules
+#### Multi-transaction rules
 
 - Each individual purchase is a separate ExpenseRecord linked to the same task.
 
@@ -92,7 +92,7 @@ For the actual-amount action, the amount input is prefilled with the task's plan
 
 - Repeated form submission must not create duplicate rows. Each create-record request uses an idempotency token; the same token returns the existing record, while a new token permits another legitimate transaction.
 
-### Task status values
+#### Task status values
 
 | Status | Meaning | Amount treatment |
 | --- | --- | --- |
@@ -104,13 +104,13 @@ For the actual-amount action, the amount input is prefilled with the task's plan
 
 The first two values describe the check-in state. WITHIN_BUDGET, NO_EXPENSE and OVER_BUDGET describe the result of comparing confirmed spending with the task plan. The module retains these five values for compatibility with the current design, while day/month/year summaries must keep task statuses separate from aggregate totals.
 
-### Overdue handling
+#### Overdue handling
 
 The check-in deadline is 23:59:59 in Asia/Ho_Chi_Minh on the assigned date and is stored as a naive UTC timestamp in the current implementation. When the module page is accessed, overdue PENDING tasks become UNRECORDED. Additionally, a task must never become NO_EXPENSE merely because time has passed.
 
-## 5. Actual Spending, Editing, and Deletion
+### 5. Actual Spending, Editing, and Deletion
 
-### Planned-task transactions
+#### Planned-task transactions
 
 - A task may have multiple linked ExpenseRecord rows of type PLANNED.
 
@@ -124,7 +124,7 @@ The check-in deadline is 23:59:59 in Asia/Ho_Chi_Minh on the assigned date and i
 
 - Planned amount, priority, and the assigned date are not editable by the end user in this module.
 
-### Unexpected expenses
+#### Unexpected expenses
 
 - An unexpected expense has record_type = UNEXPECTED, task_id = NULL, a title, positive amount, actual expense date, category, optional note, and budget_impact_scope.
 
@@ -134,7 +134,7 @@ The check-in deadline is 23:59:59 in Asia/Ho_Chi_Minh on the assigned date and i
 
 - The category is free text for the MVP. The module does not create a separate category-management subsystem.
 
-## 6. Unexpected Expense Budget-Impact Scope
+### 6. Unexpected Expense Budget-Impact Scope
 
 An unexpected expense has two independent date/period concepts:
 
@@ -159,11 +159,11 @@ All unexpected records remain visible in real spending history and date-based ac
 
 This is a scope selector for unexpected expenses only. It does not replace schedule_tag on an expense plan item and does not make an unexpected expense recurring.
 
-## 7. Budget Reallocation Boundary
+### 7. Budget Reallocation Boundary
 
 This module does not automatically reallocate future daily or weekly limits. When a task exceeds its planned amount, it reports OVER_BUDGET, updates actual totals, and exposes the difference. It does not move money between later days, rewrite the confirmed monthly plan, or consume another expense's allocation.
 
-# II. Business Rules
+## II. Business Rules
 
 #### BR-01. Module Ownership
 
@@ -221,7 +221,7 @@ NO_EXPENSE requires explicit confirmation and no linked actual transactions.
 
 #### BR-07. Unexpected Expenses
 
-Unexpected expenses have no assigned task and require a budget_impact_scope of DAILY (counted against the daily budget limit for the transaction date) or MONTHLY (counted against the monthly budget limit for the month of the transaction date).
+Unexpected expenses have no assigned task and require a budget_impact_scope of DAILY (counted against the daily budget limit for the transaction date) or WEEKLY (counted against the weekly budget limit for the transaction date) or MONTHLY (counted against the monthly budget limit for the month of the transaction date).
 
 The scope determines which budget limit is affected; the actual expense date determines historical reporting.
 
@@ -257,9 +257,9 @@ Authentication, authorization, and CSRF protection must be implemented before sh
 
 Automatic budget reallocation remains outside this module's scope and requires explicit ownership elsewhere in the system.
 
-# III. Initial Database Model
+## III. Initial Database Model
 
-## 1. Entity Relationships
+### 1. Entity Relationships
 
 - expense_plan_items 1 → many assigned_expense_tasks.
 
@@ -267,18 +267,18 @@ Automatic budget reallocation remains outside this module's scope and requires e
 
 - expense_records with record_type = UNEXPECTED has task_id = NULL.
 
-## 2. Table: expense_plan_items
+### 2. Table: expense_plan_items
 
 | Field | Suggested type | Constraint / purpose |
 | --- | --- | --- |
 | plan_item_id | String(21) | Primary key generated by module ID rule. |
-| source_expense_id | String(128), nullable | External Budget ID; preserve verbatim. |
+| source_expense_id | String(128), nullable | References the source Expense.Expense ID provided by Budget Planning. Required for budget-sourced items; nullable for manually created items without a source Expense. Preserve the source ID exactly. |
 | user_id | String(64) | Identifies the record owner using the user ID provided by the Accounts module. Must use the same ID format and data type as the Accounts module; indexed for user-scoped queries. |
-| title | String(200) | Required expense name. |
+| title | String(200) | Expense.Name |
 | amount_source | String(20) | BUDGET_DEFAULT or USER_ENTERED. |
-| planned_amount | BigInteger | Positive integer VND; read-only to end users in this module. |
-| priority | String(2) | P0, P1, or P2; copied from BUDGET MODULE . |
-| schedule_tag | String(20) | DAILY, WEEKLY, MONTHLY, DAY_OF_MONTH, DATE. |
+| planned_amount | BigInteger | Copied from Budget Allocation.Allocated Amount for the source Expense under the selected and confirmed Budget Plan. Read-only when amount_source = BUDGET_DEFAULT. The allocation amount must be defined as per-occurrence or period-level; period-level amounts must not be treated as per-occurrence amounts without an agreed allocation rule. |
+| priority | String(2) | P0, P1, or P2; from Expense.Priority |
+| schedule_tag | String(20) | Recurrence type from the agreed source data contract. Supported values: DAILY, WEEKLY, MONTHLY, DAY_OF_MONTH, DATE. The recurrence type and its date details must be consistent with the source schedule. |
 | day_of_week | SmallInteger, nullable | ISO 1–7 only for WEEKLY. |
 | day_of_month | SmallInteger, nullable | 1–31 only for DAY_OF_MONTH. |
 | specific_date | Date, nullable | Required only for DATE. |
@@ -298,7 +298,7 @@ Recommended constraints:
 
 - Partial unique index on (user_id, source_expense_id) where source_expense_id IS NOT NULL, if this matches the BUDGET MODULE  source identity contract.
 
-## 3. Table: assigned_expense_tasks
+### 3. Table: assigned_expense_tasks
 
 | Field | Suggested type | Constraint / purpose |
 | --- | --- | --- |
@@ -327,7 +327,7 @@ Recommended constraints and indexes:
 
 - Service-level ownership checks ensuring user_id and demo flag agree with the referenced plan item.
 
-## 4. Table: expense_records
+### 4. Table: expense_records
 
 | Field | Suggested type | Constraint / purpose |
 | --- | --- | --- |
@@ -354,7 +354,7 @@ Recommended constraints and indexes:
 
 - Check task_id IS NOT NULL for PLANNED and task_id IS NULL for UNEXPECTED.
 
-- For UNEXPECTED, require a non-empty title and budget_impact_scope IN ('DAILY', 'MONTHLY').
+- For UNEXPECTED, require a non-empty title and budget_impact_scope IN ('DAILY', ‘WEEKLY’, 'MONTHLY').
 
 - For task-linked records, budget_impact_scope should be null; recurrence/assigned-period semantics come from the linked task and plan item.
 
