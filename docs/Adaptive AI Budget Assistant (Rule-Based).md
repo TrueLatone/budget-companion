@@ -4,7 +4,7 @@
 **Scope:** F18 Data Completeness Check and F19 Monthly Budget Review  
 **Implementation:** Python and CSV, deterministic rule-based prototype  
 **Currency:** VND  
-**Input:** `f18_input_with_planned_amount.csv`
+**Input:** `f18_f19_.csv`
 
 This document describes the algorithms, business rules, and initial database design for F18 and F19. The prototype analyzes expense data and produces review reports. It does not modify transactions, change confirmed budget plans, or automatically reallocate spending.
 
