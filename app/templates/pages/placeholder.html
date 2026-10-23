@@ -1,8 +1,8 @@
 {% extends 'base.html' %}
-{% block title %}{{ module_name }} · Budget Companion{% endblock %}
+{% block title %}{{ t(module_name) }} · Budget Companion{% endblock %}
 {% block content %}
   <section class="p-4 bg-white border rounded-3">
-    <h1 class="h4">{{ module_name }}</h1>
-    <p class="text-secondary mb-0">Module đang được phát triển theo Sprint 2. Đây chỉ là trang placeholder, chưa có nghiệp vụ hoặc lưu dữ liệu.</p>
+    <h1 class="h4">{{ t(module_name) }}</h1>
+    <p class="text-secondary mb-0">{{ t('placeholder_description') }}</p>
   </section>
 {% endblock %}
