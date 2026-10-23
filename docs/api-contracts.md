@@ -9,6 +9,23 @@ All endpoints below are **proposals** except `/api/health` and `/api/health/data
 | GET | `/api/health` | `200 {"status":"ok","service":"budget-companion"}` |
 | GET | `/api/health/database` | `200` DB connected, `503` DB unavailable |
 
+## Implemented by KAN-15 — HTML form routes
+
+| Method | Endpoint | Behavior |
+|---|---|---|
+| GET, POST | `/register` | Create an account with normalized email and hashed password |
+| GET, POST | `/login` | Authenticate and establish a Flask session |
+| POST | `/logout` | Clear the authenticated session; CSRF protected |
+| GET | `/account` | Show the authenticated account page |
+| GET | `/budget-periods` | List the authenticated user's calendar months |
+| GET, POST | `/budget-periods/new` | Create one user-owned calendar month |
+| GET, POST | `/budget-periods/<uuid>/edit` | Update available funds for an owned month |
+| POST | `/budget-periods/<uuid>/select` | Select an owned month in the session |
+
+Mutating routes use CSRF-protected HTML forms. The backend always derives the
+account identity from the session and returns `404` for another user's budget
+period identifier.
+
 ## Planned endpoints — NOT IMPLEMENTED
 
 | Owner | Method | Endpoint | Description |

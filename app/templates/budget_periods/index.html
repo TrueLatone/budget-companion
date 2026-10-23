@@ -1,0 +1,49 @@
+{% extends 'base.html' %}
+{% block title %}Budget months · Budget Companion{% endblock %}
+{% block content %}
+  <section class="p-4 bg-white border rounded-3">
+    <div class="d-flex justify-content-between align-items-center gap-3 mb-3">
+      <div>
+        <h1 class="h4 mb-1">Budget months</h1>
+        <p class="text-secondary mb-0">Each period represents one calendar month.</p>
+      </div>
+      <a class="btn btn-primary" href="{{ url_for('budget_periods.create') }}">Create month</a>
+    </div>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% for category, message in messages %}
+        <div class="alert alert-{{ category }}">{{ message }}</div>
+      {% endfor %}
+    {% endwith %}
+
+    {% if budget_months %}
+      <div class="table-responsive">
+        <table class="table align-middle">
+          <thead><tr><th>Month</th><th>Available funds</th><th class="text-end">Actions</th></tr></thead>
+          <tbody>
+            {% for period in budget_months %}
+              <tr>
+                <td>
+                  {{ period.month_start.strftime('%B %Y') }}
+                  {% if active_budget_month_id == period.id|string %}<span class="badge text-bg-success">Selected</span>{% endif %}
+                </td>
+                <td>{{ "{:,}".format(period.available_vnd) }} VND</td>
+                <td class="text-end">
+                  <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('budget_periods.edit', budget_month_id=period.id) }}">Edit</a>
+                  {% if active_budget_month_id != period.id|string %}
+                    <form class="d-inline" method="post" action="{{ url_for('budget_periods.select', budget_month_id=period.id) }}">
+                      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                      <button class="btn btn-sm btn-outline-primary" type="submit">Select</button>
+                    </form>
+                  {% endif %}
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <p class="text-secondary mb-0">No budget months yet. Create your first period to begin planning.</p>
+    {% endif %}
+  </section>
+{% endblock %}

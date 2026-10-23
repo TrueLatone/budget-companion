@@ -1,0 +1,30 @@
+{% extends 'base.html' %}
+{% block title %}{{ heading }} · Budget Companion{% endblock %}
+{% block content %}
+  <div class="row justify-content-center">
+    <div class="col-md-8 col-lg-6">
+      <section class="p-4 bg-white border rounded-3">
+        <h1 class="h4 mb-3">{{ heading }}</h1>
+        <form method="post" novalidate>
+          {{ form.hidden_tag() }}
+          {% if form.month is defined %}
+            <div class="mb-3">
+              {{ form.month.label(class='form-label') }}
+              {{ form.month(class='form-control', type='month') }}
+              {% for error in form.month.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
+            </div>
+          {% endif %}
+          <div class="mb-3">
+            {{ form.available_vnd.label(class='form-label') }}
+            {{ form.available_vnd(class='form-control', min='0', step='1') }}
+            {% for error in form.available_vnd.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
+          </div>
+          <div class="d-flex gap-2">
+            {{ form.submit(class='btn btn-primary') }}
+            <a class="btn btn-outline-secondary" href="{{ url_for('budget_periods.index') }}">Cancel</a>
+          </div>
+        </form>
+      </section>
+    </div>
+  </div>
+{% endblock %}

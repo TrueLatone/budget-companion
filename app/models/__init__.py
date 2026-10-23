@@ -1,10 +1,6 @@
-"""Database models live here. Agree on entities and ownership before adding tables.
+"""Shared database models visible to Flask-Migrate."""
 
-Proposed models: User, BudgetMonth, Category, BudgetAllocation, RecurringBill,
-ExpenseRecord, ExpenseCheckIn, Recommendation, MonthlyReview.
-See docs/database-design.md (DRAFT). No tables are created on day 1.
-"""
+from app.models.budget_month import BudgetMonth
+from app.models.user import User
 
-# When model modules are implemented, import them here, e.g.:
-# from app.models.user import User
-# This ensures Flask-Migrate can detect them during autogeneration.
+__all__ = ["BudgetMonth", "User"]

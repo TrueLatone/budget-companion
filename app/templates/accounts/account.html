@@ -1,0 +1,15 @@
+{% extends 'base.html' %}
+{% block title %}Account · Budget Companion{% endblock %}
+{% block content %}
+  <section class="p-4 bg-white border rounded-3">
+    <h1 class="h4">Account</h1>
+    <p class="text-secondary">Signed in as {{ g.current_user.email }}.</p>
+    <div class="d-flex gap-2">
+      <a class="btn btn-primary" href="{{ url_for('budget_periods.index') }}">Manage budget months</a>
+      <form method="post" action="{{ url_for('accounts.logout') }}">
+        {{ logout_form.hidden_tag() }}
+        {{ logout_form.submit(class='btn btn-outline-secondary') }}
+      </form>
+    </div>
+  </section>
+{% endblock %}

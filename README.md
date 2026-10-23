@@ -61,13 +61,17 @@ Visit `http://127.0.0.1:5000`.
 python -m pytest -q
 ```
 
-Available on day 1:
+Available:
 - `GET /` — landing page.
 - `GET /api/health` — application process health.
 - `GET /api/health/database` — database connectivity.
-- `/account`, `/budget`, `/expenses`, `/dashboard`, `/recommendations` — nonfunctional placeholders.
+- `/register`, `/login`, `/logout`, `/account` — basic session authentication.
+- `/budget-periods` — calendar-month setup and selection.
+- `/budget`, `/expenses`, `/dashboard`, `/recommendations` — nonfunctional placeholders.
 
-**Not implemented:** login, budgets, expenses, check-ins, alerts, dashboard statistics, AI recommendations, recurring bills, user authorization, actual database tables. Do not represent these as completed.
+**Not implemented:** budget plans and allocations, expenses, check-ins, alerts,
+dashboard statistics, AI recommendations, and recurring bills. Do not
+represent these as completed.
 
 ## Project documentation
 
