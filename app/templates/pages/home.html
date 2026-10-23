@@ -1,10 +1,140 @@
 {% extends 'base.html' %}
-{% block title %}Home · Budget Companion{% endblock %}
+{% from 'components/icons.html' import icon %}
+{% block title %}{{ t('home_page_title') }}{% endblock %}
+{% block body_class %}bc-home{% endblock %}
+{% block main_class %}bc-home-main{% endblock %}
 {% block content %}
-  <section class="p-4 p-lg-5 bg-white border rounded-3">
-    <span class="badge text-bg-primary mb-3">Sprint 2 / Starter</span>
-    <h1 class="h3">Budget Companion</h1>
-    <p class="text-secondary mb-3">Ứng dụng lập ngân sách cho sinh viên ở trọ.</p>
-    <p class="mb-0">Repository đã khởi chạy thành công. Các module hiện là placeholder; chức năng được triển khai theo Jira.</p>
+  <section class="bc-hero" id="gioi-thieu" aria-labelledby="hero-title">
+    <div class="bc-container bc-hero-inner">
+      <div class="bc-hero-copy">
+        <span class="bc-eyebrow"><span aria-hidden="true"></span>{{ t('hero_eyebrow') }}</span>
+        <h1 class="bc-hero-title" id="hero-title">{{ t('hero_title_line_1') }}<br><em>{{ t('hero_title_line_2') }}</em></h1>
+        <p class="bc-hero-description">{{ t('hero_description') }}</p>
+        <div class="bc-hero-actions">
+          <a class="bc-button bc-button-primary" href="{{ url_for('budgets.index') }}">{{ t('start_budget') }} {{ icon('arrow-right', 'bc-arrow') }}</a>
+          <a class="bc-text-link" href="#tinh-nang">{{ t('explore_features') }} {{ icon('arrow-down', 'bc-arrow') }}</a>
+        </div>
+        <p class="bc-hero-note">{{ icon('check') }} {{ t('hero_note') }}</p>
+      </div>
+      <figure class="bc-hero-visual">
+        <img class="bc-hero-image" src="{{ url_for('static', filename='images/home-hero.webp') }}" alt="{{ t('hero_image_alt') }}" width="1440" height="960" fetchpriority="high" decoding="async">
+        <figcaption class="bc-visual-caption">{{ t('hero_image_caption') }}</figcaption>
+      </figure>
+    </div>
   </section>
+
+  <section class="bc-section bc-benefits" id="tinh-nang" aria-labelledby="benefits-title">
+    <div class="bc-container">
+      <div class="bc-section-heading">
+        <span class="bc-kicker">{{ t('benefits_kicker') }}</span>
+        <h2 class="bc-section-title" id="benefits-title">{{ t('benefits_title_line_1') }}<br>{{ t('benefits_title_line_2') }}</h2>
+        <p class="bc-section-description">{{ t('benefits_description_line_1') }}<br>{{ t('benefits_description_line_2') }}</p>
+      </div>
+      <div class="bc-feature-grid">
+        <article class="bc-feature-card">
+          <div class="bc-feature-icon">{{ icon('home') }}</div>
+          <h3 class="bc-feature-title">{{ t('essentials_title') }}</h3>
+          <p class="bc-feature-description">{{ t('essentials_description') }}</p>
+          <a class="bc-text-link" href="{{ url_for('budgets.index') }}">{{ t('explore_budgeting') }} {{ icon('arrow-up-right', 'bc-arrow') }}</a>
+        </article>
+        <article class="bc-feature-card">
+          <div class="bc-feature-icon is-coral">{{ icon('receipt') }}</div>
+          <h3 class="bc-feature-title">{{ t('spending_title') }}</h3>
+          <p class="bc-feature-description">{{ t('spending_description') }}</p>
+          <a class="bc-text-link" href="{{ url_for('expenses.index') }}">{{ t('explore_expenses') }} {{ icon('arrow-up-right', 'bc-arrow') }}</a>
+        </article>
+        <article class="bc-feature-card">
+          <div class="bc-feature-icon">{{ icon('chart') }}</div>
+          <h3 class="bc-feature-title">{{ t('overview_title') }}</h3>
+          <p class="bc-feature-description">{{ t('overview_description') }}</p>
+          <a class="bc-text-link" href="{{ url_for('dashboard.index') }}">{{ t('view_dashboard') }} {{ icon('arrow-up-right', 'bc-arrow') }}</a>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <section class="bc-section bc-how" id="cach-su-dung" aria-labelledby="how-title">
+    <div class="bc-container">
+      <div class="bc-section-heading">
+        <span class="bc-kicker">{{ t('how_kicker') }}</span>
+        <h2 class="bc-section-title" id="how-title">{{ t('how_title') }}</h2>
+        <p class="bc-section-description">{{ t('how_description') }}</p>
+      </div>
+      <div class="bc-steps-grid">
+        <article class="bc-step">
+          <div class="bc-step-top"><span class="bc-step-number">01</span></div>
+          <h3 class="bc-step-title">{{ t('plan_step_title') }}</h3>
+          <p class="bc-step-description">{{ t('plan_step_description') }}</p>
+          <figure class="bc-mini-card" aria-label="{{ t('plan_preview_aria') }}">
+            <figcaption class="bc-mini-heading">{{ t('monthly_plan') }}</figcaption>
+            <div class="bc-mini-row"><span>{{ icon('wallet') }} {{ t('income') }}</span><span class="bc-mini-value">{{ money(5000000) }} <span class="bc-mini-currency">₫</span></span></div>
+            <div class="bc-mini-row"><span>{{ icon('home') }} {{ t('rent') }}</span><span class="bc-mini-value">{{ money(2000000) }} <span class="bc-mini-currency">₫</span></span></div>
+            <div class="bc-mini-row"><span>{{ icon('bowl') }} {{ t('food') }}</span><span class="bc-mini-value">{{ money(1500000) }} <span class="bc-mini-currency">₫</span></span></div>
+            <span class="bc-mini-caption">{{ icon('plus') }} {{ t('priorities_caption') }}</span>
+          </figure>
+        </article>
+        <article class="bc-step">
+          <div class="bc-step-top"><span class="bc-step-number">02</span></div>
+          <h3 class="bc-step-title">{{ t('record_step_title') }}</h3>
+          <p class="bc-step-description">{{ t('record_step_description') }}</p>
+          <figure class="bc-mini-card" aria-label="{{ t('expense_preview_aria') }}">
+            <figcaption class="bc-mini-heading">{{ t('everyday_expense') }}</figcaption>
+            <div class="bc-mini-select">{{ icon('bowl') }} <span>{{ t('food') }}</span>{{ icon('arrow-down') }}</div>
+            <div class="bc-mini-input"><strong>{{ money(75000) }}</strong><span>₫</span></div>
+            <div class="bc-mini-input">{{ t('expense_example_note') }}</div>
+            <div class="bc-mini-row"><span class="bc-mini-caption">{{ icon('calendar') }} {{ t('illustrative_date') }}</span><span class="bc-mini-save">{{ icon('check') }} {{ t('recorded') }}</span></div>
+          </figure>
+        </article>
+        <article class="bc-step">
+          <div class="bc-step-top"><span class="bc-step-number">03</span></div>
+          <h3 class="bc-step-title">{{ t('reflect_step_title') }}</h3>
+          <p class="bc-step-description">{{ t('reflect_step_description') }}</p>
+          <figure class="bc-mini-card" aria-label="{{ t('overview_preview_aria') }}">
+            <figcaption class="bc-mini-heading">{{ t('spending_at_a_glance') }}</figcaption>
+            <div class="bc-mini-bars" aria-hidden="true">
+              <div><span class="bc-mini-bar" style="--bar-height: 90%"></span><span>{{ t('rent') }}</span></div>
+              <div><span class="bc-mini-bar" style="--bar-height: 60%"></span><span>{{ t('food') }}</span></div>
+              <div><span class="bc-mini-bar" style="--bar-height: 30%"></span><span>{{ t('transport') }}</span></div>
+            </div>
+            <div class="bc-mini-row"><span class="bc-mini-caption">{{ t('spent') }}</span><strong>{{ money(1200000) }} ₫</strong></div>
+            <div class="bc-mini-badge">{{ icon('bulb') }} {{ t('budget_remaining') }} <strong>{{ money(3800000) }} ₫</strong></div>
+          </figure>
+        </article>
+      </div>
+      <p class="bc-demo-note">{{ t('demo_note') }}</p>
+    </div>
+  </section>
+
+  <section class="bc-cta-section" aria-labelledby="cta-title">
+    <div class="bc-container">
+      <div class="bc-cta-panel">
+        <div class="bc-cta-decor" aria-hidden="true">{{ icon('sprout') }}</div>
+        <div class="bc-cta-copy">
+          <h2 class="bc-cta-title" id="cta-title">{{ t('cta_title_line_1') }}<br>{{ t('cta_title_line_2') }}</h2>
+          <p class="bc-cta-description">{{ t('cta_description') }}</p>
+          <a class="bc-button bc-button-primary" href="{{ url_for('budgets.index') }}">{{ t('create_first_budget') }} {{ icon('arrow-right', 'bc-arrow') }}</a>
+        </div>
+        <span class="bc-cta-small-note" aria-hidden="true">{{ t('cta_note_line_1') }}<br>{{ t('cta_note_line_2') }}</span>
+      </div>
+    </div>
+  </section>
+{% endblock %}
+
+{% block footer %}
+  <footer class="bc-footer">
+    <div class="bc-container">
+      <div class="bc-footer-main">
+        <div>
+          <a class="bc-brand" href="{{ url_for('core.home') }}"><span class="bc-brand-mark" aria-hidden="true">{{ icon('sprout') }}</span><span>Budget Companion</span></a>
+          <p class="bc-footer-description">{{ t('footer_description') }}</p>
+        </div>
+        <nav class="bc-footer-links" aria-label="{{ t('footer_navigation') }}">
+          <a href="#gioi-thieu">{{ t('about') }}</a>
+          <a href="#cach-su-dung">{{ t('how_it_works') }}</a>
+          <a href="{{ url_for('recommendations.index') }}">{{ t('spending_tips') }}</a>
+        </nav>
+      </div>
+      <div class="bc-footer-bottom">{{ t('footer_copyright') }} <span>{{ t('footer_project') }}</span></div>
+    </div>
+  </footer>
 {% endblock %}

@@ -14,9 +14,6 @@ def create_app(test_config=None):
     if test_config:
         app.config.update(test_config)
 
-    if not app.testing and not app.config.get("SECRET_KEY"):
-        raise RuntimeError("FLASK_SECRET_KEY must be configured")
-
     db.init_app(app)
     # Ensure models are visible to Alembic.
     from app import models  
