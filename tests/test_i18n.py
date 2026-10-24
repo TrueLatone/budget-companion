@@ -66,12 +66,30 @@ def test_explicit_choice_takes_precedence_and_can_switch_back_to_english(client)
     assert_page_language(client.get("/expenses"), "en")
 
 
-@pytest.mark.parametrize("path", ["/account", "/budget", "/expenses", "/dashboard", "/recommendations"])
+@pytest.mark.parametrize("path", ["/login", "/register", "/budget", "/expenses", "/dashboard", "/recommendations"])
 def test_remembered_language_applies_to_all_module_pages(client, path):
     client.set_cookie("bc_language", "vi")
     response = client.get(path)
     assert_page_language(response, "vi")
     assert "Đăng nhập" in response.get_data(as_text=True)
+
+
+def test_protected_account_redirect_keeps_the_remembered_language(client):
+    client.set_cookie("bc_language", "vi")
+
+    response = client.get("/account", follow_redirects=True)
+
+    assert_page_language(response, "vi")
+    assert "Vui lòng đăng nhập để tiếp tục." in response.get_data(as_text=True)
+
+
+def test_auth_form_labels_and_validation_are_translated(client):
+    response = client.post("/register?lang=vi", data={})
+    markup = response.get_data(as_text=True)
+
+    assert_page_language(response, "vi")
+    assert "Xác nhận mật khẩu" in markup
+    assert "Vui lòng nhập trường này." in markup
 
 
 @pytest.mark.parametrize("query", ["fr", "VI", "", "<script>alert(1)</script>"])

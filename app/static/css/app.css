@@ -65,6 +65,75 @@ body.bc-home {
 .bc-arrow { display: inline-flex; width: 17px; height: 17px; align-items: center; justify-content: center; font-size: 18px; line-height: 1; }
 .bc-arrow svg { width: 16px; height: 16px; }
 
+/* Signed-in application and authentication pages. */
+body.bc-app { margin: 0; background: var(--bc-canvas) !important; color: var(--bc-ink); font-family: var(--bc-font-ui); font-size: 15px; line-height: 1.7; -webkit-font-smoothing: antialiased; }
+.bc-app *, .bc-app *::before, .bc-app *::after { box-sizing: border-box; }
+.bc-app a { text-underline-offset: 4px; }
+.bc-app a:focus-visible, .bc-app button:focus-visible, .bc-app input:focus-visible { outline: 3px solid var(--bc-purple); outline-offset: 3px; }
+.bc-app-main { width: min(1040px, calc(100% - 64px)); min-height: calc(100vh - 89px); margin-inline: auto; padding: 64px 0 80px; }
+.bc-panel { border: 1px solid var(--bc-line); border-radius: 20px; background: #fff; box-shadow: 0 18px 45px -38px #30246a70; }
+.bc-page-header { display: flex; align-items: flex-end; justify-content: space-between; gap: 32px; margin-bottom: 30px; }
+.bc-page-header > div { max-width: 650px; }
+.bc-page-title { margin: 0 0 13px; color: var(--bc-ink); font-family: var(--bc-font-heading); font-size: clamp(34px, 4.5vw, 48px); font-weight: 500; letter-spacing: -1.4px; line-height: 1.22; }
+.bc-page-description { max-width: 570px; margin: 0; color: var(--bc-muted); font-size: 13px; line-height: 1.9; }
+.bc-page-icon { display: inline-flex; width: 48px; height: 48px; align-items: center; justify-content: center; margin-bottom: 22px; border-radius: 14px; background: var(--bc-lavender); color: var(--bc-purple); }
+.bc-page-icon .bc-icon { width: 27px; height: 27px; }
+.bc-page-icon.is-small { width: 42px; height: 42px; margin: 0; border-radius: 12px; }
+.bc-page-icon.is-small .bc-icon { width: 23px; height: 23px; }
+.bc-card-title { margin: 0 0 8px; color: var(--bc-ink); font-size: 22px; font-weight: 600; letter-spacing: -.5px; line-height: 1.4; }
+.bc-card-title.is-large { font-family: var(--bc-font-heading); font-size: 32px; font-weight: 500; }
+.bc-card-description { margin: 0; color: var(--bc-muted); font-size: 12px; line-height: 1.8; }
+.bc-auth-layout { display: grid; grid-template-columns: minmax(0, .9fr) minmax(380px, 1fr); align-items: center; gap: clamp(50px, 8vw, 100px); min-height: 590px; }
+.bc-auth-copy { padding-left: 24px; }
+.bc-auth-card { padding: 36px 38px 32px; }
+.bc-form { margin-top: 26px; }
+.bc-form-group { margin-bottom: 19px; }
+.bc-form-label { display: block; margin-bottom: 7px; color: var(--bc-ink); font-size: 12px; font-weight: 600; }
+.bc-form-control { display: block; width: 100%; min-height: 48px; padding: 11px 13px; border: 1px solid #dedee9; border-radius: 10px; background: #fcfcfe; color: var(--bc-ink); font-family: var(--bc-font-ui); font-size: 13px; line-height: 1.5; transition: border-color .18s ease, box-shadow .18s ease, background-color .18s ease; }
+.bc-form-control::placeholder { color: #9da1ae; }
+.bc-form-control:hover { border-color: #c9c6df; }
+.bc-form-control:focus { border-color: var(--bc-purple); background: #fff; box-shadow: 0 0 0 4px #5b55d912; outline: 0; }
+.bc-form-control.is-invalid { border-color: #d45d50; }
+.bc-form-help { margin-top: 6px; color: #7a8190; font-size: 10px; }
+.bc-form-error { margin-top: 6px; color: #b94338; font-size: 10px; font-weight: 500; }
+.bc-check-row { display: flex; align-items: center; gap: 9px; margin: 2px 0 22px; color: var(--bc-muted); font-size: 11px; cursor: pointer; }
+.bc-check-input { width: 16px; height: 16px; margin: 0; accent-color: var(--bc-purple); }
+.bc-button-block { width: 100%; }
+.bc-auth-switch { margin: 23px 0 0; color: var(--bc-muted); font-size: 11px; text-align: center; }
+.bc-auth-switch a, .bc-back-link { color: var(--bc-purple-dark); font-weight: 600; }
+.bc-alert { margin-bottom: 20px; padding: 12px 14px; border: 1px solid #d8d3f3; border-radius: 10px; background: #f5f3fd; color: #494382; font-size: 11px; }
+.bc-alert.is-success { border-color: #cfe6db; background: #f0f8f4; color: #326a53; }
+.bc-alert.is-warning { border-color: #f0dcb7; background: #fff9ec; color: #795d2c; }
+.bc-account-card { display: flex; align-items: center; justify-content: space-between; gap: 28px; padding: 30px 32px; }
+.bc-account-identity { display: flex; align-items: center; gap: 15px; min-width: 0; }
+.bc-account-identity strong { display: block; overflow-wrap: anywhere; font-size: 13px; }
+.bc-detail-label { display: block; margin-bottom: 2px; color: var(--bc-muted); font-size: 10px; }
+.bc-action-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.bc-action-row form { margin: 0; }
+.bc-narrow-page { width: min(100%, 650px); margin-inline: auto; }
+.bc-back-link { display: inline-flex; margin-bottom: 18px; font-size: 11px; text-decoration: none; }
+.bc-form-card { padding: 36px 38px; }
+.bc-money-input { position: relative; }
+.bc-money-input .bc-form-control { padding-right: 62px; }
+.bc-money-input > span { position: absolute; top: 50%; right: 14px; color: var(--bc-muted); font-size: 10px; font-weight: 600; transform: translateY(-50%); }
+.bc-budget-panel { overflow: hidden; }
+.bc-table-wrap { overflow-x: auto; }
+.bc-table { width: 100%; border-collapse: collapse; }
+.bc-table th { padding: 15px 24px; border-bottom: 1px solid var(--bc-line); background: #fafafe; color: var(--bc-muted); font-size: 10px; font-weight: 600; letter-spacing: .5px; text-align: left; text-transform: uppercase; white-space: nowrap; }
+.bc-table td { padding: 19px 24px; border-bottom: 1px solid #f0f0f5; color: var(--bc-muted); font-size: 12px; vertical-align: middle; }
+.bc-table tbody tr:last-child td { border-bottom: 0; }
+.bc-table td strong { color: var(--bc-ink); font-weight: 600; }
+.bc-text-end { text-align: right !important; }
+.bc-table-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
+.bc-table-actions form { margin: 0; }
+.bc-button-compact { min-height: 34px; padding: 7px 11px; border-radius: 8px; font-size: 10px; }
+.bc-button-soft { border-color: #ddd9f5; background: #f3f0fd; color: var(--bc-purple-dark); }
+.bc-button-soft:hover { border-color: #c9c2ef; background: #eae6fb; color: var(--bc-purple-dark); }
+.bc-status-badge { display: inline-flex; margin-left: 8px; padding: 4px 7px; border-radius: 999px; background: #edf8f2; color: #36735c; font-size: 9px; font-weight: 600; vertical-align: middle; }
+.bc-empty-state { max-width: 440px; margin-inline: auto; padding: 64px 28px; text-align: center; }
+.bc-empty-state .bc-page-icon { margin-bottom: 17px; }
+.bc-empty-state .bc-card-description { margin-bottom: 22px; }
+
 /* Hero */
 .bc-hero { position: relative; overflow: hidden; padding: 76px 0 80px; background: linear-gradient(125deg, #fbfaff 0%, #fff 47%, #fff9f7 100%); }
 .bc-hero-inner { display: grid; grid-template-columns: 1fr 1.05fr; align-items: center; gap: 42px; }
@@ -226,6 +295,13 @@ body.bc-home {
 }
 @media (max-width: 767.98px) {
   .bc-container { width: min(100% - 40px, 580px); }
+  .bc-app-main { width: min(100% - 40px, 620px); padding: 46px 0 60px; }
+  .bc-auth-layout { grid-template-columns: 1fr; gap: 30px; min-height: 0; }
+  .bc-auth-copy { padding: 0; text-align: center; }
+  .bc-auth-copy .bc-page-description { margin-inline: auto; }
+  .bc-page-icon { margin-bottom: 16px; }
+  .bc-page-header { align-items: flex-start; flex-direction: column; gap: 20px; }
+  .bc-account-card { align-items: flex-start; flex-direction: column; }
   .bc-feature-grid, .bc-steps-grid { grid-template-columns: 1fr; gap: 20px; }
   .bc-section-heading { margin-bottom: 29px; }
   .bc-feature-card { padding: 27px; }
@@ -254,6 +330,13 @@ body.bc-home {
 }
 @media (max-width: 479.98px) {
   .bc-container { width: calc(100% - 36px); }
+  .bc-app-main { width: calc(100% - 32px); padding: 34px 0 48px; }
+  .bc-auth-card, .bc-form-card { padding: 28px 23px; }
+  .bc-page-title { font-size: 34px; }
+  .bc-card-title.is-large { font-size: 28px; }
+  .bc-account-card { padding: 24px 22px; }
+  .bc-action-row, .bc-action-row .bc-button, .bc-action-row form { width: 100%; }
+  .bc-table th, .bc-table td { padding-inline: 16px; }
   .bc-nav { min-height: 72px; padding-block: 15px; }
   .bc-brand { gap: 8px; font-size: 17px; }
   .bc-brand-mark { width: 31px; height: 31px; }

@@ -1,13 +1,21 @@
-from flask_wtf import FlaskForm
 from wtforms import BooleanField, PasswordField, StringField, SubmitField
 from wtforms.validators import DataRequired, Email, EqualTo, Length
+
+from app.forms import LocalizedForm
 
 
 def _normalize_email(value):
     return value.strip().lower() if value else value
 
 
-class RegistrationForm(FlaskForm):
+class RegistrationForm(LocalizedForm):
+    label_keys = {
+        "email": "form_email",
+        "password": "form_password",
+        "confirm_password": "form_confirm_password",
+        "submit": "register_submit",
+    }
+
     email = StringField(
         "Email",
         validators=[DataRequired(), Email(), Length(max=320)],
@@ -24,7 +32,14 @@ class RegistrationForm(FlaskForm):
     submit = SubmitField("Create account")
 
 
-class LoginForm(FlaskForm):
+class LoginForm(LocalizedForm):
+    label_keys = {
+        "email": "form_email",
+        "password": "form_password",
+        "remember": "login_remember",
+        "submit": "login_submit",
+    }
+
     email = StringField(
         "Email",
         validators=[DataRequired(), Email(), Length(max=320)],
@@ -38,5 +53,7 @@ class LoginForm(FlaskForm):
     submit = SubmitField("Sign in")
 
 
-class LogoutForm(FlaskForm):
+class LogoutForm(LocalizedForm):
+    label_keys = {"submit": "logout_submit"}
+
     submit = SubmitField("Sign out")

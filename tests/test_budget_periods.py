@@ -125,3 +125,19 @@ def test_update_available_funds_does_not_replace_period(client, app):
         period = db.session.get(BudgetMonth, period_id)
         assert period.available_vnd == 250
         assert db.session.scalar(db.select(db.func.count(BudgetMonth.id))) == 1
+
+
+def test_budget_month_page_uses_vietnamese_copy_and_formatting(client, app):
+    client.set_cookie("bc_language", "vi")
+    sign_in(client, app)
+    client.post(
+        "/budget-periods/new",
+        data={"month": "2026-10", "available_vnd": "1500000"},
+    )
+
+    response = client.get("/budget-periods")
+
+    assert response.status_code == 200
+    assert "Ngân sách tháng" in response.get_data(as_text=True)
+    assert "Tháng 10 2026" in response.get_data(as_text=True)
+    assert "1.500.000 VND" in response.get_data(as_text=True)

@@ -4,6 +4,7 @@ from uuid import UUID
 from flask import flash, g, redirect, request, session, url_for
 
 from app.extensions import db
+from app.i18n import translate
 from app.models import User
 
 
@@ -31,7 +32,7 @@ def login_required(view):
     @wraps(view)
     def wrapped_view(*args, **kwargs):
         if g.current_user is None:
-            flash("Please sign in to continue.", "warning")
+            flash(translate("login_required"), "warning")
             return redirect(url_for("accounts.login", next=request.full_path.rstrip("?")))
         return view(*args, **kwargs)
 

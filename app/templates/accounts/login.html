@@ -1,35 +1,43 @@
 {% extends 'base.html' %}
-{% block title %}Sign in · Budget Companion{% endblock %}
+{% from 'components/icons.html' import icon %}
+{% block title %}{{ t('login_page_title') }}{% endblock %}
+{% block body_class %}bc-app{% endblock %}
+{% block main_class %}bc-app-main{% endblock %}
 {% block content %}
-  <div class="row justify-content-center">
-    <div class="col-md-7 col-lg-5">
-      <section class="p-4 bg-white border rounded-3">
-        <h1 class="h4 mb-3">Sign in</h1>
+  <section class="bc-auth-layout" aria-labelledby="login-title">
+    <div class="bc-auth-copy">
+      <span class="bc-page-icon">{{ icon('sprout') }}</span>
+      <p class="bc-kicker">{{ t('login_kicker') }}</p>
+      <h1 class="bc-page-title" id="login-title">{{ t('login_title') }}</h1>
+      <p class="bc-page-description">{{ t('login_description') }}</p>
+    </div>
+    <div class="bc-panel bc-auth-card">
+      <h2 class="bc-card-title">{{ t('login_form_title') }}</h2>
+      <p class="bc-card-description">{{ t('login_form_description') }}</p>
         {% with messages = get_flashed_messages(with_categories=true) %}
           {% for category, message in messages %}
-            <div class="alert alert-{{ category }}">{{ message }}</div>
+            <div class="bc-alert is-{{ category }}" role="status">{{ message }}</div>
           {% endfor %}
         {% endwith %}
-        <form method="post" novalidate>
-          {{ form.hidden_tag() }}
-          <div class="mb-3">
-            {{ form.email.label(class='form-label') }}
-            {{ form.email(class='form-control', autocomplete='email') }}
-            {% for error in form.email.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
-          </div>
-          <div class="mb-3">
-            {{ form.password.label(class='form-label') }}
-            {{ form.password(class='form-control', autocomplete='current-password') }}
-            {% for error in form.password.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
-          </div>
-          <div class="form-check mb-3">
-            {{ form.remember(class='form-check-input') }}
-            {{ form.remember.label(class='form-check-label') }}
-          </div>
-          {{ form.submit(class='btn btn-primary w-100') }}
-        </form>
-        <p class="small text-secondary mt-3 mb-0">No account? <a href="{{ url_for('accounts.register') }}">Create one</a>.</p>
-      </section>
+      <form class="bc-form" method="post" novalidate>
+        {{ form.hidden_tag() }}
+        <div class="bc-form-group">
+          {{ form.email.label(class='bc-form-label') }}
+          {{ form.email(class='bc-form-control' + (' is-invalid' if form.email.errors else ''), autocomplete='email', placeholder=t('email_placeholder')) }}
+          {% for error in form.email.errors %}<div class="bc-form-error" role="alert">{{ error }}</div>{% endfor %}
+        </div>
+        <div class="bc-form-group">
+          {{ form.password.label(class='bc-form-label') }}
+          {{ form.password(class='bc-form-control' + (' is-invalid' if form.password.errors else ''), autocomplete='current-password', placeholder=t('password_placeholder')) }}
+          {% for error in form.password.errors %}<div class="bc-form-error" role="alert">{{ error }}</div>{% endfor %}
+        </div>
+        <label class="bc-check-row">
+          {{ form.remember(class='bc-check-input') }}
+          <span>{{ form.remember.label.text }}</span>
+        </label>
+        {{ form.submit(class='bc-button bc-button-primary bc-button-block') }}
+      </form>
+      <p class="bc-auth-switch">{{ t('login_no_account') }} <a href="{{ url_for('accounts.register') }}">{{ t('login_create_account') }}</a></p>
     </div>
-  </div>
+  </section>
 {% endblock %}

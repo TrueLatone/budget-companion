@@ -1,5 +1,6 @@
 from flask import Blueprint, abort, flash, g, redirect, render_template, session, url_for
 
+from app.i18n import format_month, translate
 from app.modules.accounts.auth import login_required
 from app.modules.budget_periods.forms import BudgetMonthCreateForm, BudgetMonthUpdateForm
 from app.modules.budget_periods.services import (
@@ -35,13 +36,17 @@ def create():
                 form.available_vnd.data,
             )
         except DuplicateBudgetMonthError:
-            form.month.errors.append("You already have a budget period for this month.")
+            form.month.errors.append(translate("budget_duplicate_month"))
         else:
             session["active_budget_month_id"] = str(budget_month.id)
-            flash("Budget month created.", "success")
+            flash(translate("budget_create_success"), "success")
             return redirect(url_for("budget_periods.index"))
 
-    return render_template("budget_periods/form.html", form=form, heading="Create budget month")
+    return render_template(
+        "budget_periods/form.html",
+        form=form,
+        heading=translate("budget_create_title"),
+    )
 
 
 @bp.route("/<uuid:budget_month_id>/edit", methods=("GET", "POST"))
@@ -54,13 +59,15 @@ def edit(budget_month_id):
     form = BudgetMonthUpdateForm(obj=budget_month)
     if form.validate_on_submit():
         update_available_vnd(budget_month, form.available_vnd.data)
-        flash("Available funds updated. Confirmed plans were not changed.", "success")
+        flash(translate("budget_update_success"), "success")
         return redirect(url_for("budget_periods.index"))
 
     return render_template(
         "budget_periods/form.html",
         form=form,
-        heading=f"Edit {budget_month.month_start:%B %Y}",
+        heading=translate("budget_edit_title").format(
+            month=format_month(budget_month.month_start)
+        ),
         budget_month=budget_month,
     )
 
@@ -73,5 +80,10 @@ def select(budget_month_id):
         abort(404)
 
     session["active_budget_month_id"] = str(budget_month.id)
-    flash(f"Selected {budget_month.month_start:%B %Y}.", "success")
+    flash(
+        translate("budget_select_success").format(
+            month=format_month(budget_month.month_start)
+        ),
+        "success",
+    )
     return redirect(url_for("budget_periods.index"))

@@ -14,6 +14,9 @@ def create_app(test_config=None):
     if test_config:
         app.config.update(test_config)
 
+    from app.i18n import register_ui_languages
+    register_ui_languages(app)
+
     db.init_app(app)
     # Ensure models are visible to Alembic.
     from app import models  

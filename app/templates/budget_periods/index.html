@@ -1,41 +1,47 @@
 {% extends 'base.html' %}
-{% block title %}Budget months · Budget Companion{% endblock %}
+{% from 'components/icons.html' import icon %}
+{% block title %}{{ t('budget_months_page_title') }}{% endblock %}
+{% block body_class %}bc-app{% endblock %}
+{% block main_class %}bc-app-main{% endblock %}
 {% block content %}
-  <section class="p-4 bg-white border rounded-3">
-    <div class="d-flex justify-content-between align-items-center gap-3 mb-3">
-      <div>
-        <h1 class="h4 mb-1">Budget months</h1>
-        <p class="text-secondary mb-0">Each period represents one calendar month.</p>
-      </div>
-      <a class="btn btn-primary" href="{{ url_for('budget_periods.create') }}">Create month</a>
+  <section class="bc-page-header">
+    <div>
+      <p class="bc-kicker">{{ t('budget_kicker') }}</p>
+      <h1 class="bc-page-title">{{ t('budget_months_title') }}</h1>
+      <p class="bc-page-description">{{ t('budget_months_description') }}</p>
     </div>
+    <a class="bc-button bc-button-primary" href="{{ url_for('budget_periods.create') }}">{{ icon('plus') }} {{ t('budget_create_action') }}</a>
+  </section>
 
-    {% with messages = get_flashed_messages(with_categories=true) %}
-      {% for category, message in messages %}
-        <div class="alert alert-{{ category }}">{{ message }}</div>
-      {% endfor %}
-    {% endwith %}
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% for category, message in messages %}
+      <div class="bc-alert is-{{ category }}" role="status">{{ message }}</div>
+    {% endfor %}
+  {% endwith %}
 
+  <section class="bc-panel bc-budget-panel">
     {% if budget_months %}
-      <div class="table-responsive">
-        <table class="table align-middle">
-          <thead><tr><th>Month</th><th>Available funds</th><th class="text-end">Actions</th></tr></thead>
+      <div class="bc-table-wrap">
+        <table class="bc-table">
+          <thead><tr><th>{{ t('budget_table_month') }}</th><th>{{ t('budget_table_funds') }}</th><th class="bc-text-end">{{ t('budget_table_actions') }}</th></tr></thead>
           <tbody>
             {% for period in budget_months %}
               <tr>
                 <td>
-                  {{ period.month_start.strftime('%B %Y') }}
-                  {% if active_budget_month_id == period.id|string %}<span class="badge text-bg-success">Selected</span>{% endif %}
+                  <strong>{{ month_name(period.month_start) }}</strong>
+                  {% if active_budget_month_id == period.id|string %}<span class="bc-status-badge">{{ t('budget_selected') }}</span>{% endif %}
                 </td>
-                <td>{{ "{:,}".format(period.available_vnd) }} VND</td>
-                <td class="text-end">
-                  <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('budget_periods.edit', budget_month_id=period.id) }}">Edit</a>
-                  {% if active_budget_month_id != period.id|string %}
-                    <form class="d-inline" method="post" action="{{ url_for('budget_periods.select', budget_month_id=period.id) }}">
-                      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                      <button class="btn btn-sm btn-outline-primary" type="submit">Select</button>
-                    </form>
-                  {% endif %}
+                <td>{{ money(period.available_vnd) }} VND</td>
+                <td>
+                  <div class="bc-table-actions">
+                    <a class="bc-button bc-button-light bc-button-compact" href="{{ url_for('budget_periods.edit', budget_month_id=period.id) }}">{{ t('edit') }}</a>
+                    {% if active_budget_month_id != period.id|string %}
+                      <form method="post" action="{{ url_for('budget_periods.select', budget_month_id=period.id) }}">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <button class="bc-button bc-button-soft bc-button-compact" type="submit">{{ t('select') }}</button>
+                      </form>
+                    {% endif %}
+                  </div>
                 </td>
               </tr>
             {% endfor %}
@@ -43,7 +49,12 @@
         </table>
       </div>
     {% else %}
-      <p class="text-secondary mb-0">No budget months yet. Create your first period to begin planning.</p>
+      <div class="bc-empty-state">
+        <span class="bc-page-icon">{{ icon('calendar') }}</span>
+        <h2 class="bc-card-title">{{ t('budget_empty_title') }}</h2>
+        <p class="bc-card-description">{{ t('budget_empty_description') }}</p>
+        <a class="bc-button bc-button-primary" href="{{ url_for('budget_periods.create') }}">{{ t('budget_create_action') }}</a>
+      </div>
     {% endif %}
   </section>
 {% endblock %}

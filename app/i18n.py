@@ -2,7 +2,7 @@
 
 from urllib.parse import urlencode
 
-from flask import g, request
+from flask import g, has_request_context, request
 
 from app.translations import MESSAGES
 
@@ -10,6 +10,33 @@ from app.translations import MESSAGES
 SUPPORTED_LANGUAGES = ("en", "vi")
 DEFAULT_LANGUAGE = "en"
 LANGUAGE_COOKIE = "bc_language"
+
+
+def get_ui_language():
+    """Return the selected UI language, or English outside a request."""
+
+    if has_request_context():
+        return getattr(g, "ui_locale", DEFAULT_LANGUAGE)
+    return DEFAULT_LANGUAGE
+
+
+def translate(key, language=None):
+    """Translate one application message with an English fallback."""
+
+    locale = language if language in SUPPORTED_LANGUAGES else get_ui_language()
+    return MESSAGES[locale].get(key, MESSAGES[DEFAULT_LANGUAGE].get(key, key))
+
+
+def format_money(amount, language=None):
+    grouped = f"{amount:,}"
+    locale = language if language in SUPPORTED_LANGUAGES else get_ui_language()
+    return grouped.replace(",", ".") if locale == "vi" else grouped
+
+
+def format_month(value, language=None):
+    """Format a date-like value as a localized month and year."""
+
+    return f"{translate(f'month_{value.month}', language)} {value.year}"
 
 
 def register_ui_languages(app):
@@ -27,24 +54,18 @@ def register_ui_languages(app):
 
     @app.context_processor
     def ui_language_context():
-        def translate(key):
-            return MESSAGES[g.ui_locale].get(key, MESSAGES[DEFAULT_LANGUAGE].get(key, key))
-
         def language_url(language):
             # Use only the current local path; keep existing query parameters.
             parameters = request.args.to_dict(flat=False)
             parameters["lang"] = [language if language in SUPPORTED_LANGUAGES else DEFAULT_LANGUAGE]
             return f"{request.path}?{urlencode(parameters, doseq=True)}"
 
-        def money(amount):
-            grouped = f"{amount:,}"
-            return grouped.replace(",", ".") if g.ui_locale == "vi" else grouped
-
         return {
             "ui_locale": g.ui_locale,
             "t": translate,
             "language_url": language_url,
-            "money": money,
+            "money": format_money,
+            "month_name": format_month,
         }
 
     @app.after_request

@@ -2,6 +2,7 @@ from urllib.parse import urlsplit
 
 from flask import Blueprint, flash, g, redirect, render_template, request, session, url_for
 
+from app.i18n import translate
 from app.modules.accounts.auth import login_required
 from app.modules.accounts.forms import LoginForm, LogoutForm, RegistrationForm
 from app.modules.accounts.services import (
@@ -32,9 +33,9 @@ def register():
         try:
             register_user(form.email.data, form.password.data)
         except DuplicateEmailError:
-            form.email.errors.append("An account with this email already exists.")
+            form.email.errors.append(translate("register_duplicate_email"))
         else:
-            flash("Account created. Please sign in.", "success")
+            flash(translate("register_success"), "success")
             return redirect(url_for("accounts.login"))
 
     return render_template("accounts/register.html", form=form)
@@ -49,7 +50,7 @@ def login():
     if form.validate_on_submit():
         user = authenticate_user(form.email.data, form.password.data)
         if user is None:
-            form.password.errors.append("Invalid email or password.")
+            form.password.errors.append(translate("login_invalid_credentials"))
         else:
             session.clear()
             session["user_id"] = str(user.id)
@@ -69,7 +70,7 @@ def logout():
     form = LogoutForm()
     if form.validate_on_submit():
         session.clear()
-        flash("You have signed out.", "success")
+        flash(translate("logout_success"), "success")
         return redirect(url_for("accounts.login"))
     return redirect(url_for("accounts.index"))
 
