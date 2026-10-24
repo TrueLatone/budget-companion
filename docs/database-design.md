@@ -1,6 +1,30 @@
 # Initial database design
 
-Only template for designing Database
+## KAN-15 foundation
+
+KAN-15 establishes two shared tables:
+
+- `users`: native UUID primary key, normalized unique email, password hash,
+  active flag, and timezone-aware UTC audit timestamps.
+- `budget_months`: native UUID primary key, UUID owner foreign key,
+  first-day `month_start`, non-negative integer `available_vnd`, and
+  timezone-aware UTC audit timestamps.
+
+Each user may have at most one period for a calendar month through
+`UNIQUE(user_id, month_start)`. Deleting a user cascades to that user's budget
+months at the database level, although KAN-15 exposes no account-deletion UI.
+All application reads and writes derive ownership from the authenticated
+session.
+
+Internal shared IDs use native UUIDs. Modules must use the same UUID type for
+foreign keys. IDs imported from another module or external source remain in a
+separate string source-ID column; they are not converted into internal primary
+keys.
+
+`budget_months` deliberately has no status column. Future draft/confirmed
+states belong to the Budget Planning contract. A future confirmed plan must
+snapshot its original funds and allocations instead of treating mutable
+`budget_months.available_vnd` as historical truth.
 
 ## Suggested entities
 

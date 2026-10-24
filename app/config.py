@@ -1,4 +1,5 @@
 import os
+from datetime import timedelta
 
 
 def normalize_database_url(value: str) -> str:
@@ -17,3 +18,9 @@ class Config:
     )
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     SQLALCHEMY_ENGINE_OPTIONS = {"pool_pre_ping": True}
+    SESSION_COOKIE_HTTPONLY = True
+    SESSION_COOKIE_SAMESITE = "Lax"
+    SESSION_COOKIE_SECURE = os.getenv("SESSION_COOKIE_SECURE", "false").lower() in {
+        "1", "true", "yes", "on",
+    }
+    PERMANENT_SESSION_LIFETIME = timedelta(days=14)

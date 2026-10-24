@@ -1,0 +1,37 @@
+{% extends 'base.html' %}
+{% block title %}{{ heading }} · Budget Companion{% endblock %}
+{% block body_class %}bc-app{% endblock %}
+{% block main_class %}bc-app-main{% endblock %}
+{% block content %}
+  <section class="bc-narrow-page" aria-labelledby="budget-form-title">
+    <a class="bc-back-link" href="{{ url_for('budget_periods.index') }}">← {{ t('back_to_budget_months') }}</a>
+    <div class="bc-panel bc-form-card">
+      <p class="bc-kicker">{{ t('budget_kicker') }}</p>
+      <h1 class="bc-card-title is-large" id="budget-form-title">{{ heading }}</h1>
+      <p class="bc-card-description">{{ t('budget_form_description') }}</p>
+      <form class="bc-form" method="post" novalidate>
+        {{ form.hidden_tag() }}
+        {% if form.month is defined %}
+          <div class="bc-form-group">
+            {{ form.month.label(class='bc-form-label') }}
+            {{ form.month(class='bc-form-control' + (' is-invalid' if form.month.errors else ''), type='month') }}
+            {% for error in form.month.errors %}<div class="bc-form-error" role="alert">{{ error }}</div>{% endfor %}
+          </div>
+        {% endif %}
+        <div class="bc-form-group">
+          {{ form.available_vnd.label(class='bc-form-label') }}
+          <div class="bc-money-input">
+            {{ form.available_vnd(class='bc-form-control' + (' is-invalid' if form.available_vnd.errors else ''), min='0', step='1', inputmode='numeric') }}
+            <span>VND</span>
+          </div>
+          <div class="bc-form-help">{{ t('available_funds_help') }}</div>
+          {% for error in form.available_vnd.errors %}<div class="bc-form-error" role="alert">{{ error }}</div>{% endfor %}
+        </div>
+        <div class="bc-action-row">
+          {{ form.submit(class='bc-button bc-button-primary') }}
+          <a class="bc-button bc-button-light" href="{{ url_for('budget_periods.index') }}">{{ t('cancel') }}</a>
+        </div>
+      </form>
+    </div>
+  </section>
+{% endblock %}

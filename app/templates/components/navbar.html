@@ -21,8 +21,13 @@
           <a class="bc-language-option{% if ui_locale == code %} is-active{% endif %}" href="{{ language_url(code) }}" hreflang="{{ code }}" lang="{{ code }}"{% if ui_locale == code %} aria-current="true"{% endif %}>{{ code|upper }}</a>
           {% endfor %}
         </div>
-        <a class="bc-text-link" href="{{ url_for('accounts.index') }}">{{ t('log_in') }}</a>
-        <a class="bc-button bc-button-primary bc-button-small" href="{{ url_for('budgets.index') }}">{{ t('get_started') }}</a>
+        {% if g.current_user %}
+          <a class="bc-text-link{% if request.endpoint == 'accounts.index' %} is-active{% endif %}" href="{{ url_for('accounts.index') }}">{{ t('account_nav') }}</a>
+          <a class="bc-button bc-button-primary bc-button-small" href="{{ url_for('budget_periods.index') }}">{{ t('manage_budget_months') }}</a>
+        {% else %}
+          <a class="bc-text-link{% if request.endpoint == 'accounts.login' %} is-active{% endif %}" href="{{ url_for('accounts.login') }}">{{ t('log_in') }}</a>
+          <a class="bc-button bc-button-primary bc-button-small" href="{{ url_for('accounts.register') }}">{{ t('get_started') }}</a>
+        {% endif %}
       </div>
     </nav>
   </div>
