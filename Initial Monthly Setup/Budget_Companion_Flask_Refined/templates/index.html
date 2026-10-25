@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f7f8fa">
+  <title>Budget Companion | Planning Prototype</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <script src="{{ url_for('static', filename='app.js') }}" defer></script>
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-inner">
+      <div class="brand"><div class="brand-mark" aria-hidden="true">B</div><div><strong>Budget Companion</strong><small>Student monthly budgeting</small></div></div>
+      <div class="header-meta"><span class="soft-pill">Flask demo</span><span class="header-caption">Planning workspace</span></div>
+    </div>
+  </header>
+
+  <main class="container">
+    <nav class="stepper" aria-label="Budget planning progress">
+      <button type="button" class="step is-active" data-go="1" aria-current="step"><span class="step-number">01</span><span><strong>Budget setup</strong><small>Enter monthly needs</small></span></button>
+      <span class="step-line" aria-hidden="true"></span>
+      <button type="button" class="step" data-go="2"><span class="step-number">02</span><span><strong>Choose a plan</strong><small>Review suggestions</small></span></button>
+      <span class="step-line" aria-hidden="true"></span>
+      <button type="button" class="step" data-go="3"><span class="step-number">03</span><span><strong>Spending schedule</strong><small>Day · week · month</small></span></button>
+    </nav>
+
+    <!-- SCREEN 1: INITIAL BUDGET SETUP -->
+    <section class="screen" id="screen-1" aria-labelledby="setup-title">
+      <div class="page-heading"><div><p class="eyebrow">STEP 1 OF 3</p><h1 id="setup-title">Set up your monthly budget</h1><p>Enter the money you currently have and the expenses you expect this month.</p></div><button type="button" class="button button-ghost" id="load-example">Load sample data</button></div>
+      <div class="two-column">
+        <div class="content-stack">
+          <section class="panel" aria-labelledby="funds-heading">
+            <div class="panel-heading"><span class="section-index">01</span><div><h2 id="funds-heading">Budget period & available funds</h2><p>Use current funds, not income you expect to receive later.</p></div></div>
+            <div class="form-grid two">
+              <label class="field"><span>Budget month</span><input type="month" id="budget-month" value="2026-11"></label>
+              <label class="field"><span>Available funds (VND)</span><input type="number" id="available-funds" value="5000000" min="1" step="1"></label>
+            </div>
+          </section>
+
+          <section class="panel" aria-labelledby="p0-heading">
+            <div class="panel-heading"><span class="priority-icon p0">P0</span><div><h2 id="p0-heading">Mandatory expenses</h2><p>These amounts are reserved before generating any budget plan.</p></div></div>
+            <div class="field-table">
+              <div class="field-table-head three-col"><span>Expense</span><span>Monthly amount</span><span>Due day</span></div>
+              <div class="field-table-row three-col"><label for="rent">Rent <span class="required">*</span></label><input type="number" min="1" id="rent" value="1500000"><input type="number" min="1" max="31" id="rent-due" value="5" aria-label="Rent due day"></div>
+              <div class="field-table-row three-col"><label for="electricity">Electricity <span class="required">*</span></label><input type="number" min="1" id="electricity" value="200000"><input type="number" min="1" max="31" id="electricity-due" value="12" aria-label="Electricity due day"></div>
+              <div class="field-table-row three-col"><label for="water">Water <span class="required">*</span></label><input type="number" min="1" id="water" value="100000"><input type="number" min="1" max="31" id="water-due" value="12" aria-label="Water due day"></div>
+              <div class="field-table-row three-col"><label class="check-label"><input id="internet-enabled" type="checkbox"> Internet <span class="muted-inline">(optional)</span></label><input type="number" min="1" id="internet" value="100000" disabled aria-label="Internet monthly amount"><input type="number" min="1" max="31" id="internet-due" value="1" disabled aria-label="Internet due day"></div>
+            </div>
+          </section>
+
+          <section class="panel" aria-labelledby="p1-heading">
+            <div class="panel-heading"><span class="priority-icon p1">P1</span><div><h2 id="p1-heading">Essential living expenses</h2><p>Optional minimums are protected. Leave blank if you do not have one.</p></div></div>
+            <div class="field-table">
+              <div class="field-table-head three-col"><span>Expense</span><span>Minimum (optional)</span><span>Tracking</span></div>
+              <div class="field-table-row three-col"><label class="check-label"><input id="food-enabled" type="checkbox" checked> Food</label><input id="food-min" type="number" min="1" placeholder="No minimum" aria-label="Food minimum"><select id="food-frequency" aria-label="Food tracking frequency" disabled><option value="daily" selected>Daily (meals)</option></select></div>
+              <div class="field-table-row three-col"><label class="check-label"><input id="transport-enabled" type="checkbox" checked> Transportation</label><input id="transport-min" type="number" min="1" placeholder="No minimum" aria-label="Transportation minimum"><select id="transport-frequency" aria-label="Transportation tracking frequency"><option value="weekly" selected>Weekly</option><option value="daily">Daily</option><option value="monthly">Monthly</option></select></div>
+            </div>
+          </section>
+
+          <section class="panel" aria-labelledby="custom-heading">
+            <div class="panel-heading"><span class="priority-icon p2">P2</span><div><h2 id="custom-heading">Additional expenses</h2><p>Add only expenses that apply to you. There are no default P2 expenses.</p></div></div>
+            <div id="custom-list" class="custom-list"></div>
+            <div class="custom-actions"><button class="button button-outline" type="button" id="add-expense">+ Add expense</button><span class="help-inline">Select P0/P1/P2 or request a demo priority suggestion.</span></div>
+          </section>
+        </div>
+
+        <aside class="panel summary-panel" aria-label="Live budget summary">
+          <h2>Budget overview</h2><p class="small-muted">Updates as you enter expenses</p>
+          <div class="summary-feature"><span>Available funds</span><strong id="summary-funds">5,000,000đ</strong></div>
+          <div class="summary-lines"><div><span><i class="legend-dot dot-p0"></i>P0 · Mandatory</span><strong id="summary-p0">1,800,000đ</strong></div><div><span><i class="legend-dot dot-p1"></i>Protected P1 minimums</span><strong id="summary-min">0đ</strong></div><div class="summary-total"><span>After required reservations</span><strong id="summary-remaining">3,200,000đ</strong></div></div>
+          <div class="info-note"><strong>How plans are created</strong><p>The system first reserves P0, then divides remaining funds into P1, P2 and savings. Any P1 minimums must still be met.</p></div>
+          <div id="priority-review" class="priority-review" aria-live="polite" hidden></div>
+          <div id="setup-error" class="feedback" role="status" aria-live="polite"></div>
+          <button class="button button-primary button-block" type="button" id="generate-button">Generate 3 plans <span aria-hidden="true">→</span></button>
+          <p class="note-caption">Priority suggestions and expense recommendations use Gemini when available, otherwise clearly labelled rule-based fallback.</p>
+        </aside>
+      </div>
+    </section>
+
+    <!-- SCREEN 2: READ-ONLY PLAN COMPARISON -->
+    <section class="screen" id="screen-2" aria-labelledby="plans-title" hidden>
+      <div class="page-heading"><div><p class="eyebrow">STEP 2 OF 3</p><h1 id="plans-title">Choose your monthly plan</h1><p>Compare the three generated strategies. Expense priorities and amounts are read-only at this step.</p></div><button type="button" class="button button-ghost" id="back-setup">← Return to budget setup</button></div>
+      <div class="inline-note"><span class="info-symbol">i</span><div><strong>Proposed allocations</strong><p>These are starting recommendations using your budget rules. Percentages apply after P0; P1 minimums may require adjustments.</p></div></div>
+      <div id="ai-status" class="ai-status" role="status" aria-live="polite"></div>
+      <div class="plan-grid" id="plans-grid" role="group" aria-label="Select a budget strategy"></div>
+      <div class="two-column editor-layout">
+        <section class="panel" aria-labelledby="adjust-heading">
+          <div class="panel-heading"><span class="section-index">02</span><div><h2 id="adjust-heading">Selected plan allocations</h2><p id="selected-plan-caption">Balanced plan · all values in VND</p></div></div>
+          <div class="table-scroll"><table class="data-table edit-table"><thead><tr><th>Expense</th><th>Priority</th><th>Protected minimum</th><th class="right">Monthly allocation</th></tr></thead><tbody id="editor-rows"></tbody></table></div>
+          <p class="small-muted read-only-note">Allocations and priorities are locked while choosing a plan. To change an expense, return to Budget Setup and generate three new plans.</p>
+        </section>
+        <aside class="panel editor-summary" aria-labelledby="review-title">
+          <h2 id="review-title">Plan totals</h2><p class="small-muted">Amounts calculated and validated by Python.</p>
+          <div class="summary-lines"><div><span><i class="legend-dot dot-p0"></i>P0</span><strong id="edit-p0">—</strong></div><div><span><i class="legend-dot dot-p1"></i>P1</span><strong id="edit-p1">—</strong></div><div><span><i class="legend-dot dot-p2"></i>P2</span><strong id="edit-p2">—</strong></div><div><span><i class="legend-dot dot-save"></i>Savings</span><strong id="edit-save">—</strong></div></div>
+          <div class="balance-total"><div><span>Allocated total</span><strong id="edit-total">—</strong></div><div><span>Available funds</span><strong id="edit-funds">—</strong></div></div>
+          <div id="edit-validation" class="feedback valid" aria-live="polite">Select a plan to confirm.</div>
+          <button type="button" id="confirm-button" class="button button-primary button-block">Confirm selected plan <span aria-hidden="true">→</span></button>
+          <p class="note-caption">Confirmation saves the selected generated plan and its spending schedule to data/budgets.txt. No manual editing at this step.</p>
+        </aside>
+      </div>
+    </section>
+
+    <!-- SCREEN 3: 30-DAY / WEEK / MONTH TRACKING -->
+    <section class="screen" id="screen-3" aria-labelledby="schedule-title" hidden>
+      <div class="page-heading"><div><p class="eyebrow">STEP 3 OF 3</p><h1 id="schedule-title">Spending schedule</h1><p id="schedule-subtitle">Your planned spending, organized by day, week and month.</p></div><button type="button" class="button button-ghost" id="back-plans">← Review confirmed plan</button></div>
+      <div id="save-status" class="save-status" role="status"></div>
+      <div class="schedule-stats"><div><span>Selected plan</span><strong id="stat-plan">Balanced</strong></div><div><span>Monthly planned expenses</span><strong id="stat-expenses">—</strong></div><div><span>Planned savings</span><strong id="stat-savings">—</strong></div><div><span>Tracking period</span><strong id="stat-days">30 days</strong></div></div>
+      <div class="schedule-toolbar"><div><h2 id="schedule-month-label">November 2026</h2><p>Planned allowances only — actual spending is not recorded in this demo.</p></div><div class="tab-list" role="tablist" aria-label="View spending schedule"><button class="tab is-active" data-tab="daily" role="tab" aria-selected="true">Daily / calendar</button><button class="tab" data-tab="weekly" role="tab" aria-selected="false">Weekly</button><button class="tab" data-tab="monthly" role="tab" aria-selected="false">Monthly</button></div></div>
+      <section class="tab-panel" id="tab-daily" aria-label="Daily spending overview">
+        <div class="two-column daily-layout">
+          <section class="panel calendar-panel"><div class="subheading"><div><h3 id="calendar-title">30-day calendar</h3><p>Select a date to view its planned daily items and any scheduled bills.</p></div></div><div class="calendar-scroll"><div class="calendar-weekdays"><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span><span>Sun</span></div><div class="calendar-grid" id="calendar-grid"></div></div><p class="calendar-legend"><span><i class="legend-dot dot-p1"></i>Daily planned allowance</span><span><i class="legend-dot dot-p0"></i>Bill or monthly due date</span></p></section>
+          <aside class="panel day-panel"><div class="day-head"><div><p class="eyebrow">SELECTED DAY</p><h3 id="day-title">—</h3></div><div class="day-buttons"><button class="icon-button" type="button" id="prev-day" aria-label="Previous day">←</button><button class="icon-button" type="button" id="next-day" aria-label="Next day">→</button></div></div><div id="day-detail"></div></aside>
+        </div>
+        <section class="panel daily-table-panel"><div class="subheading"><div><h3>All dates this month</h3><p>Daily limits across the complete selected calendar month.</p></div></div><div class="table-scroll"><table class="data-table"><thead><tr><th>Date</th><th>Daily expense limit</th><th>Weekly period</th><th class="right">Monthly due items</th></tr></thead><tbody id="daily-rows"></tbody></table></div></section>
+      </section>
+      <section class="tab-panel" id="tab-weekly" aria-label="Weekly spending overview" hidden><div class="subheading"><div><h3>Weekly periods</h3><p>Partial calendar weeks receive proportional amounts based on days in the month.</p></div><span id="week-count" class="neutral-label">—</span></div><div class="week-list" id="weekly-list"></div></section>
+      <section class="panel tab-panel" id="tab-monthly" hidden aria-label="Monthly spending overview"><div class="subheading"><div><h3>Monthly allocations</h3><p>All confirmed expense amounts, including bills and flexible spending.</p></div><span class="neutral-label">Original monthly plan</span></div><div class="table-scroll"><table class="data-table"><thead><tr><th>Expense</th><th>Priority</th><th>Tracking frequency</th><th>Due date</th><th class="right">Monthly limit</th></tr></thead><tbody id="monthly-rows"></tbody></table></div></section>
+      <div class="footer-actions"><button type="button" class="button button-outline" id="start-over">Start a new budget</button><span>Next development phase: actual spending check-ins and automatic adjustments.</span></div>
+    </section>
+    <footer class="site-footer">Budget Companion · Flask demonstration for Software Engineering · Confirmed plans are saved locally as JSON lines in data/budgets.txt.</footer>
+  </main>
+</body>
+</html>
