@@ -1,0 +1,40 @@
+{% extends 'base.html' %}
+{% from 'components/icons.html' import icon %}
+{% block body_class %}bc-workspace{% endblock %}
+{% block extra_styles %}
+  <link href="{{ url_for('static', filename='css/workspace.css') }}" rel="stylesheet">
+{% endblock %}
+{% block navigation %}
+  {% include 'components/workspace_nav.html' %}
+  <button class="ws-sidebar-overlay" type="button" data-sidebar-close aria-label="{{ t('ws_close_menu') }}" tabindex="-1" hidden></button>
+{% endblock %}
+{% block main_class %}ws-main{% endblock %}
+{% block content %}
+  <header class="ws-topbar">
+    <div class="ws-topbar-leading">
+      <button class="ws-menu-toggle" type="button" data-sidebar-toggle aria-expanded="false" aria-controls="workspace-sidebar" aria-label="{{ t('ws_open_menu') }}">{{ icon('menu', 'ws-icon') }}</button>
+      <nav class="ws-breadcrumb" aria-label="{{ t('ws_workspace') }}">
+        <span>{{ t('ws_my_budget') }}</span><span aria-hidden="true">/</span><strong>{{ t('ws_new_plan') }}</strong>
+      </nav>
+    </div>
+    <div class="ws-topbar-actions">
+      <a class="ws-home-link" href="{{ url_for('core.home') }}">{{ icon('home', 'ws-icon') }}<span>{{ t('ws_home') }}</span></a>
+      <div class="ws-language-switcher" role="group" aria-label="{{ t('ws_language') }}">
+        {% for code in ('en', 'vi') %}
+        <a class="ws-language-option{% if ui_locale == code %} is-active{% endif %}" href="{{ language_url(code) }}" hreflang="{{ code }}" lang="{{ code }}"{% if ui_locale == code %} aria-current="true"{% endif %}>{{ code|upper }}</a>
+        {% endfor %}
+      </div>
+      <span class="ws-avatar" role="img" aria-label="{{ t('ws_avatar') }}">A</span>
+    </div>
+  </header>
+  <div class="ws-content">
+    {% block workspace_content %}{% endblock %}
+    <p class="ws-demo-banner">{{ icon('bulb', 'ws-icon') }}<span>{{ t('ws_demo_banner') }} {{ t('ws_browser_note') }}</span></p>
+    <noscript><p class="ws-noscript" role="status">{{ t('ws_js_notice') }}</p></noscript>
+  </div>
+{% endblock %}
+{% block extra_scripts %}
+  <script type="application/json" id="workspace-data">{{ workspace_data|tojson }}</script>
+  <script type="application/json" id="workspace-copy">{{ workspace_copy|tojson }}</script>
+  <script src="{{ url_for('static', filename='js/workspace.js') }}" defer></script>
+{% endblock %}

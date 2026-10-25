@@ -1,0 +1,116 @@
+{% extends 'workspace_base.html' %}
+{% from 'components/icons.html' import icon %}
+{% block title %}{{ t('ws_my_budget') }} · Budget Companion{% endblock %}
+{% block workspace_content %}
+  {% set plan = workspace_data.defaultPlan %}
+  {% set category_icons = {'rent': 'home', 'utilities': 'wifi', 'food': 'utensils', 'transport': 'bus', 'study': 'book', 'social': 'users', 'shopping': 'bag'} %}
+  {% set group_icons = {'p0': 'home', 'p1': 'cart', 'p2': 'game'} %}
+  <div class="ws-page-heading">
+    <div>
+      <h1 class="ws-page-title">{{ t('budget_title') }}</h1>
+      <p class="ws-page-subtitle">{{ t('budget_subtitle') }}</p>
+    </div>
+    <div class="ws-heading-actions">
+      <label class="ws-month-picker" for="workspace-month">
+        {{ icon('calendar', 'ws-icon') }}
+        <span class="visually-hidden">{{ t('ws_month') }}</span>
+        <input type="month" id="workspace-month" value="{{ workspace_data.month }}" aria-label="{{ t('ws_month') }}">
+      </label>
+    </div>
+  </div>
+
+  <div class="ws-budget-layout">
+    <section class="ws-budget-editor ws-card" aria-labelledby="budget-available-title">
+      <form id="budget-form" novalidate>
+        <h2 class="ws-card-title" id="budget-available-title">{{ t('budget_available') }}</h2>
+        <label class="visually-hidden" for="budget-available">{{ t('budget_available') }}</label>
+        <div class="ws-money-field ws-available-field">
+          <input id="budget-available" name="available" type="text" inputmode="numeric" autocomplete="off" value="{{ money(plan.available) }}" aria-describedby="budget-available-help" required>
+          <span class="ws-currency-suffix" aria-hidden="true">VND</span>
+        </div>
+        <p class="ws-field-help" id="budget-available-help">{{ t('budget_available_help') }}</p>
+
+        <div class="ws-budget-plan-heading">
+          <h2 class="ws-card-title">{{ t('budget_plan_title') }}</h2>
+          <p class="ws-field-help">{{ t('budget_plan_help') }}</p>
+        </div>
+        <div id="budget-groups">
+          {% for group in ('p0', 'p1', 'p2') %}
+          <section class="ws-budget-group" data-group="{{ group }}" aria-labelledby="group-title-{{ group }}">
+            <div class="ws-group-heading">
+              <span class="ws-group-icon">{{ icon(group_icons[group], 'ws-icon') }}</span>
+              <h3 id="group-title-{{ group }}">{{ group_labels[group] }}</h3>
+              <span class="ws-group-code">{{ group|upper }}</span>
+            </div>
+            <div data-group-rows>
+              {% for category in plan.categories if category.group == group %}
+              <div class="ws-budget-row" data-category-id="{{ category.id }}">
+                <span class="ws-row-icon">{{ icon(category_icons.get(category.id, 'wallet'), 'ws-icon') }}</span>
+                <label class="ws-category-label" for="amount-{{ category.id }}">{{ category_labels[category.id] }}</label>
+                <div class="ws-money-field">
+                  <input id="amount-{{ category.id }}" name="amount-{{ category.id }}" type="text" inputmode="numeric" autocomplete="off" data-category-amount value="{{ money(category.amount) }}" aria-describedby="budget-error" required>
+                  <span class="ws-currency-suffix" aria-hidden="true">VND</span>
+                </div>
+              </div>
+              {% endfor %}
+            </div>
+          </section>
+          {% endfor %}
+        </div>
+        <button class="ws-add-category" id="add-category" type="button">{{ icon('plus', 'ws-icon') }} {{ t('budget_add_category') }}</button>
+        <p class="ws-sample-note">{{ t('budget_sample_note') }}</p>
+      </form>
+    </section>
+
+    <aside class="ws-budget-summary" aria-labelledby="budget-summary-title">
+      <section class="ws-card ws-summary-card">
+        <h2 class="ws-card-title" id="budget-summary-title">{{ t('budget_summary_title') }}</h2>
+        <p class="ws-summary-available" data-summary="available">{{ money(plan.available) }} ₫</p>
+        <p class="ws-summary-help">{{ t('budget_available_label') }}</p>
+        <p class="ws-allocation-label">{{ t('budget_allocation') }}</p>
+        <div class="ws-allocation-bar" aria-hidden="true">
+          {% for group in ('p0', 'p1', 'p2', 'unallocated') %}
+          <span data-allocation="{{ group }}" style="width: {{ ((totals[group] / plan.available * 100) if plan.available > 0 else 0)|round(2) }}%"></span>
+          {% endfor %}
+        </div>
+        <div class="ws-summary-breakdown">
+          {% for group in ('p0', 'p1', 'p2', 'unallocated') %}
+          <div class="ws-summary-row">
+            <span class="ws-summary-label"><i class="ws-summary-dot" data-group="{{ group }}" aria-hidden="true"></i>{{ t('budget_unassigned') if group == 'unallocated' else group_labels[group] }}</span>
+            <strong data-summary="{{ group }}">{{ money(totals[group]) }} ₫</strong>
+            <span class="ws-summary-share" data-share="{{ group }}">{{ '%.1f'|format((totals[group] / plan.available * 100) if plan.available > 0 else 0) }}%</span>
+          </div>
+          {% endfor %}
+        </div>
+        <div class="ws-summary-row ws-summary-total">
+          <span>{{ t('budget_total_planned') }}</span>
+          <strong data-summary="planned">{{ money(totals.planned) }} ₫</strong>
+          <span class="ws-summary-share" data-share="planned">{{ '%.1f'|format((totals.planned / plan.available * 100) if plan.available > 0 else 0) }}%</span>
+        </div>
+        <div class="ws-unallocated">
+          {{ icon('coins', 'ws-icon') }}
+          <div><span>{{ t('budget_unallocated') }}</span><strong data-summary="unallocated">{{ money(totals.unallocated) }} ₫</strong><p>{{ t('budget_buffer_help') }}</p></div>
+        </div>
+        <p id="budget-error" class="ws-error" role="alert" hidden></p>
+        <button class="ws-button ws-button-primary ws-save-budget" id="budget-save" type="submit" form="budget-form" disabled>{{ t('budget_save') }} {{ icon('check', 'ws-icon') }}</button>
+        <p id="budget-status" class="ws-status" role="status" hidden></p>
+        <p class="ws-save-note">{{ t('budget_edit_later') }}</p>
+        <div class="ws-tip-card">
+          {{ icon('bulb', 'ws-icon') }}
+          <div><h3>{{ t('budget_tip_title') }}</h3><p>{{ t('budget_tip_body') }}</p></div>
+        </div>
+      </section>
+    </aside>
+  </div>
+
+  <dialog class="ws-dialog" id="category-dialog" aria-labelledby="category-dialog-title">
+    <form class="ws-dialog-form" id="category-form" novalidate>
+      <div class="ws-dialog-heading"><h2 class="ws-card-title" id="category-dialog-title">{{ t('budget_dialog_title') }}</h2><button class="ws-dialog-close" type="button" data-dialog-close aria-label="{{ t('budget_cancel') }}">{{ icon('close', 'ws-icon') }}</button></div>
+      <div class="ws-field"><label class="ws-field-label" for="category-name">{{ t('budget_category_name') }}</label><input id="category-name" name="category-name" type="text" maxlength="60" autocomplete="off" required></div>
+      <div class="ws-field"><label class="ws-field-label" for="category-group">{{ t('budget_category_group') }}</label><select id="category-group" name="category-group">{% for group in ('p0', 'p1', 'p2') %}<option value="{{ group }}">{{ group|upper }} — {{ group_labels[group] }}</option>{% endfor %}</select></div>
+      <div class="ws-field"><label class="ws-field-label" for="category-amount">{{ t('budget_category_amount') }}</label><div class="ws-money-field"><input id="category-amount" name="category-amount" type="text" inputmode="numeric" autocomplete="off" required><span class="ws-currency-suffix" aria-hidden="true">VND</span></div></div>
+      <p id="category-error" class="ws-error" role="alert" hidden></p>
+      <div class="ws-dialog-actions"><button class="ws-button ws-button-secondary" type="button" data-dialog-close>{{ t('budget_cancel') }}</button><button class="ws-button ws-button-primary" type="submit">{{ icon('plus', 'ws-icon') }} {{ t('budget_category_add') }}</button></div>
+    </form>
+  </dialog>
+{% endblock %}

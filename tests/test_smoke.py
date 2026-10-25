@@ -17,7 +17,7 @@ def test_database_health(client):
 
 
 def test_module_placeholders(client):
-    for path in ("/account", "/budget", "/expenses", "/dashboard", "/recommendations"):
+    for path in ("/account", "/expenses", "/dashboard", "/recommendations"):
         response = client.get(path)
         assert response.status_code == 200
         assert "placeholder" in response.get_data(as_text=True)
