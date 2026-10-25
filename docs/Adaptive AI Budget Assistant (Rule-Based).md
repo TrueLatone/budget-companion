@@ -7,7 +7,7 @@
 **Input:** `f18_f19_.csv`
 
 This document describes the algorithms, business rules, and initial database design for F18 and F19. The prototype analyzes expense data and produces review reports. It does not modify transactions, change confirmed budget plans, or automatically reallocate spending.
-
+**Prototype Status:** This is an initial demo version intended for testing and validation. Some features, algorithms, business rules, and database designs may change as development progresses. The remaining features will be implemented and documented in future updates.
 # I. Model and Algorithm
 
 ## 1. Feature Overview
