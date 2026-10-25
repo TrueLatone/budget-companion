@@ -47,7 +47,15 @@ Copy `.env.example` to `.env` (PowerShell: `Copy-Item .env.example .env`; Linux:
 
 For first boot, the example uses **local SQLite only**. To switch to the team's Supabase PostgreSQL, follow [Supabase setup](docs/supabase-setup.md). `.env` must never be committed.
 
-### 3. Run application
+### 3. Apply migrations and run application
+
+Before the first run (and after pulling schema changes), apply the database migrations:
+
+```bash
+flask --app app db upgrade
+```
+
+Then start the development server:
 
 ```bash
 flask --app app run --debug
@@ -55,23 +63,26 @@ flask --app app run --debug
 
 Visit `http://127.0.0.1:5000`.
 
+The example `.env` sets `FLASK_SECRET_KEY`; flash messages (success/error notifications) need it.
+Without a secret key, POST actions such as adding or checking in an expense fail.
+
 ### 4. Basic verification
 
 ```bash
 python -m pytest -q
 ```
 
-Available:
+Available routes:
+
 - `GET /` — landing page.
 - `GET /api/health` — application process health.
 - `GET /api/health/database` — database connectivity.
 - `/register`, `/login`, `/logout`, `/account` — basic session authentication.
 - `/budget-periods` — calendar-month setup and selection.
-- `/budget`, `/expenses`, `/dashboard`, `/recommendations` — nonfunctional placeholders.
+- `/expenses` — Expense Planning & Smart Check-in module (demo data, F07–F13; requires the migration above).
+- `/budget`, `/dashboard`, `/recommendations` — placeholders.
 
-**Not implemented:** budget plans and allocations, expenses, check-ins, alerts,
-dashboard statistics, AI recommendations, and recurring bills. Do not
-represent these as completed.
+**Not implemented:** budget plans and allocations, official Budget/M1 integration, alerts, dashboard statistics, AI recommendations, recurring bills, shared-living expenses, production authorization, and CSRF protection. Do not represent these as completed.
 
 ## Project documentation
 

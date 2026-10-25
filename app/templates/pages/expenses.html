@@ -1,0 +1,937 @@
+{% extends 'base.html' %}
+{% block title %}Expense Planning & Smart Check-in — Budget Companion{% endblock %}
+
+{% macro render_calendar(calendar, period, navigation, tag, month_title, weekday_labels) %}
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+  <h2 class="h5 mb-0">{{ month_title }}</h2>
+  <div class="btn-group btn-group-sm" role="group" aria-label="Chuyển tháng">
+    <a class="btn btn-outline-secondary" href="{{ url_for('expenses.index', view=('month' if period.view == 'month' else 'day'), date=navigation.prev_month.isoformat(), tag=tag) }}" aria-label="Tháng trước">‹</a>
+    <a class="btn btn-outline-secondary" href="{{ url_for('expenses.index', view=('month' if period.view == 'month' else 'day'), date=navigation.next_month.isoformat(), tag=tag) }}" aria-label="Tháng sau">›</a>
+  </div>
+</div>
+<div class="bc-calendar mb-2" role="grid" aria-label="Lịch tháng {{ period.anchor.month }} năm {{ period.anchor.year }}">
+  {% for label in weekday_labels %}
+  <div class="bc-calendar-weekday" role="columnheader">{{ label }}</div>
+  {% endfor %}
+  {% for week in calendar %}
+    {% for cell in week %}
+      {% if cell %}
+      <a class="bc-calendar-day {{ 'is-selected' if cell.day == period.anchor else '' }}"
+         href="{{ url_for('expenses.index', view='day', date=cell.day.isoformat(), tag=tag) }}"
+         aria-label="{{ cell.day|date_vn }}{% if cell.task_count %}, {{ cell.task_count }} task{% endif %}">
+        <span class="bc-day-number">{{ cell.day.day }}</span>
+        <span class="bc-day-dots" aria-hidden="true">
+          {% if cell.task_count %}<span class="bc-dot bc-dot-plan"></span>{% endif %}
+          {% if cell.unrecorded_count %}<span class="bc-dot bc-dot-overdue"></span>{% endif %}
+          {% if cell.pending_count %}<span class="bc-dot bc-dot-pending"></span>{% endif %}
+          {% if cell.confirmed_count %}<span class="bc-dot bc-dot-done"></span>{% endif %}
+        </span>
+      </a>
+      {% else %}
+      <div class="bc-calendar-day is-empty" aria-hidden="true"></div>
+      {% endif %}
+    {% endfor %}
+  {% endfor %}
+</div>
+<div class="d-flex flex-wrap gap-3 small text-secondary">
+  <span><span class="bc-dot bc-dot-plan me-1"></span>Có task</span>
+  <span><span class="bc-dot bc-dot-pending me-1"></span>Chờ xác nhận</span>
+  <span><span class="bc-dot bc-dot-overdue me-1"></span>Quá hạn</span>
+  <span><span class="bc-dot bc-dot-done me-1"></span>Đã xác nhận</span>
+</div>
+{% endmacro %}
+
+{% macro render_checkin_modal(entry, summary, period, tag) %}
+{% set task = entry.task %}
+{% set record = summary.planned_by_task.get(task.task_id) %}
+{% set default_action = 'no_expense' if task.task_status == 'NO_EXPENSE' else ('actual' if record else 'planned') %}
+<div class="modal fade" id="checkin{{ task.task_id }}" tabindex="-1" aria-labelledby="checkinLabel{{ task.task_id }}" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <form method="post" action="{{ url_for('expenses.checkin', task_id=task.task_id) }}" data-checkin-form>
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="modal-header">
+          <div>
+            <h2 class="modal-title h5" id="checkinLabel{{ task.task_id }}">Check-in task</h2>
+            <div class="small text-secondary">{{ task.plan_item.title if task.plan_item else '—' }} · {{ task.assigned_date|date_vn }}</div>
+          </div>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Đóng"></button>
+        </div>
+        <div class="modal-body">
+          <input type="hidden" name="view" value="{{ period.view }}">
+          <input type="hidden" name="date" value="{{ period.anchor.isoformat() }}">
+          <input type="hidden" name="tag" value="{{ tag }}">
+          <div class="alert alert-light border py-2 small mb-3">
+            Kế hoạch: <strong>{{ task.planned_amount|vnd }}</strong>
+            {% if task.payment_due_date %}<span class="ms-2">· Hạn thanh toán: <strong>{{ task.payment_due_date|date_vn }}</strong></span>{% endif %}
+          </div>
+
+          <div class="form-check border rounded-3 p-2 mb-2">
+            <input class="form-check-input" type="radio" name="action" id="planned-{{ task.task_id }}" value="planned" {% if default_action == 'planned' %}checked{% endif %}>
+            <label class="form-check-label" for="planned-{{ task.task_id }}">Theo kế hoạch ({{ task.planned_amount|vnd }})</label>
+          </div>
+          <div class="form-check border rounded-3 p-2 mb-2">
+            <input class="form-check-input" type="radio" name="action" id="actual-{{ task.task_id }}" value="actual" {% if default_action == 'actual' %}checked{% endif %}>
+            <label class="form-check-label" for="actual-{{ task.task_id }}">Nhập số tiền thực tế</label>
+            <div class="mt-2">
+              <label class="visually-hidden" for="amount-{{ task.task_id }}">Số tiền thực tế</label>
+              <input type="number" id="amount-{{ task.task_id }}" name="amount" class="form-control" min="1" step="1" placeholder="Số tiền thực tế (VND)" value="{{ record.amount if record else '' }}">
+            </div>
+          </div>
+          <div class="form-check border rounded-3 p-2 mb-3">
+            <input class="form-check-input" type="radio" name="action" id="no-expense-{{ task.task_id }}" value="no_expense" {% if default_action == 'no_expense' %}checked{% endif %}>
+            <label class="form-check-label" for="no-expense-{{ task.task_id }}">Không phát sinh</label>
+          </div>
+
+          <div class="row g-2">
+            <div class="col-12 col-sm-6">
+              <label for="expense-date-{{ task.task_id }}" class="form-label small">Ngày phát sinh</label>
+              <input type="date" id="expense-date-{{ task.task_id }}" name="expense_date" class="form-control form-control-sm" value="{{ (record.expense_date if record else task.assigned_date).isoformat() }}">
+            </div>
+            <div class="col-12 col-sm-6">
+              <label for="category-{{ task.task_id }}" class="form-label small">Danh mục</label>
+              <input type="text" id="category-{{ task.task_id }}" name="category" class="form-control form-control-sm" maxlength="80" placeholder="Tùy chọn" value="{{ record.category if record and record.category else '' }}">
+            </div>
+            <div class="col-12">
+              <label for="note-{{ task.task_id }}" class="form-label small">Ghi chú</label>
+              <input type="text" id="note-{{ task.task_id }}" name="note" class="form-control form-control-sm" placeholder="Tùy chọn" value="{{ record.note if record and record.note else '' }}">
+            </div>
+          </div>
+          {% if task.task_status == 'UNRECORDED' %}
+          <div class="small text-danger mt-2">Task đã quá hạn check-in. Hãy xác nhận “Không phát sinh” hoặc nhập số tiền thực tế.</div>
+          {% endif %}
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Hủy</button>
+          <button type="submit" class="btn btn-primary">Xác nhận check-in</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endmacro %}
+
+{% macro render_task_meta(entry) %}
+{% set task = entry.task %}
+<div class="d-flex flex-wrap gap-1 mb-1">
+  {% if entry.assigned_in_period %}<span class="badge text-bg-secondary">Phân bổ trong ngày</span>{% endif %}
+  {% if entry.due_in_period %}<span class="badge text-bg-primary">Đến hạn trong ngày</span>{% endif %}
+  {% if not entry.assigned_in_period %}<span class="badge text-bg-warning text-dark">Chỉ đến hạn, phân bổ {{ task.assigned_date|date_vn }}</span>{% endif %}
+</div>
+{% endmacro %}
+
+{% macro render_due_form(task, period, tag) %}
+<form method="post" action="{{ url_for('expenses.set_due_date', task_id=task.task_id) }}" class="d-flex align-items-center gap-1 bc-due-form">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <input type="hidden" name="view" value="{{ period.view }}">
+  <input type="hidden" name="date" value="{{ period.anchor.isoformat() }}">
+  <input type="hidden" name="tag" value="{{ tag }}">
+  <input type="date" name="payment_due_date" class="form-control form-control-sm" aria-label="Hạn thanh toán" value="{{ task.payment_due_date.isoformat() if task.payment_due_date else '' }}">
+  <button type="submit" class="btn btn-sm btn-outline-secondary text-nowrap flex-shrink-0">Lưu hạn</button>
+</form>
+{% endmacro %}
+
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-3">
+  <div>
+    <h1 class="h3 mb-1">Expense Planning &amp; Smart Check-in</h1>
+    <p class="text-secondary mb-0">Lập kế hoạch chi tiêu, check-in theo ngày và xem nghĩa vụ theo tháng/năm.</p>
+  </div>
+  <span class="badge text-bg-warning align-self-center">DỮ LIỆU DEMO/TẠM THỜI</span>
+</div>
+
+<section class="card border-0 shadow-sm mb-3">
+  <div class="card-body">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
+      <div class="d-none d-lg-block">
+        <ul class="nav nav-tabs bc-mode-tabs" role="tablist" aria-label="Chế độ xem">
+          {% for key, label in [('day', 'Ngày'), ('month', 'Tháng'), ('year', 'Năm')] %}
+          <li class="nav-item" role="presentation">
+            <a class="nav-link {{ 'active' if period.view == key else '' }}"
+               href="{{ url_for('expenses.index', view=key, date=period.anchor.isoformat(), tag=tag) }}"
+               {% if period.view == key %}aria-current="page"{% endif %}>{{ label }}</a>
+          </li>
+          {% endfor %}
+        </ul>
+      </div>
+
+      <div class="d-lg-none w-100">
+        <form method="get" action="{{ url_for('expenses.index') }}" class="d-flex align-items-end gap-2">
+          <input type="hidden" name="date" value="{{ period.anchor.isoformat() }}">
+          <input type="hidden" name="tag" value="{{ tag }}">
+          <div class="flex-grow-1">
+            <label for="mobile-view" class="form-label small mb-1">Chế độ xem</label>
+            <select id="mobile-view" name="view" class="form-select" onchange="this.form.submit()">
+              {% for key, label in [('day', 'Ngày'), ('month', 'Tháng'), ('year', 'Năm')] %}
+              <option value="{{ key }}" {% if period.view == key %}selected{% endif %}>{{ label }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <button type="submit" class="btn btn-outline-secondary">Xem</button>
+        </form>
+      </div>
+
+      <div class="d-flex flex-wrap align-items-center gap-2 ms-lg-auto">
+        <div class="btn-group btn-group-sm" role="group" aria-label="Chuyển kỳ">
+          <a class="btn btn-outline-secondary" href="{{ url_for('expenses.index', view=period.view, date=navigation.prev.isoformat(), tag=tag) }}" aria-label="Kỳ trước">‹</a>
+          <a class="btn btn-outline-secondary" href="{{ url_for('expenses.index', view=period.view, date=navigation.next.isoformat(), tag=tag) }}" aria-label="Kỳ sau">›</a>
+        </div>
+        <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('expenses.index', view=period.view, date=today.isoformat(), tag=tag) }}">Hôm nay</a>
+        <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('expenses.history', start=period.start.isoformat(), end=period.end.isoformat()) }}">Lịch sử</a>
+      </div>
+    </div>
+
+    <div class="d-flex flex-wrap align-items-baseline gap-2 mt-3">
+      {% if period.view == 'year' %}
+      <strong class="h5 mb-0">{{ period.label }}</strong>
+      {% else %}
+      <span class="badge text-bg-dark">{{ mode_label }}</span>
+      <strong class="h5 mb-0">{{ period.label }}</strong>
+      {% endif %}
+      {% if tag %}<span class="badge text-bg-info">Lọc lịch: {{ tag_label }}</span>{% endif %}
+      <span class="small text-secondary">Task theo ngày phân bổ; giao dịch theo ngày phát sinh; task chỉ đến hạn không cộng vào tổng phân bổ.</span>
+      {% if period.view == 'day' %}
+      <a class="small" href="{{ url_for('expenses.index', view='month', date=period.anchor.isoformat(), tag=tag) }}">← Xem tháng</a>
+      {% elif period.view == 'month' %}
+      <a class="small" href="{{ url_for('expenses.index', view='year', date=period.anchor.isoformat(), tag=tag) }}">← Xem năm</a>
+      {% endif %}
+    </div>
+
+    {% if period.view == 'day' %}
+    <div class="small text-secondary mt-2">{{ selected_day_label }}</div>
+    {% endif %}
+
+    <div class="d-flex flex-wrap align-items-end gap-2 mt-3 pt-3 border-top">
+      <form method="get" action="{{ url_for('expenses.index') }}" class="d-flex flex-wrap align-items-end gap-2">
+        <input type="hidden" name="view" value="{{ period.view }}">
+        <input type="hidden" name="tag" value="{{ tag }}">
+        {% if period.view == 'day' %}
+        <div>
+          <label for="jump-day" class="form-label small mb-1">Chọn ngày</label>
+          <input type="date" id="jump-day" name="date" class="form-control form-control-sm" value="{{ period.anchor.isoformat() }}">
+        </div>
+        {% elif period.view == 'month' %}
+        <input type="hidden" name="date" value="{{ period.anchor.isoformat() }}">
+        <div>
+          <label for="jump-month" class="form-label small mb-1">Chọn tháng/năm</label>
+          <input type="month" id="jump-month" name="month" class="form-control form-control-sm" value="{{ period.anchor.strftime('%Y-%m') }}">
+        </div>
+        {% else %}
+        <input type="hidden" name="date" value="{{ period.anchor.isoformat() }}">
+        <div>
+          <label for="jump-year" class="form-label small mb-1">Chọn năm</label>
+          <input type="number" id="jump-year" name="year" class="form-control form-control-sm" min="2000" max="2100" step="1" value="{{ period.anchor.year }}">
+        </div>
+        {% endif %}
+        <button type="submit" class="btn btn-sm btn-outline-secondary">Đi</button>
+      </form>
+      <span class="small text-secondary pb-1">Chọn trực tiếp kỳ đang xem; ngày/tháng/năm được giữ khi đổi chế độ.</span>
+    </div>
+  </div>
+</section>
+
+<div class="row g-3 mb-4">
+  <div class="col-6 col-lg-3">
+    <div class="card h-100 border-0 shadow-sm"><div class="card-body">
+      <div class="text-secondary small">Tổng kế hoạch được phân bổ</div>
+      <div class="h4 mb-0">{{ summary.plan_total|vnd }}</div>
+      <div class="small text-secondary">Chỉ cộng task có ngày phân bổ trong kỳ; task chỉ đến hạn không cộng vào đây.</div>
+    </div></div>
+  </div>
+  <div class="col-6 col-lg-3">
+    <div class="card h-100 border-0 shadow-sm"><div class="card-body">
+      <div class="text-secondary small">Tổng thực tế đã ghi nhận</div>
+      <div class="h4 mb-0">{{ summary.actual_total|vnd }}</div>
+    </div></div>
+  </div>
+  <div class="col-6 col-lg-3">
+    <div class="card h-100 border-0 shadow-sm"><div class="card-body">
+      <div class="text-secondary small">Chênh lệch (kế hoạch − thực tế)</div>
+      <div class="h4 mb-0 {{ 'text-success' if summary.difference >= 0 else 'text-danger' }}">{{ summary.difference|vnd }}</div>
+      <div class="small text-secondary">{{ 'Còn dư so với kế hoạch' if summary.difference >= 0 else 'Đã chi vượt kế hoạch' }}</div>
+    </div></div>
+  </div>
+  <div class="col-6 col-lg-3">
+    <div class="card h-100 border-0 shadow-sm"><div class="card-body">
+      <div class="text-secondary small">Task chưa xác nhận (phân bổ)</div>
+      <div class="h4 mb-0">{{ summary.unconfirmed }}</div>
+      <div class="small text-secondary">{{ summary.counts.pending }} đang chờ · {{ summary.counts.unrecorded }} quá hạn</div>
+    </div></div>
+  </div>
+</div>
+
+<div class="d-flex flex-wrap gap-2 mb-4">
+  <span class="badge text-bg-primary">Đã xác nhận: {{ summary.confirmed }}</span>
+  <span class="badge text-bg-success">Trong kế hoạch: {{ summary.counts.within }}</span>
+  <span class="badge text-bg-danger">Vượt kế hoạch: {{ summary.counts.over }}</span>
+  <span class="badge text-bg-secondary">Không phát sinh: {{ summary.counts.no_expense }}</span>
+  <span class="badge text-bg-light border">Chưa xác nhận: {{ summary.unconfirmed }} ({{ summary.counts.pending }} đang chờ, {{ summary.counts.unrecorded }} quá hạn)</span>
+</div>
+
+{% if summary.unconfirmed %}
+<div class="alert alert-warning" role="alert">
+  Còn {{ summary.unconfirmed }} task chưa xác nhận trong phạm vi phân bổ. Task chưa xác nhận <strong>không</strong> được tính là đã chi 0 đồng; hãy check-in hoặc chọn “Không phát sinh”.
+</div>
+{% endif %}
+
+{% if period.view == 'day' or period.view == 'month' %}
+<div class="row g-4 mb-4">
+  <div class="col-12 col-lg-5">
+    <section class="card border-0 shadow-sm h-100">
+      <div class="card-body">
+        {{ render_calendar(calendar, period, navigation, tag, month_title, weekday_labels) }}
+      </div>
+    </section>
+  </div>
+
+  <div class="col-12 col-lg-7">
+    {% if period.view == 'day' %}
+    <section class="card border-0 shadow-sm h-100">
+      <div class="card-header bg-white d-flex flex-wrap justify-content-between align-items-center gap-2">
+        <div>
+          <h2 class="h5 mb-0">{{ selected_day_label }}</h2>
+          <span class="small text-secondary">{{ day_totals.assigned_count }} task phân bổ trong ngày · {{ day_totals.due_only_count }} task chỉ đến hạn</span>
+        </div>
+        <div class="d-flex flex-wrap gap-1">
+          <span class="badge text-bg-light border">{{ day_totals.assigned_plan_total|vnd }} kế hoạch phân bổ</span>
+          {% if day_totals.due_only_count %}
+          <span class="badge text-bg-warning text-dark">Ngoài tổng: {{ day_totals.due_only_plan_total|vnd }} task chỉ đến hạn</span>
+          {% endif %}
+        </div>
+      </div>
+      <div class="card-body">
+        {% if day_items %}
+        <div class="d-none d-lg-block">
+          <table class="table align-middle mb-0 bc-day-table">
+            <thead>
+              <tr>
+                <th scope="col">Khoản chi &amp; hạn thanh toán</th>
+                <th scope="col">Kế hoạch / thực tế</th>
+                <th scope="col" class="text-end">Thao tác</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for entry in day_items %}
+              {% set task = entry.task %}
+              {% set record = summary.planned_by_task.get(task.task_id) %}
+              <tr class="{{ 'table-warning' if task.task_status == 'UNRECORDED' else '' }}">
+                <td>
+                  <div class="d-flex flex-wrap align-items-center gap-1">
+                    <span class="fw-semibold">{{ task.plan_item.title if task.plan_item else '—' }}</span>
+                    <span class="badge text-bg-{{ task.task_status|status_class }}">{{ task.task_status|status_label }}</span>
+                  </div>
+                  <div class="small text-secondary">
+                    {{ task.plan_item.schedule_tag|schedule_label if task.plan_item else '—' }}
+                    · {{ priority_labels.get(task.priority, task.priority) }}
+                    {% if task.payment_due_date %}· Hạn {{ task.payment_due_date|date_vn }}{% endif %}
+                  </div>
+                  {{ render_task_meta(entry) }}
+                  <div class="small text-secondary mb-1">Hạn check-in {{ task.checkin_deadline_at|datetime_vn }}</div>
+                  {{ render_due_form(task, period, tag) }}
+                </td>
+                <td class="text-nowrap">
+                  <div>KH: <strong>{{ task.planned_amount|vnd }}</strong></div>
+                  {% if record %}
+                    <div>TT: <strong>{{ record.amount|vnd }}</strong></div>
+                    {% set task_diff = task.planned_amount|difference(record.amount) %}
+                    <div class="small {{ 'text-success' if task_diff >= 0 else 'text-danger' }}">KH−TT: {{ task_diff|vnd }}</div>
+                    <div class="small text-secondary">{{ record.expense_date|date_vn }} · {{ 'Theo kế hoạch' if record.actual_amount_source == 'PLANNED' else 'Người dùng nhập' }}</div>
+                  {% else %}
+                    <div class="small text-secondary">Chưa có giao dịch</div>
+                  {% endif %}
+                </td>
+                <td class="text-end">
+                  <div class="d-flex flex-column flex-xl-row justify-content-end gap-1">
+                    <button type="button" class="btn btn-sm btn-primary text-nowrap" data-bs-toggle="modal" data-bs-target="#checkin{{ task.task_id }}">Check-in</button>
+                    {% if record %}
+                    <button type="button" class="btn btn-sm btn-outline-primary text-nowrap" data-bs-toggle="modal" data-bs-target="#editRecord{{ record.record_id }}">Sửa GD</button>
+                    {% endif %}
+                  </div>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+
+        <div class="d-lg-none vstack gap-2">
+          {% for entry in day_items %}
+          {% set task = entry.task %}
+          {% set record = summary.planned_by_task.get(task.task_id) %}
+          <article class="card bc-task-card border {{ 'border-warning' if task.task_status == 'UNRECORDED' else '' }}">
+            <div class="card-body py-3">
+              <div class="d-flex justify-content-between align-items-start gap-2">
+                <div>
+                  <div class="fw-semibold">{{ task.plan_item.title if task.plan_item else '—' }}</div>
+                  <div class="small text-secondary">{{ task.plan_item.schedule_tag|schedule_label if task.plan_item else '—' }} · {{ priority_labels.get(task.priority, task.priority) }}</div>
+                </div>
+                <span class="badge text-bg-{{ task.task_status|status_class }}">{{ task.task_status|status_label }}</span>
+              </div>
+              {{ render_task_meta(entry) }}
+              <div class="row g-2 small mt-1">
+                <div class="col-6"><span class="text-secondary">Kế hoạch</span><div class="fw-semibold">{{ task.planned_amount|vnd }}</div></div>
+                <div class="col-6"><span class="text-secondary">Thực tế</span><div class="fw-semibold">{{ record.amount|vnd if record else '—' }}</div></div>
+                <div class="col-12"><span class="text-secondary">Hạn thanh toán</span><div>{{ task.payment_due_date|date_vn if task.payment_due_date else 'Chưa thiết lập' }}</div></div>
+              </div>
+              {{ render_due_form(task, period, tag) }}
+              <div class="d-flex flex-wrap gap-1 mt-2">
+                <button type="button" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#checkin{{ task.task_id }}">Check-in</button>
+                {% if record %}
+                <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#editRecord{{ record.record_id }}">Sửa giao dịch</button>
+                {% endif %}
+              </div>
+            </div>
+          </article>
+          {% endfor %}
+        </div>
+        {% else %}
+        <p class="text-secondary mb-0">Ngày này chưa có task. Hãy chọn ngày khác trên lịch hoặc tạo lịch task trong phần dữ liệu demo bên dưới.</p>
+        {% endif %}
+      </div>
+    </section>
+
+    {% else %}
+    <section class="card border-0 shadow-sm h-100">
+      <div class="card-header bg-white d-flex flex-wrap justify-content-between align-items-center gap-2">
+        <div>
+          <h2 class="h5 mb-0">Nghĩa vụ trong tháng</h2>
+          <span class="small text-secondary">Không đổ toàn bộ task hằng ngày; task chỉ đến hạn từ kỳ khác không cộng vào tổng phân bổ tháng.</span>
+        </div>
+        <span class="badge text-bg-light border">{{ month_items|length }} khoản cần chú ý</span>
+      </div>
+      <div class="card-body">
+        {% if month_items %}
+        <div class="list-group list-group-flush">
+          {% for entry in month_items %}
+          {% set task = entry.task %}
+          {% set record = summary.planned_by_task.get(task.task_id) %}
+          <div class="list-group-item px-0 py-3">
+            <div class="d-flex justify-content-between align-items-start gap-3">
+              <div>
+                <a class="fw-semibold text-decoration-none" href="{{ url_for('expenses.index', view='day', date=(task.payment_due_date if not entry.assigned_in_period and task.payment_due_date else task.assigned_date).isoformat(), tag=tag) }}">{{ task.plan_item.title if task.plan_item else '—' }}</a>
+                <div class="small text-secondary">
+                  {{ task.plan_item.schedule_tag|schedule_label if task.plan_item else '—' }}
+                  · Phân bổ {{ task.assigned_date|date_vn }}
+                  {% if task.payment_due_date %}· Hạn {{ task.payment_due_date|date_vn }}{% endif %}
+                </div>
+                <div class="d-flex flex-wrap gap-1 mt-1">
+                  {% if entry.due_in_period %}<span class="badge text-bg-primary">Đến hạn trong tháng</span>{% endif %}
+                  {% if not entry.assigned_in_period %}<span class="badge text-bg-warning text-dark">Chỉ đến hạn</span>{% endif %}
+                </div>
+              </div>
+              <div class="text-end">
+                <span class="badge text-bg-{{ task.task_status|status_class }}">{{ task.task_status|status_label }}</span>
+                <div class="small mt-1">KH: <strong>{{ task.planned_amount|vnd }}</strong></div>
+                <div class="small">TT: {{ record.amount|vnd if record else '—' }}</div>
+              </div>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+        {% else %}
+        <p class="text-secondary mb-0">Tháng này chưa có nghĩa vụ định kỳ hoặc khoản đến hạn. Các task hằng ngày (nếu có) được xem khi chọn từng ngày trên lịch.</p>
+        {% endif %}
+      </div>
+    </section>
+    {% endif %}
+  </div>
+</div>
+
+{% else %}
+<section class="card border-0 shadow-sm mb-4">
+  <div class="card-header bg-white d-flex flex-wrap justify-content-between align-items-center gap-2">
+    <div>
+      <h2 class="h5 mb-0">Các tháng trong năm {{ period.anchor.year }}</h2>
+      <span class="small text-secondary">Mở một tháng để xem lịch và nghĩa vụ chi tiết.</span>
+    </div>
+    <form method="get" action="{{ url_for('expenses.index') }}" class="d-flex align-items-end gap-2">
+      <input type="hidden" name="view" value="year">
+      <input type="hidden" name="date" value="{{ period.anchor.isoformat() }}">
+      <div>
+        <label for="year-tag" class="form-label small mb-1">Lọc theo kiểu lịch</label>
+        <select id="year-tag" name="tag" class="form-select form-select-sm">
+          <option value="" {% if not tag %}selected{% endif %}>Tất cả</option>
+          {% for value, label in schedule_labels.items() %}
+          <option value="{{ value }}" {% if tag == value %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <button type="submit" class="btn btn-sm btn-primary">Lọc</button>
+    </form>
+  </div>
+  <div class="card-body">
+    {% if tag %}
+    <div class="alert alert-info py-2 small">Đang lọc <strong>{{ tag_label }}</strong>. Các tháng không có task phù hợp vẫn được hiển thị để bạn chuyển kỳ; số liệu tổng hợp cũng theo bộ lọc.</div>
+    {% endif %}
+    <div class="row row-cols-1 row-cols-md-2 row-cols-xl-3 g-3">
+      {% for card in month_cards %}
+      <div class="col">
+        <article class="card h-100 border-0 shadow-sm {{ 'bc-month-muted' if not card.task_count and not card.actual_total else '' }}">
+          <div class="card-body">
+            <div class="d-flex justify-content-between align-items-start gap-2 mb-2">
+              <div>
+                <a class="h6 text-decoration-none" href="{{ url_for('expenses.index', view='month', date=card.start.isoformat(), tag=tag) }}">{{ card.label }}</a>
+                <div class="small text-secondary">{{ card.task_count }} task{% if card.daily_count %} · {{ card.daily_count }} hằng ngày{% endif %}</div>
+              </div>
+              <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('expenses.index', view='month', date=card.start.isoformat(), tag=tag) }}">Mở tháng</a>
+            </div>
+
+            <div class="row g-2 small mb-2">
+              <div class="col-6"><span class="text-secondary">Kế hoạch</span><div class="fw-semibold">{{ card.plan_total|vnd }}</div></div>
+              <div class="col-6"><span class="text-secondary">Thực tế</span><div class="fw-semibold">{{ card.actual_total|vnd }}</div></div>
+              <div class="col-6"><span class="text-secondary">Chênh lệch</span><div class="{{ 'text-success' if card.difference >= 0 else 'text-danger' }}">{{ card.difference|vnd }}</div></div>
+              <div class="col-6"><span class="text-secondary">Chưa xác nhận</span><div>{{ card.unconfirmed }}</div></div>
+            </div>
+
+            {% if card.daily_count and tag == 'DAILY' %}
+            <div class="small text-secondary">Có {{ card.daily_count }} task hằng ngày. Mở tháng để xem theo từng ngày, tránh danh sách quá dài.</div>
+            {% endif %}
+            {% if card.highlights %}
+            <ul class="list-unstyled small mb-0">
+              {% for task in (card.highlights if tag else card.highlights[:4]) %}
+              <li class="d-flex justify-content-between gap-2 py-1 border-top">
+                <a class="text-decoration-none" href="{{ url_for('expenses.index', view='day', date=task.assigned_date.isoformat(), tag=tag) }}">{{ task.plan_item.title if task.plan_item else '—' }}</a>
+                <span class="text-secondary text-nowrap">{{ task.assigned_date|date_vn }}</span>
+              </li>
+              {% endfor %}
+              {% if not tag and card.highlights|length > 4 %}
+              <li class="small text-secondary pt-1">… và {{ card.highlights|length - 4 }} khoản khác; mở tháng để xem đủ.</li>
+              {% endif %}
+            </ul>
+            {% elif not card.task_count %}
+            <p class="small text-secondary mb-0">Chưa có task trong tháng này.</p>
+            {% endif %}
+          </div>
+        </article>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+{% endif %}
+
+<details class="card border-0 shadow-sm mb-4" id="demo-data">
+  <summary class="card-header bg-white d-flex flex-wrap justify-content-between align-items-center gap-2">
+    <div>
+      <h2 class="h5 mb-0 d-inline">Dữ liệu đầu vào — DEMO/TẠM THỜI</h2>
+      <span class="small text-secondary ms-2">Mở để thêm khoản chi và tạo lịch task. Không phải chức năng Budget chính thức.</span>
+    </div>
+    <span class="badge text-bg-light border">{{ plan_items|length }} khoản chi demo</span>
+  </summary>
+  <div class="card-body">
+    <div class="d-flex justify-content-end mb-2">
+      <form method="post" action="{{ url_for('expenses.clear_demo') }}" onsubmit="return confirm('Xóa toàn bộ dữ liệu demo của module? Dữ liệu chính thức không bị ảnh hưởng.');">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="view" value="{{ period.view }}">
+        <input type="hidden" name="date" value="{{ period.anchor.isoformat() }}">
+        <input type="hidden" name="tag" value="{{ tag }}">
+        <button type="submit" class="btn btn-sm btn-outline-danger">Xóa dữ liệu demo</button>
+      </form>
+    </div>
+
+    <form method="post" action="{{ url_for('expenses.create_source') }}" class="row g-2 align-items-end schedule-form mb-4">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="view" value="{{ period.view }}">
+      <input type="hidden" name="date" value="{{ period.anchor.isoformat() }}">
+      <input type="hidden" name="tag" value="{{ tag }}">
+      <div class="col-12 col-lg-3">
+        <label for="title" class="form-label">Tên khoản chi</label>
+        <input type="text" id="title" name="title" class="form-control" maxlength="200" required placeholder="Tiền nhà, tiền điện...">
+      </div>
+      <div class="col-6 col-lg-2">
+        <label for="planned_amount" class="form-label">Số tiền (VND)</label>
+        <input type="number" id="planned_amount" name="planned_amount" class="form-control" min="1" step="1" required>
+      </div>
+      <div class="col-6 col-lg-2">
+        <label for="priority" class="form-label">Ưu tiên</label>
+        <select id="priority" name="priority" class="form-select">
+          <option value="P0">P0 — bắt buộc</option>
+          <option value="P1" selected>P1 — thiết yếu</option>
+          <option value="P2">P2 — linh hoạt</option>
+        </select>
+      </div>
+      <div class="col-6 col-lg-2">
+        <label for="schedule_tag" class="form-label">Kiểu lịch</label>
+        <select id="schedule_tag" name="schedule_tag" class="form-select">
+          <option value="DAILY">Hằng ngày</option>
+          <option value="WEEKLY">Hằng tuần</option>
+          <option value="MONTHLY" selected>Cuối mỗi tháng</option>
+          <option value="DAY_OF_MONTH">Ngày cố định trong tháng</option>
+          <option value="DATE">Một ngày cụ thể</option>
+        </select>
+      </div>
+      <div class="col-6 col-lg-1" data-schedule="WEEKLY">
+        <label for="day_of_week" class="form-label">Thứ</label>
+        <select id="day_of_week" name="day_of_week" class="form-select">
+          <option value="1">T2</option><option value="2">T3</option><option value="3">T4</option>
+          <option value="4">T5</option><option value="5">T6</option><option value="6">T7</option>
+          <option value="7">CN</option>
+        </select>
+      </div>
+      <div class="col-6 col-lg-1" data-schedule="DAY_OF_MONTH">
+        <label for="day_of_month" class="form-label">Ngày</label>
+        <input type="number" id="day_of_month" name="day_of_month" class="form-control" min="1" max="31" step="1">
+      </div>
+      <div class="col-6 col-lg-2" data-schedule="DATE">
+        <label for="specific_date" class="form-label">Ngày cụ thể</label>
+        <input type="date" id="specific_date" name="specific_date" class="form-control">
+      </div>
+      <div class="col-6 col-lg-2">
+        <label for="amount_source" class="form-label">Nguồn số tiền</label>
+        <select id="amount_source" name="amount_source" class="form-select">
+          <option value="USER_ENTERED" selected>Người dùng nhập</option>
+          <option value="BUDGET_DEFAULT">Mặc định ngân sách</option>
+        </select>
+      </div>
+      <div class="col-6 col-lg-2">
+        <label for="is_active" class="form-label">Trạng thái</label>
+        <select id="is_active" name="is_active" class="form-select">
+          <option value="1" selected>Đang dùng</option>
+          <option value="0">Ngừng dùng</option>
+        </select>
+      </div>
+      <div class="col-12 col-lg-2 d-grid">
+        <button type="submit" class="btn btn-success">Thêm khoản chi demo</button>
+      </div>
+    </form>
+
+    {% if plan_items %}
+    <div class="table-responsive">
+      <table class="table table-sm align-middle">
+        <thead>
+          <tr>
+            <th>Tên khoản chi</th><th>Số tiền</th><th>Ưu tiên</th><th>Lịch</th><th>Trạng thái</th><th class="text-end">Thao tác</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for item in plan_items %}
+          <tr>
+            <td>
+              {{ item.title }}
+              {% if item.source_expense_id %}<div class="small text-secondary">Nguồn: {{ item.source_expense_id }}</div>{% endif %}
+            </td>
+            <td>{{ item.planned_amount|vnd }}</td>
+            <td><span class="badge text-bg-light border">{{ priority_labels.get(item.priority, item.priority) }}</span></td>
+            <td>
+              {{ item.schedule_tag|schedule_label }}
+              {% if item.schedule_tag == 'WEEKLY' %} — thứ {{ item.day_of_week }}{% endif %}
+              {% if item.schedule_tag == 'DAY_OF_MONTH' %} — ngày {{ item.day_of_month }}{% endif %}
+              {% if item.schedule_tag == 'DATE' %} — {{ item.specific_date|date_vn }}{% endif %}
+            </td>
+            <td>
+              {% if item.is_active %}<span class="badge text-bg-success">Đang dùng</span>{% else %}<span class="badge text-bg-secondary">Ngừng dùng</span>{% endif %}
+              <span class="badge text-bg-warning">DEMO</span>
+            </td>
+            <td class="text-end text-nowrap">
+              <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#editItem{{ item.plan_item_id }}">Sửa</button>
+              <form method="post" action="{{ url_for('expenses.set_source_active', item_id=item.plan_item_id) }}" class="d-inline">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="view" value="{{ period.view }}">
+                <input type="hidden" name="date" value="{{ period.anchor.isoformat() }}">
+                <input type="hidden" name="tag" value="{{ tag }}">
+                <input type="hidden" name="active" value="{{ '0' if item.is_active else '1' }}">
+                <button type="submit" class="btn btn-sm btn-outline-secondary">{{ 'Ngừng' if item.is_active else 'Bật lại' }}</button>
+              </form>
+              <form method="post" action="{{ url_for('expenses.delete_source', item_id=item.plan_item_id) }}" class="d-inline" onsubmit="return confirm('Xóa khoản chi demo này?');">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="view" value="{{ period.view }}">
+                <input type="hidden" name="date" value="{{ period.anchor.isoformat() }}">
+                <input type="hidden" name="tag" value="{{ tag }}">
+                <button type="submit" class="btn btn-sm btn-outline-danger">Xóa</button>
+              </form>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p class="text-secondary mb-0">Chưa có khoản chi demo. Hãy thêm khoản chi đầu tiên ở biểu mẫu phía trên.</p>
+    {% endif %}
+
+    <hr>
+    <form method="post" action="{{ url_for('expenses.generate_plan') }}" class="row g-2 align-items-end">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="view" value="{{ period.view }}">
+      <input type="hidden" name="date" value="{{ period.anchor.isoformat() }}">
+      <input type="hidden" name="tag" value="{{ tag }}">
+      <div class="col-12 col-lg-4">
+        <label for="period_start" class="form-label">Tạo lịch từ ngày</label>
+        <input type="date" id="period_start" name="period_start" class="form-control" value="{{ period.start.isoformat() }}" required>
+      </div>
+      <div class="col-12 col-lg-4">
+        <label for="period_end" class="form-label">Đến ngày</label>
+        <input type="date" id="period_end" name="period_end" class="form-control" value="{{ period.end.isoformat() }}" required>
+      </div>
+      <div class="col-12 col-lg-4 d-grid">
+        <button type="submit" class="btn btn-primary">Tạo / cập nhật lịch task</button>
+      </div>
+    </form>
+    <p class="small text-secondary mt-2 mb-0">Chạy lại thao tác này không tạo task trùng. Task đã check-in và giao dịch cũ không bị xóa.</p>
+  </div>
+</details>
+
+<details class="card border-0 shadow-sm mb-4">
+  <summary class="card-header bg-white d-flex flex-wrap justify-content-between align-items-center gap-2">
+    <div>
+      <h2 class="h5 mb-0 d-inline">Giao dịch &amp; khoản chi bất ngờ</h2>
+      <span class="small text-secondary ms-2">Mở để thêm khoản chi ngoài kế hoạch và sửa giao dịch.</span>
+    </div>
+    <span class="badge text-bg-light border">{{ summary.records|length }} giao dịch · {{ summary.actual_total|vnd }}</span>
+  </summary>
+  <div class="card-body">
+    <div class="row g-4">
+      <div class="col-12 col-lg-4">
+        <h3 class="h6">Thêm khoản chi bất ngờ</h3>
+        <form method="post" action="{{ url_for('expenses.create_record') }}" class="vstack gap-2">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="hidden" name="view" value="{{ period.view }}">
+          <input type="hidden" name="date" value="{{ period.anchor.isoformat() }}">
+          <input type="hidden" name="tag" value="{{ tag }}">
+          <input type="hidden" name="idempotency_key" value="{{ unexpected_token }}">
+          <div>
+            <label for="unexpected-title" class="form-label">Tên khoản chi</label>
+            <input type="text" id="unexpected-title" name="title" class="form-control" maxlength="200" required>
+          </div>
+          <div class="row g-2">
+            <div class="col-6">
+              <label for="unexpected-amount" class="form-label">Số tiền (VND)</label>
+              <input type="number" id="unexpected-amount" name="amount" class="form-control" min="1" step="1" required>
+            </div>
+            <div class="col-6">
+              <label for="unexpected-date" class="form-label">Ngày phát sinh</label>
+              <input type="date" id="unexpected-date" name="expense_date" class="form-control" value="{{ today.isoformat() }}" required>
+            </div>
+          </div>
+          <div>
+            <label for="unexpected-category" class="form-label">Danh mục (tùy chọn)</label>
+            <input type="text" id="unexpected-category" name="category" class="form-control" maxlength="80">
+          </div>
+          <div>
+            <label for="unexpected-note" class="form-label">Ghi chú (tùy chọn)</label>
+            <input type="text" id="unexpected-note" name="note" class="form-control">
+          </div>
+          <button type="submit" class="btn btn-warning">Thêm khoản chi bất ngờ</button>
+        </form>
+      </div>
+      <div class="col-12 col-lg-8">
+        <div class="d-flex justify-content-between align-items-center gap-2 mb-2">
+          <h3 class="h6 mb-0">{{ 'Lịch sử giao dịch trong năm' if period.view == 'year' else 'Lịch sử giao dịch trong kỳ' }}</h3>
+          <a class="small" href="{{ url_for('expenses.history', start=period.start.isoformat(), end=period.end.isoformat()) }}">Mở trang lịch sử</a>
+        </div>
+        {% if period.view == 'year' %}
+        <p class="text-secondary mb-0">
+          {% if summary.records %}
+          Năm {{ period.anchor.year }} có <strong>{{ summary.records|length }}</strong> giao dịch với tổng thực tế
+          <strong>{{ summary.actual_total|vnd }}</strong>. Để sửa hoặc xóa từng giao dịch, mở tháng/ngày tương ứng;
+          danh sách đầy đủ có ở trang lịch sử.
+          {% else %}
+          Chưa có giao dịch thực tế trong năm. Các khoản chi đã lên kế hoạch nhưng chưa check-in sẽ không được tính là 0 đồng.
+          {% endif %}
+        </p>
+        {% elif summary.records %}
+        <div class="table-responsive">
+          <table class="table table-sm align-middle mb-0">
+            <thead><tr><th>Ngày</th><th>Khoản chi</th><th>Loại</th><th>Số tiền</th><th>Danh mục</th><th>Ghi chú</th><th class="text-end">Thao tác</th></tr></thead>
+            <tbody>
+              {% for record in summary.records %}
+              <tr>
+                <td class="text-nowrap">{{ record.expense_date|date_vn }}</td>
+                <td>{{ record.title or (record.task.plan_item.title if record.task and record.task.plan_item else '—') }}</td>
+                <td>
+                  {% if record.record_type == 'UNEXPECTED' %}<span class="badge text-bg-warning">Bất ngờ</span>
+                  {% else %}<span class="badge text-bg-info">Theo kế hoạch</span>{% endif %}
+                </td>
+                <td>{{ record.amount|vnd }}</td>
+                <td>{{ record.category or '—' }}</td>
+                <td>{{ record.note or '—' }}</td>
+                <td class="text-end text-nowrap">
+                  <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#editRecord{{ record.record_id }}">Sửa</button>
+                  <form method="post" action="{{ url_for('expenses.delete_record', record_id=record.record_id) }}" class="d-inline" onsubmit="return confirm('Xóa giao dịch này?');">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <input type="hidden" name="view" value="{{ period.view }}">
+                    <input type="hidden" name="date" value="{{ period.anchor.isoformat() }}">
+                    <input type="hidden" name="tag" value="{{ tag }}">
+                    <button type="submit" class="btn btn-sm btn-outline-danger">Xóa</button>
+                  </form>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+        <p class="text-secondary mb-0">Chưa có giao dịch thực tế trong kỳ. Các khoản chi đã lên kế hoạch nhưng chưa check-in sẽ không được tính là 0 đồng.</p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</details>
+
+{# ---------------- Modals ---------------- #}
+{% for entry in day_items %}
+{{ render_checkin_modal(entry, summary, period, tag) }}
+{% endfor %}
+
+{% for item in plan_items %}
+<div class="modal fade" id="editItem{{ item.plan_item_id }}" tabindex="-1" aria-labelledby="editItemLabel{{ item.plan_item_id }}" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <form method="post" action="{{ url_for('expenses.edit_source', item_id=item.plan_item_id) }}" class="schedule-form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="modal-header">
+          <h2 class="modal-title h5" id="editItemLabel{{ item.plan_item_id }}">Sửa khoản chi demo</h2>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Đóng"></button>
+        </div>
+        <div class="modal-body">
+          <input type="hidden" name="view" value="{{ period.view }}">
+          <input type="hidden" name="date" value="{{ period.anchor.isoformat() }}">
+          <input type="hidden" name="tag" value="{{ tag }}">
+          <div class="row g-2">
+            <div class="col-12">
+              <label for="edit-title-{{ item.plan_item_id }}" class="form-label">Tên khoản chi</label>
+              <input type="text" id="edit-title-{{ item.plan_item_id }}" name="title" class="form-control" maxlength="200" value="{{ item.title }}" required>
+            </div>
+            <div class="col-6">
+              <label for="edit-amount-{{ item.plan_item_id }}" class="form-label">Số tiền (VND)</label>
+              <input type="number" id="edit-amount-{{ item.plan_item_id }}" name="planned_amount" class="form-control" min="1" step="1" value="{{ item.planned_amount }}" required>
+            </div>
+            <div class="col-6">
+              <label for="edit-priority-{{ item.plan_item_id }}" class="form-label">Ưu tiên</label>
+              <select id="edit-priority-{{ item.plan_item_id }}" name="priority" class="form-select">
+                {% for value in ['P0', 'P1', 'P2'] %}<option value="{{ value }}" {% if item.priority == value %}selected{% endif %}>{{ value }}</option>{% endfor %}
+              </select>
+            </div>
+            <div class="col-6">
+              <label for="edit-tag-{{ item.plan_item_id }}" class="form-label">Kiểu lịch</label>
+              <select id="edit-tag-{{ item.plan_item_id }}" name="schedule_tag" class="form-select">
+                {% for value in ['DAILY', 'WEEKLY', 'MONTHLY', 'DAY_OF_MONTH', 'DATE'] %}<option value="{{ value }}" {% if item.schedule_tag == value %}selected{% endif %}>{{ schedule_labels[value] }}</option>{% endfor %}
+              </select>
+            </div>
+            <div class="col-6" data-schedule="WEEKLY">
+              <label for="edit-dow-{{ item.plan_item_id }}" class="form-label">Thứ</label>
+              <select id="edit-dow-{{ item.plan_item_id }}" name="day_of_week" class="form-select">
+                {% for value in range(1, 8) %}<option value="{{ value }}" {% if item.day_of_week == value %}selected{% endif %}>Thứ {{ value }}</option>{% endfor %}
+              </select>
+            </div>
+            <div class="col-6" data-schedule="DAY_OF_MONTH">
+              <label for="edit-dom-{{ item.plan_item_id }}" class="form-label">Ngày trong tháng</label>
+              <input type="number" id="edit-dom-{{ item.plan_item_id }}" name="day_of_month" class="form-control" min="1" max="31" step="1" value="{{ item.day_of_month or '' }}">
+            </div>
+            <div class="col-6" data-schedule="DATE">
+              <label for="edit-specific-{{ item.plan_item_id }}" class="form-label">Ngày cụ thể</label>
+              <input type="date" id="edit-specific-{{ item.plan_item_id }}" name="specific_date" class="form-control" value="{{ item.specific_date.isoformat() if item.specific_date else '' }}">
+            </div>
+            <div class="col-6">
+              <label for="edit-source-{{ item.plan_item_id }}" class="form-label">Nguồn số tiền</label>
+              <select id="edit-source-{{ item.plan_item_id }}" name="amount_source" class="form-select">
+                <option value="USER_ENTERED" {% if item.amount_source == 'USER_ENTERED' %}selected{% endif %}>Người dùng nhập</option>
+                <option value="BUDGET_DEFAULT" {% if item.amount_source == 'BUDGET_DEFAULT' %}selected{% endif %}>Mặc định ngân sách</option>
+              </select>
+            </div>
+            <div class="col-6">
+              <label for="edit-active-{{ item.plan_item_id }}" class="form-label">Trạng thái</label>
+              <select id="edit-active-{{ item.plan_item_id }}" name="is_active" class="form-select">
+                <option value="1" {% if item.is_active %}selected{% endif %}>Đang dùng</option>
+                <option value="0" {% if not item.is_active %}selected{% endif %}>Ngừng dùng</option>
+              </select>
+            </div>
+          </div>
+          <p class="small text-secondary mt-3 mb-0">Thay đổi số tiền/ưu tiên sẽ áp dụng cho các task chưa xác nhận. Task đã check-in hoặc đã có giao dịch giữ snapshot lịch sử, không bị sửa theo. Khi khoản chi đã có task, không thể đổi kiểu lịch; hãy ngừng dùng và tạo khoản chi mới nếu cần lịch khác.</p>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Hủy</button>
+          <button type="submit" class="btn btn-primary">Lưu thay đổi</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endfor %}
+
+{% for record in modal_records %}
+<div class="modal fade" id="editRecord{{ record.record_id }}" tabindex="-1" aria-labelledby="editRecordLabel{{ record.record_id }}" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <form method="post" action="{{ url_for('expenses.edit_record', record_id=record.record_id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="modal-header">
+          <h2 class="modal-title h5" id="editRecordLabel{{ record.record_id }}">Sửa giao dịch</h2>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Đóng"></button>
+        </div>
+        <div class="modal-body">
+          <input type="hidden" name="view" value="{{ period.view }}">
+          <input type="hidden" name="date" value="{{ period.anchor.isoformat() }}">
+          <input type="hidden" name="tag" value="{{ tag }}">
+          {% if record.record_type == 'UNEXPECTED' %}
+          <div class="mb-2">
+            <label for="record-title-{{ record.record_id }}" class="form-label">Tên khoản chi</label>
+            <input type="text" id="record-title-{{ record.record_id }}" name="title" class="form-control" maxlength="200" value="{{ record.title or '' }}" required>
+          </div>
+          {% endif %}
+          <div class="mb-2">
+            <label for="record-amount-{{ record.record_id }}" class="form-label">Số tiền (VND)</label>
+            <input type="number" id="record-amount-{{ record.record_id }}" name="amount" class="form-control" min="1" step="1" value="{{ record.amount }}" required>
+          </div>
+          <div class="mb-2">
+            <label for="record-date-{{ record.record_id }}" class="form-label">Ngày phát sinh</label>
+            <input type="date" id="record-date-{{ record.record_id }}" name="expense_date" class="form-control" value="{{ record.expense_date.isoformat() }}" required>
+          </div>
+          <div class="mb-2">
+            <label for="record-category-{{ record.record_id }}" class="form-label">Danh mục</label>
+            <input type="text" id="record-category-{{ record.record_id }}" name="category" class="form-control" maxlength="80" value="{{ record.category or '' }}">
+          </div>
+          <div class="mb-2">
+            <label for="record-note-{{ record.record_id }}" class="form-label">Ghi chú</label>
+            <input type="text" id="record-note-{{ record.record_id }}" name="note" class="form-control" value="{{ record.note or '' }}">
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Hủy</button>
+          <button type="submit" class="btn btn-primary">Lưu thay đổi</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endfor %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+  document.querySelectorAll('form.schedule-form').forEach(function (form) {
+    var select = form.querySelector('[name="schedule_tag"]');
+    if (!select) { return; }
+    function sync() {
+      form.querySelectorAll('[data-schedule]').forEach(function (wrapper) {
+        var active = wrapper.getAttribute('data-schedule') === select.value;
+        wrapper.classList.toggle('d-none', !active);
+        wrapper.querySelectorAll('input, select').forEach(function (field) {
+          field.disabled = !active;
+          if (field.name === 'day_of_month' || field.name === 'specific_date') {
+            field.required = active;
+          }
+        });
+      });
+    }
+    select.addEventListener('change', sync);
+    sync();
+  });
+
+  document.querySelectorAll('form[data-checkin-form]').forEach(function (form) {
+    var amount = form.querySelector('[name="amount"]');
+    var radios = form.querySelectorAll('[name="action"]');
+    if (!amount || !radios.length) { return; }
+    function syncAction() {
+      var selected = form.querySelector('[name="action"]:checked');
+      var isActual = selected && selected.value === 'actual';
+      amount.disabled = !isActual;
+      amount.required = !!isActual;
+    }
+    radios.forEach(function (radio) {
+      radio.addEventListener('change', syncAction);
+    });
+    syncAction();
+  });
+</script>
+{% endblock %}

@@ -15,9 +15,26 @@
 <body class="bg-light {% block body_class %}{% endblock %}">
   <a class="bc-skip-link" href="#main-content">{{ t('skip_to_content') }}</a>
   {% include 'components/navbar.html' %}
-  <main id="main-content" class="{% block main_class %}container py-4{% endblock %}">{% block content %}{% endblock %}</main>
+  <main id="main-content" class="{% block main_class %}container py-4{% endblock %}">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <div class="mb-3">
+          {% for category, message in messages %}
+            <div class="alert alert-{{ category if category in ['success', 'danger', 'warning', 'info'] else 'info' }} alert-dismissible fade show" role="alert">
+              {{ message }}
+              <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Đóng"></button>
+            </div>
+          {% endfor %}
+        </div>
+      {% endif %}
+    {% endwith %}
+
+    {% block content %}{% endblock %}
+  </main>
+
   {% block footer %}{% endblock %}
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
   <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+  {% block scripts %}{% endblock %}
 </body>
 </html>

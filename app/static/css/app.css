@@ -15,6 +15,7 @@ html { scroll-behavior: smooth; scroll-padding-top: 96px; }
 body { min-height: 100vh; }
 .rounded-3 { border-radius: var(--bc-border-radius) !important; }
 
+
 /* Public homepage. Module pages continue using their Bootstrap layout. */
 body.bc-home {
   margin: 0;
@@ -364,5 +365,93 @@ body.bc-app { margin: 0; background: var(--bc-canvas) !important; color: var(--b
 }
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }
-  .bc-home *, .bc-home *::before, .bc-home *::after { transition-duration: .01ms !important; animation-duration: .01ms !important; }
+  .bc-home *, .bc-home *::before, .bc-home *::after { transition-duration: .01ms !important; animation-duration: .01ms !important; } }
+
+/* Expense Planning navigation: compact month calendar and day drill-down. */
+.bc-mode-tabs .nav-link {
+  border-radius: 999px 999px 0 0;
+  font-weight: 500;
+}
+.bc-mode-tabs .nav-link.active {
+  font-weight: 600;
+}
+.bc-calendar {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 0.35rem;
+}
+.bc-calendar-weekday {
+  align-self: end;
+  color: var(--bs-secondary-color);
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  padding: 0.15rem 0;
+  text-align: center;
+  text-transform: uppercase;
+}
+.bc-calendar-day {
+  align-items: center;
+  border: 1px solid var(--bs-border-color-translucent);
+  border-radius: 0.9rem;
+  color: inherit;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-height: 3.1rem;
+  padding: 0.2rem;
+  position: relative;
+  text-decoration: none;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+a.bc-calendar-day:hover,
+a.bc-calendar-day:focus-visible {
+  background: var(--bs-primary-bg-subtle);
+  border-color: var(--bs-primary-border-subtle);
+}
+.bc-calendar-day.is-selected {
+  background: var(--bs-primary);
+  border-color: var(--bs-primary);
+  color: #fff;
+}
+.bc-calendar-day.is-empty {
+  border-color: transparent;
+  visibility: hidden;
+}
+.bc-day-number {
+  font-size: 0.9rem;
+  font-weight: 600;
+  line-height: 1.1;
+}
+.bc-day-dots {
+  display: flex;
+  gap: 2px;
+  height: 6px;
+  margin-top: 3px;
+}
+.bc-dot {
+  border-radius: 50%;
+  display: inline-block;
+  height: 6px;
+  width: 6px;
+}
+.bc-dot-plan { background: var(--bs-primary); }
+.bc-dot-pending { background: var(--bs-warning); }
+.bc-dot-overdue { background: var(--bs-danger); }
+.bc-dot-done { background: var(--bs-success); }
+.bc-calendar-day.is-selected .bc-dot-plan { background: #fff; }
+
+.bc-due-form { max-width: 19rem; }
+.bc-due-form input { min-width: 0; }
+.bc-day-table td:first-child { min-width: 14rem; }
+.bc-day-table td:nth-child(2) { min-width: 9rem; }
+.bc-task-card .card-body { border-radius: var(--bs-border-radius); }
+.bc-month-muted { opacity: 0.72; }
+
+@media (max-width: 575.98px) {
+  .bc-calendar { gap: 0.22rem; }
+  .bc-calendar-day { border-radius: 0.65rem; min-height: 2.65rem; }
+  .bc-day-number { font-size: 0.8rem; }
+  .bc-calendar-weekday { font-size: 0.62rem; }
+
 }

@@ -1,0 +1,147 @@
+{% extends 'base.html' %}
+{% block title %}Lịch sử chi tiêu — Budget Companion{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-3">
+  <div>
+    <h1 class="h3 mb-1">Lịch sử chi tiêu</h1>
+    <p class="text-secondary mb-0">Giao dịch thực tế theo ngày phát sinh. Chỉnh sửa giao dịch trong màn hình kỳ chi tiêu.</p>
+  </div>
+  <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('expenses.index', view='month', date=end.isoformat()) }}">Quay lại kỳ chi tiêu</a>
+</div>
+
+<section class="card border-0 shadow-sm mb-3">
+  <div class="card-body">
+    <form method="get" action="{{ url_for('expenses.history') }}" class="row g-2 align-items-end">
+      <div class="col-12 col-sm-4">
+        <label for="start" class="form-label">Từ ngày</label>
+        <input type="date" id="start" name="start" class="form-control" value="{{ start.isoformat() }}" required>
+      </div>
+      <div class="col-12 col-sm-4">
+        <label for="end" class="form-label">Đến ngày</label>
+        <input type="date" id="end" name="end" class="form-control" value="{{ end.isoformat() }}" required>
+      </div>
+      <div class="col-12 col-sm-4 d-grid">
+        <button type="submit" class="btn btn-primary">Lọc</button>
+      </div>
+    </form>
+  </div>
+</section>
+
+<div class="row g-3 mb-3">
+  <div class="col-6 col-lg-3">
+    <div class="card h-100 border-0 shadow-sm"><div class="card-body">
+      <div class="text-secondary small">Tổng kế hoạch</div>
+      <div class="h5 mb-0">{{ summary.plan_total|vnd }}</div>
+    </div></div>
+  </div>
+  <div class="col-6 col-lg-3">
+    <div class="card h-100 border-0 shadow-sm"><div class="card-body">
+      <div class="text-secondary small">Tổng thực tế</div>
+      <div class="h5 mb-0">{{ summary.actual_total|vnd }}</div>
+    </div></div>
+  </div>
+  <div class="col-6 col-lg-3">
+    <div class="card h-100 border-0 shadow-sm"><div class="card-body">
+      <div class="text-secondary small">Chênh lệch (KH − TT)</div>
+      <div class="h5 mb-0 {{ 'text-success' if summary.difference >= 0 else 'text-danger' }}">{{ summary.difference|vnd }}</div>
+    </div></div>
+  </div>
+  <div class="col-6 col-lg-3">
+    <div class="card h-100 border-0 shadow-sm"><div class="card-body">
+      <div class="text-secondary small">Task đã / chưa xác nhận</div>
+      <div class="h5 mb-0">{{ summary.confirmed }} / {{ summary.unconfirmed }}</div>
+      <div class="small text-secondary">{{ summary.counts.over }} vượt kế hoạch · {{ summary.counts.no_expense }} không phát sinh</div>
+    </div></div>
+  </div>
+</div>
+
+<section class="card border-0 shadow-sm mb-3">
+  <div class="card-header bg-white">
+    <h2 class="h5 mb-0">Task &amp; trạng thái check-in</h2>
+  </div>
+  <div class="card-body">
+    {% if summary.tasks %}
+    <div class="table-responsive">
+      <table class="table table-sm align-middle">
+        <thead>
+          <tr><th>Ngày phân bổ</th><th>Khoản chi</th><th>Trạng thái</th><th>Kế hoạch</th><th>Thực tế</th><th>Chênh lệch KH−TT</th></tr>
+        </thead>
+        <tbody>
+          {% for task in summary.tasks %}
+          {% set record = summary.planned_by_task.get(task.task_id) %}
+          <tr>
+            <td class="text-nowrap">{{ task.assigned_date|date_vn }}</td>
+            <td>{{ task.plan_item.title if task.plan_item else '—' }}</td>
+            <td><span class="badge text-bg-{{ task.task_status|status_class }}">{{ task.task_status|status_label }}</span></td>
+            <td class="text-nowrap">{{ task.planned_amount|vnd }}</td>
+            <td class="text-nowrap">{{ record.amount|vnd if record else '—' }}</td>
+            <td class="text-nowrap">
+              {% if record %}
+              {% set record_diff = task.planned_amount|difference(record.amount) %}
+              <span class="{{ 'text-success' if record_diff >= 0 else 'text-danger' }}">{{ record_diff|vnd }}</span>
+              {% else %}—{% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p class="text-secondary mb-0">Không có task trong khoảng thời gian đã chọn.</p>
+    {% endif %}
+  </div>
+</section>
+
+<section class="card border-0 shadow-sm">
+  <div class="card-header bg-white d-flex flex-wrap justify-content-between align-items-center gap-2">
+    <span class="small text-secondary">{{ start|date_vn }} — {{ end|date_vn }}</span>
+    <strong>Tổng: {{ total|vnd }}</strong>
+  </div>
+  <div class="card-body">
+    {% if records %}
+    <div class="table-responsive">
+      <table class="table table-sm align-middle">
+        <thead>
+          <tr><th>Ngày phát sinh</th><th>Khoản chi</th><th>Loại</th><th>Số tiền</th><th>Chênh lệch KH−TT</th><th>Danh mục</th><th>Ghi chú</th><th>Task</th></tr>
+        </thead>
+        <tbody>
+          {% for record in records %}
+          <tr>
+            <td class="text-nowrap">{{ record.expense_date|date_vn }}</td>
+            <td>{{ record.title or (record.task.plan_item.title if record.task and record.task.plan_item else '—') }}</td>
+            <td>
+              {% if record.record_type == 'UNEXPECTED' %}
+              <span class="badge text-bg-warning">Bất ngờ</span>
+              {% else %}
+              <span class="badge text-bg-info">Theo kế hoạch</span>
+              {% endif %}
+            </td>
+            <td class="text-nowrap">{{ record.amount|vnd }}</td>
+            <td class="text-nowrap">
+              {% if record.task %}
+              {% set record_diff = record.task.planned_amount|difference(record.amount) %}
+              <span class="{{ 'text-success' if record_diff >= 0 else 'text-danger' }}">{{ record_diff|vnd }}</span>
+              {% else %}
+              <span class="text-secondary">—</span>
+              {% endif %}
+            </td>
+            <td>{{ record.category or '—' }}</td>
+            <td>{{ record.note or '—' }}</td>
+            <td class="small text-secondary">
+              {% if record.task %}
+              {{ record.task.assigned_date|date_vn }} · {{ record.task.task_status|status_label }}
+              {% else %}
+              —
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p class="text-secondary mb-0">Không có giao dịch trong khoảng thời gian đã chọn.</p>
+    {% endif %}
+  </div>
+</section>
+{% endblock %}
