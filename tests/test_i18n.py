@@ -71,8 +71,8 @@ def test_remembered_language_applies_to_all_module_pages(client, path):
     client.set_cookie("bc_language", "vi")
     response = client.get(path)
     assert_page_language(response, "vi")
-    # My budget has the workspace shell; unfinished modules use the public menu.
-    translated_label = "Ngân sách của tôi" if path == "/budget" else "Đăng nhập"
+    # Workspace pages share the language switch; unfinished modules use the public menu.
+    translated_label = "Ngân sách của tôi" if path in {"/budget", "/dashboard"} else "Đăng nhập"
     assert translated_label in response.get_data(as_text=True)
 
 

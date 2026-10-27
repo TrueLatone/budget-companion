@@ -1,0 +1,191 @@
+{% extends 'workspace_base.html' %}
+{% from 'components/icons.html' import icon %}
+{% block title %}{{ t('ws_overview') }} · Budget Companion{% endblock %}
+{% block extra_styles %}
+  {{ super() }}
+  <link href="{{ url_for('static', filename='css/dashboard.css') }}" rel="stylesheet">
+{% endblock %}
+{% block workspace_notice %}{{ t('dash_preview_note') }}{% endblock %}
+{% block workspace_page_scripts %}
+  <script src="{{ url_for('static', filename='js/dashboard.js') }}" defer></script>
+{% endblock %}
+
+{% macro expense_row(record) -%}
+  <div class="db-expense-row">
+    <span class="db-expense-icon">{{ icon(record.icon, 'ws-icon') }}</span>
+    <div class="db-expense-copy"><strong>{{ t(record.titleKey) }}</strong><small>{{ category_labels[record.categoryId] }} · {{ record.dateLabel }}</small></div>
+    <strong class="db-expense-amount">{{ money(record.amount) }} ₫</strong>
+  </div>
+{%- endmacro %}
+
+{% block workspace_content %}
+  {% set view = dashboard_view %}
+  {% set group_icons = {'p0': 'home', 'p1': 'cart', 'p2': 'game'} %}
+  <div class="db-dashboard">
+    <div class="ws-page-heading db-page-heading">
+      <div>
+        <h1 class="ws-page-title">{{ t('dash_title') }}</h1>
+        <p class="ws-page-subtitle" id="db-updated">{{ t('dash_updated').format(date=view.updated_label) if view.spent > 0 else t('dash_no_records') }} · {{ t('dash_example') }}</p>
+      </div>
+      <div class="ws-heading-actions db-heading-actions">
+        <label class="ws-month-picker" for="workspace-month">
+          {{ icon('calendar', 'ws-icon') }}
+          <span class="visually-hidden">{{ t('ws_month') }}</span>
+          <input type="month" id="workspace-month" value="{{ workspace_data.month }}" aria-label="{{ t('ws_month') }}">
+        </label>
+        <button class="ws-button ws-button-primary" type="button" data-db-add>{{ icon('plus', 'ws-icon') }} {{ t('dash_add_expense') }}</button>
+      </div>
+    </div>
+    <p id="db-warning" class="ws-error db-warning" role="alert" hidden></p>
+    <p id="db-feedback" class="ws-status db-feedback" role="status" hidden></p>
+
+    <div class="db-metrics">
+      <section class="ws-card db-metric" aria-labelledby="db-planned-title">
+        <span class="db-metric-icon">{{ icon('calendar', 'ws-icon') }}</span>
+        <div class="db-metric-copy">
+          <h2 id="db-planned-title">{{ t('dash_monthly_budget') }}</h2>
+          <strong class="db-metric-value" data-db-value="planned">{{ money(view.planned) }} ₫</strong>
+          <p class="db-metric-help">{{ t('dash_planned_help') }}</p>
+        </div>
+      </section>
+      <section class="ws-card db-metric" aria-labelledby="db-spent-title">
+        <span class="db-metric-icon">{{ icon('pie', 'ws-icon') }}</span>
+        <div class="db-metric-copy">
+          <h2 id="db-spent-title">{{ t('dash_recorded_spending') }}</h2>
+          <strong class="db-metric-value" data-db-value="spent">{{ money(view.spent) }} ₫</strong>
+          <p class="db-metric-help" id="db-spent-share">{{ t('dash_spent_help').format(percent=view.spent_share) }}</p>
+        </div>
+      </section>
+      <section class="ws-card db-metric db-metric-remaining" aria-labelledby="db-remaining-title">
+        <span class="db-metric-icon">{{ icon('wallet', 'ws-icon') }}</span>
+        <div class="db-metric-copy">
+          <h2 id="db-remaining-title">{{ t('dash_remaining') }}</h2>
+          <strong class="db-metric-value" data-db-value="remaining">{{ money(view.remaining) }} ₫</strong>
+          <p class="db-metric-help" id="db-remaining-help">{{ t('dash_remaining_help') }}</p>
+        </div>
+      </section>
+    </div>
+
+    <div class="db-grid">
+      <section class="ws-card db-chart-card" aria-labelledby="db-breakdown-heading">
+        <header class="db-card-heading">
+          <div><h2 class="db-card-title" id="db-breakdown-heading">{{ t('dash_breakdown_title') }}</h2><p class="db-caption">{{ t('dash_breakdown_help') }}</p></div>
+        </header>
+        <div class="db-breakdown">
+          <div class="db-chart">
+            <svg id="db-donut" viewBox="0 0 340 270" role="img" aria-labelledby="db-chart-title db-chart-description">
+              <title id="db-chart-title">{{ t('dash_breakdown_title') }}</title>
+              <desc id="db-chart-description">{{ t('dash_chart_description') }}</desc>
+              <circle class="db-chart-track" cx="170" cy="135" r="76" fill="none" stroke="#edf0f6" stroke-width="32"></circle>
+              <g id="db-chart-segments">
+                {% set ring = namespace(offset=0) %}
+                {% for category in view.breakdown if view.spent > 0 %}
+                {% set length = category.amount / view.spent * 477.522 %}
+                <circle cx="170" cy="135" r="76" fill="none" stroke="{{ category.color }}" stroke-width="32" stroke-dasharray="{{ length }} {{ 477.522 - length }}" stroke-dashoffset="{{ -ring.offset }}" transform="rotate(-90 170 135)"></circle>
+                {% set ring.offset = ring.offset + length %}
+                {% endfor %}
+              </g>
+              <g id="db-chart-labels" aria-hidden="true">
+                {% if view.spent > 0 %}
+                {% set callouts = {'rent': {'path': '224,208 239,231 268,231', 'x': 273, 'y': 235, 'anchor': 'start'}, 'utilities': {'path': '97,190 82,214 66,214', 'x': 61, 'y': 218, 'anchor': 'end'}, 'food': {'path': '79,129 65,129 53,111', 'x': 62, 'y': 108, 'anchor': 'end'}, 'other': {'path': '137,50 115,29 72,29', 'x': 66, 'y': 34, 'anchor': 'end'}} %}
+                {% for category in view.breakdown %}
+                {% set callout = callouts[category.id] %}
+                <polyline points="{{ callout.path }}" fill="none" stroke="{{ category.color }}" stroke-width="1" stroke-dasharray="3 2"></polyline>
+                <text x="{{ callout.x }}" y="{{ callout.y }}" fill="{{ category.color }}" text-anchor="{{ callout.anchor }}" class="db-chart-percent">{{ category.percent }}</text>
+                {% endfor %}
+                {% endif %}
+              </g>
+              <text id="db-chart-total" class="db-chart-total" x="170" y="133" text-anchor="middle">{{ money(view.spent) }} ₫</text>
+              <text class="db-chart-caption" x="170" y="153" text-anchor="middle">{{ t('dash_recorded') }}</text>
+            </svg>
+            <p class="db-caption db-chart-empty" id="db-chart-empty"{% if view.spent > 0 %} hidden{% endif %}>{{ t('dash_chart_empty') }}</p>
+          </div>
+          <div class="db-legend">
+            {% for category in view.breakdown %}
+            <div class="db-legend-row" data-db-category="{{ category.id }}" style="--db-color: {{ category.color }}">
+              <span class="db-legend-icon">{{ icon(category.icon, 'ws-icon') }}</span>
+              <span class="db-legend-copy"><i class="db-dot" aria-hidden="true"></i><span>{{ t(category.labelKey) }}</span></span>
+              <span class="db-legend-value"><strong data-db-breakdown>{{ money(category.amount) }} ₫</strong><small data-db-percent>{{ category.percent }}</small></span>
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+      </section>
+
+      <section class="ws-card db-progress-card" aria-labelledby="db-progress-title">
+        <header class="db-card-heading">
+          <div><h2 class="db-card-title" id="db-progress-title">{{ t('dash_progress_title') }}</h2><p class="db-caption">{{ t('dash_progress_help') }}</p></div>
+          <a class="db-text-link" data-db-budget-link href="{{ url_for('budgets.index', month=workspace_data.month) }}">{{ t('dash_edit_budget') }} {{ icon('arrow-right', 'ws-icon') }}</a>
+        </header>
+        <div class="db-progress-list">
+          {% for group in view.groups %}
+          <div class="db-progress-row" data-db-group="{{ group.id }}">
+            <div class="db-progress-heading">
+              <span class="db-progress-icon">{{ icon(group_icons[group.id], 'ws-icon') }}</span>
+              <span class="db-progress-copy"><span>{{ group.label }}</span><span class="ws-group-code">{{ group.id|upper }}</span></span>
+              <span class="db-progress-values"><strong data-db-group-spent>{{ money(group.spent) }}</strong><span> / <span data-db-group-plan>{{ money(group.planned) }}</span> ₫</span></span>
+            </div>
+            <div class="db-progress-line">
+              <div class="db-progress-track" aria-hidden="true"><span data-db-progress style="width: {{ ((group.spent / group.planned * 100) if group.planned else 0)|round(2) }}%"></span></div>
+              <span data-db-group-percent>{{ group.percent }}</span>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+        <div class="db-progress-footer">
+          <span class="db-unallocated-icon">{{ icon('coins', 'ws-icon') }}</span>
+          <span class="db-unallocated-copy">{{ t('dash_unallocated') }}</span>
+          <span class="db-unallocated-amount"><strong data-db-value="unallocated">{{ money(view.unallocated) }} ₫</strong><small>{{ t('dash_available_help').format(amount=money(view.available) + ' ₫') }}</small></span>
+          <span class="visually-hidden" data-db-value="available">{{ money(view.available) }} ₫</span>
+        </div>
+        <p class="db-caption" id="db-plan-source" hidden></p>
+      </section>
+
+      <section class="ws-card db-expenses-card" aria-labelledby="db-recent-title">
+        <header class="db-card-heading">
+          <h2 class="db-card-title" id="db-recent-title">{{ t('dash_recent_title') }}</h2>
+          <button class="db-text-link" type="button" id="db-view-all">{{ t('dash_view_all') }} {{ icon('arrow-right', 'ws-icon') }}</button>
+        </header>
+        <div id="db-recent-list">
+          {% for record in view.recent %}{{ expense_row(record) }}{% else %}<p class="db-caption db-empty">{{ t('dash_recent_empty') }}</p>{% endfor %}
+        </div>
+      </section>
+
+      <section class="ws-card db-checkin-card" aria-labelledby="db-checkin-title">
+        <header class="db-checkin-top">
+          <h2 class="db-card-title" id="db-checkin-title">{{ t('dash_checkin_title') }}</h2>
+          <span class="db-caption" id="db-checkin-date">{{ view.snapshot_label }}</span>
+          <span class="db-checkin-badge" id="db-checkin-status">{{ t('dash_pending') }}</span>
+        </header>
+        <div class="db-checkin-body">
+          <div class="db-checkin-copy"><h3 id="db-checkin-question">{{ t('dash_checkin_question') }}</h3><p class="db-caption" id="db-checkin-help">{{ t('dash_checkin_help') }}</p></div>
+          <div class="db-checkin-illustration" aria-hidden="true">{{ icon('calendar', 'db-checkin-calendar') }}<span>{{ icon('check', 'ws-icon') }}</span></div>
+        </div>
+        <div class="db-checkin-actions">
+          <button class="ws-button ws-button-primary" type="button" data-db-add>{{ icon('plus', 'ws-icon') }} {{ t('dash_add_expense') }}</button>
+          <button class="ws-button ws-button-secondary" type="button" id="db-no-expense">{{ t('dash_no_expense') }}</button>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <dialog class="ws-dialog db-expense-dialog" id="db-expense-dialog" aria-labelledby="db-expense-dialog-title" aria-describedby="db-expense-dialog-help">
+    <form class="ws-dialog-form" id="db-expense-form" novalidate>
+      <div class="ws-dialog-heading"><h2 id="db-expense-dialog-title">{{ t('dash_add_expense') }}</h2><button class="ws-dialog-close" type="button" data-db-close aria-label="{{ t('dash_cancel') }}">{{ icon('close', 'ws-icon') }}</button></div>
+      <p class="db-caption db-dialog-note" id="db-expense-dialog-help">{{ t('dash_preview_note') }}</p>
+      <div class="ws-field"><label class="ws-field-label" for="db-expense-name">{{ t('dash_name') }}</label><input type="text" id="db-expense-name" name="expense-name" maxlength="80" autocomplete="off" aria-describedby="db-expense-error" required></div>
+      <div class="ws-field"><label class="ws-field-label" for="db-expense-category">{{ t('dash_category') }}</label><select id="db-expense-category" name="expense-category" aria-describedby="db-expense-error" required>{% for category in workspace_data.defaultPlan.categories %}<option value="{{ category.id }}"{% if category.id == 'food' %} selected{% endif %}>{{ category_labels[category.id] }} — {{ category.group|upper }}</option>{% endfor %}</select></div>
+      <div class="ws-field"><label class="ws-field-label" for="db-expense-amount">{{ t('dash_amount') }}</label><div class="ws-money-field"><input id="db-expense-amount" name="expense-amount" type="text" inputmode="numeric" autocomplete="off" aria-describedby="db-expense-error" required><span class="ws-currency-suffix" aria-hidden="true">VND</span></div></div>
+      <div class="ws-field"><label class="ws-field-label" for="db-expense-date">{{ t('dash_date') }}</label><input id="db-expense-date" name="expense-date" type="date" min="{{ workspace_data.month }}-01" max="{{ workspace_data.dashboard.snapshotDate }}" value="{{ workspace_data.dashboard.snapshotDate }}" aria-describedby="db-expense-error" required></div>
+      <p class="ws-error" id="db-expense-error" role="alert" hidden></p>
+      <div class="ws-dialog-actions"><button class="ws-button ws-button-secondary" type="button" data-db-close>{{ t('dash_cancel') }}</button><button class="ws-button ws-button-primary" type="submit" id="db-expense-save" disabled>{{ t('dash_save_preview') }}</button></div>
+    </form>
+  </dialog>
+
+  <dialog class="ws-dialog db-history-dialog" id="db-history-dialog" aria-labelledby="db-history-title" aria-describedby="db-history-help">
+    <div class="ws-dialog-heading"><h2 id="db-history-title">{{ t('dash_history_title') }}</h2><button class="ws-dialog-close" type="button" data-db-close aria-label="{{ t('dash_cancel') }}">{{ icon('close', 'ws-icon') }}</button></div>
+    <p class="db-caption db-dialog-note" id="db-history-help">{{ t('dash_preview_note') }}</p>
+    <div id="db-history-list">{% for record in view.records %}{{ expense_row(record) }}{% else %}<p class="db-caption db-empty">{{ t('dash_recent_empty') }}</p>{% endfor %}</div>
+    <div class="ws-dialog-actions"><button class="ws-button ws-button-secondary" type="button" data-db-close>{{ t('dash_cancel') }}</button></div>
+  </dialog>
+{% endblock %}

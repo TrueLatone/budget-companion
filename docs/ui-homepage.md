@@ -49,10 +49,11 @@ Giữ thẻ HTML trong template; chỉ đặt nội dung chữ trong bản dịc
 
 - Menu Features và How it works dẫn đến các phần trong trang chủ.
 - Các nút ngân sách, chi tiêu, tổng quan, gợi ý và tài khoản dùng route hiện có.
-- My budget (`/budget`) hiện có giao diện nhập và lưu bản thử trên trình duyệt;
-  xem thêm `docs/ui-workspace.md`. Những route chức năng còn lại vẫn là trang
-  placeholder. Đăng nhập, lưu ngân sách trên tài khoản và ghi chi tiêu sẽ được
-  nối với phần xử lý của từng module sau.
+- My budget (`/budget`) có giao diện nhập và lưu bản thử trên trình duyệt;
+  xem thêm `docs/ui-workspace.md`. Overview (`/dashboard`) có giao diện tổng quan,
+  biểu đồ phần trăm và thao tác chi tiêu/check-in thử; xem `docs/ui-dashboard.md`.
+  Các route chức năng còn lại vẫn là placeholder. Dữ liệu tài khoản và API nghiệp
+  vụ sẽ được nối với phần xử lý của từng module sau.
 - Các thẻ nhỏ trong phần ba bước là minh họa bằng HTML, có nhãn dữ liệu minh họa.
 - Bootstrap và Google Fonts hiện được nạp từ CDN như cấu trúc khởi đầu của dự án.
 

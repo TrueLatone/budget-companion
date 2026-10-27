@@ -1,8 +1,8 @@
 # Giao diện My budget
 
-Đợt này chỉ triển khai trang `/budget` và khung ứng dụng dùng chung. Dashboard,
-Expenses, Check-in, Spending tips, Settings và Help chưa được triển khai thêm;
-các mục đó trong menu ứng dụng đang ở trạng thái chờ.
+Khung ứng dụng dùng chung hiện có My budget (`/budget`) và Overview (`/dashboard`).
+Expenses, Check-in, Spending tips, Settings và Help vẫn ở trạng thái chờ.
+Hướng dẫn Dashboard và các thao tác bản thử nằm trong `docs/ui-dashboard.md`.
 
 ## Mở trên local
 
@@ -45,7 +45,8 @@ Budget Planning cung cấp; không coi dữ liệu mẫu là kết quả xử l�
 | Nội dung song ngữ | `WORKSPACE_MESSAGES` trong `app/translations.py` |
 | Dữ liệu minh họa và tháng | `app/ui_demo.py` |
 
-Khung trang gốc được thêm các block để tái sử dụng; trang chủ tiếp tục dùng menu
-và giao diện cũ. Không thay đổi schema, các API nghiệp vụ hay route của Dashboard.
+Khung trang gốc có các block để tái sử dụng; trang chủ tiếp tục dùng menu và giao
+diện cũ. Dashboard dùng khung này để đọc kế hoạch đã lưu, nhưng không tự thay đổi
+ngân sách. Không thay đổi schema hay các API nghiệp vụ.
 
 Kiểm tra: `python -m pytest -q` và kiểm tra thao tác thực tế trong trình duyệt.

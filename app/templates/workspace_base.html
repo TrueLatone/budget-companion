@@ -13,8 +13,8 @@
   <header class="ws-topbar">
     <div class="ws-topbar-leading">
       <button class="ws-menu-toggle" type="button" data-sidebar-toggle aria-expanded="false" aria-controls="workspace-sidebar" aria-label="{{ t('ws_open_menu') }}">{{ icon('menu', 'ws-icon') }}</button>
-      <nav class="ws-breadcrumb" aria-label="{{ t('ws_workspace') }}">
-        <span>{{ t('ws_my_budget') }}</span><span aria-hidden="true">/</span><strong>{{ t('ws_new_plan') }}</strong>
+      <nav class="ws-breadcrumb" aria-label="{{ t('ws_overview') if active_page == 'dashboard' else t('ws_workspace') }}">
+        <span>{{ t('ws_overview') if active_page == 'dashboard' else t('ws_my_budget') }}</span><span aria-hidden="true">/</span><strong aria-current="page">{{ t('dash_snapshot') if active_page == 'dashboard' else t('ws_new_plan') }}</strong>
       </nav>
     </div>
     <div class="ws-topbar-actions">
@@ -29,7 +29,7 @@
   </header>
   <div class="ws-content">
     {% block workspace_content %}{% endblock %}
-    <p class="ws-demo-banner">{{ icon('bulb', 'ws-icon') }}<span>{{ t('ws_demo_banner') }} {{ t('ws_browser_note') }}</span></p>
+    <p class="ws-demo-banner">{{ icon('bulb', 'ws-icon') }}<span>{% block workspace_notice %}{{ t('ws_demo_banner') }} {{ t('ws_browser_note') }}{% endblock %}</span></p>
     <noscript><p class="ws-noscript" role="status">{{ t('ws_js_notice') }}</p></noscript>
   </div>
 {% endblock %}
@@ -37,4 +37,5 @@
   <script type="application/json" id="workspace-data">{{ workspace_data|tojson }}</script>
   <script type="application/json" id="workspace-copy">{{ workspace_copy|tojson }}</script>
   <script src="{{ url_for('static', filename='js/workspace.js') }}" defer></script>
+  {% block workspace_page_scripts %}{% endblock %}
 {% endblock %}
