@@ -1,8 +1,11 @@
 from datetime import date
 
+import pytest
+
 from app.extensions import db
 from app.models import BudgetMonth
 from app.modules.accounts.services import register_user
+from app.modules.budget_periods.services import create_budget_month
 
 
 def sign_in(client, app, email="student@example.com"):
@@ -29,6 +32,7 @@ def test_create_budget_month_accepts_zero_and_selects_it(client, app):
         period = db.session.scalar(db.select(BudgetMonth))
         assert period.month_start == date(2026, 10, 1)
         assert period.available_vnd == 0
+        assert period.tracking_start_date == date(2026, 10, 1)
     with client.session_transaction() as session:
         assert session["active_budget_month_id"] == str(period.id)
 
@@ -141,3 +145,48 @@ def test_budget_month_page_uses_vietnamese_copy_and_formatting(client, app):
     assert "Ngân sách tháng" in response.get_data(as_text=True)
     assert "Tháng 10 2026" in response.get_data(as_text=True)
     assert "1.500.000 VND" in response.get_data(as_text=True)
+
+
+def test_create_month_accepts_mid_month_tracking_start(client, app):
+    sign_in(client, app)
+    response = client.post("/budget-periods/new", data={
+        "month": "2026-10", "available_vnd": "1000000", "tracking_start_date": "2026-10-15",
+    })
+    assert response.status_code == 302
+    with app.app_context():
+        period = db.session.scalar(db.select(BudgetMonth))
+        assert period.month_start == date(2026, 10, 1)
+        assert period.tracking_start_date == date(2026, 10, 15)
+    assert b"2026-10-15" in client.get("/budget-periods").data
+
+
+@pytest.mark.parametrize("tracking", ["2026-09-30", "2026-11-01", "2025-10-15", "not-a-date"])
+def test_create_month_rejects_invalid_tracking_start(client, app, tracking):
+    sign_in(client, app)
+    response = client.post("/budget-periods/new", data={
+        "month": "2026-10", "available_vnd": "100", "tracking_start_date": tracking,
+    })
+    assert response.status_code == 200
+    with app.app_context():
+        assert db.session.scalar(db.select(db.func.count(BudgetMonth.id))) == 0
+
+
+@pytest.mark.parametrize("tracking,message", [
+    ("2026-11-01", "Ngày bắt đầu theo dõi phải thuộc tháng đã chọn."),
+    ("not-a-date", "Vui lòng nhập ngày hợp lệ."),
+])
+def test_tracking_date_validation_is_translated(client, app, tracking, message):
+    client.set_cookie("bc_language", "vi")
+    sign_in(client, app)
+    response = client.post("/budget-periods/new", data={
+        "month": "2026-10", "available_vnd": "100", "tracking_start_date": tracking,
+    })
+    assert message in response.get_data(as_text=True)
+
+
+def test_service_rejects_invalid_tracking_before_database_write(app):
+    with app.app_context():
+        user = register_user("student@example.com", "correct-horse")
+        with pytest.raises(ValueError, match="Tracking start date"):
+            create_budget_month(user.id, "2026-10", 100, date(2026, 11, 1))
+        assert db.session.scalar(db.select(db.func.count(BudgetMonth.id))) == 0

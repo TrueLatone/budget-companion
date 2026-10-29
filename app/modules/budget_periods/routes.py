@@ -34,6 +34,7 @@ def create():
                 g.current_user.id,
                 form.month.data,
                 form.available_vnd.data,
+                tracking_start_date=form.tracking_start_date.data,
             )
         except DuplicateBudgetMonthError:
             form.month.errors.append(translate("budget_duplicate_month"))

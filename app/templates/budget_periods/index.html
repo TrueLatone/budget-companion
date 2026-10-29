@@ -23,7 +23,7 @@
     {% if budget_months %}
       <div class="bc-table-wrap">
         <table class="bc-table">
-          <thead><tr><th>{{ t('budget_table_month') }}</th><th>{{ t('budget_table_funds') }}</th><th class="bc-text-end">{{ t('budget_table_actions') }}</th></tr></thead>
+          <thead><tr><th>{{ t('budget_table_month') }}</th><th>{{ t('tracking_start_date_field') }}</th><th>{{ t('budget_table_funds') }}</th><th class="bc-text-end">{{ t('budget_table_actions') }}</th></tr></thead>
           <tbody>
             {% for period in budget_months %}
               <tr>
@@ -31,6 +31,7 @@
                   <strong>{{ month_name(period.month_start) }}</strong>
                   {% if active_budget_month_id == period.id|string %}<span class="bc-status-badge">{{ t('budget_selected') }}</span>{% endif %}
                 </td>
+                <td>{{ period.tracking_start_date.isoformat() }}</td>
                 <td>{{ money(period.available_vnd) }} VND</td>
                 <td>
                   <div class="bc-table-actions">

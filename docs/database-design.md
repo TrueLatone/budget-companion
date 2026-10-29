@@ -1,71 +1,86 @@
-# Initial database design
+# Shared database design — KAN-19
 
-## KAN-15 foundation
+The canonical schema contains 13 entities and 17 foreign-key relationships.
+Models live in `app/models/` and are exported through `app.models` for
+Flask-Migrate. See [the entity dictionary](entity-dictionary.md) for all attributes.
 
-KAN-15 establishes two shared tables:
+## Tracking interval and existing data
 
-- `users`: native UUID primary key, normalized unique email, password hash,
-  active flag, and timezone-aware UTC audit timestamps.
-- `budget_months`: native UUID primary key, UUID owner foreign key,
-  first-day `month_start`, non-negative integer `available_vnd`, and
-  timezone-aware UTC audit timestamps.
+Tracking start is required and has the same calendar year/month as month_start.
+Legacy NULL values backfill to month_start, preserving prior full-month semantics.
+Creation time does not establish historical tracking start. Explicit tracking dates
+supplied during expansion are preserved. Backfill leaves IDs, funds, created_at
+and updated_at unchanged and generates no tasks or financial transactions.
 
-Each user may have at most one period for a calendar month through
-`UNIQUE(user_id, month_start)`. Deleting a user cascades to that user's budget
-months at the database level, although KAN-15 exposes no account-deletion UI.
-All application reads and writes derive ownership from the authenticated
-session.
+Period creation accepts an optional date; omission defaults to the first day,
+including direct ORM inserts. The existing UI accepts it on creation and shows
+it in the list. Funds editing leaves it unchanged. Changing it after financial
+activity requires a separate reviewed workflow.
 
-Internal shared IDs use native UUIDs. Modules must use the same UUID type for
-foreign keys. IDs imported from another module or external source remain in a
-separate string source-ID column; they are not converted into internal primary
-keys.
+## Database guarantees
 
-`budget_months` deliberately has no status column. Future draft/confirmed
-states belong to the Budget Planning contract. A future confirmed plan must
-snapshot its original funds and allocations instead of treating mutable
-`budget_months.available_vnd` as historical truth.
+- One preference per user and one review per month at most.
+- One CONFIRMED plan per month at most (partial unique index); multiple GENERATED
+  alternatives may coexist.
+- One allocation per (plan, planned expense), one task per (allocation, assigned
+  date), and one detail per (adjustment, task).
+- At most one adjustment per non-NULL recommendation; multiple manual adjustments
+  may have NULL recommendation references.
+- Nonnegative funds, savings, estimates, task limits and adjustment limits;
+  positive allocations, transactions and optional minimums; valid due days/ratings.
+- Allowed plan types, stored statuses, priorities, record types and frequencies.
+- PLANNED requires task/category; UNEXPECTED requires category/priority and no
+  task; FUNDS_ADDED has no task/category/priority. Scope follows the rule above.
+- FKs and lookup indexes for relations, transaction dates and payment due dates.
 
-## Suggested entities
+Preference/category owner FKs use CASCADE. The existing users-to-budget-months
+cascade remains unchanged. New financial FKs use RESTRICT to prevent silent
+loss of referenced history. Thus deleting a user/month with financial children
+is blocked pending an explicit deletion workflow; no deletion UI is introduced.
+ORM parent relationships defer restrictions to the database even when loaded.
 
-| Entity | Suggested main fields | Owner / notes |
-|---|---|---|
-| `users` | `id`, `email`, `password_hash`, `created_at` | Thịnh; use password hashing, not plaintext |
-| `budget_months` | `id`, `user_id`, `month_start`, `available_vnd`, `status` | Thịnh/ Nhân; one per user/calendar month |
-| `categories` | `id`, `user_id`, `name`, `priority` | Nhân; priority P0/P1/P2 |
-| `budget_allocations` | `id`, `budget_month_id`, `category_id`, `planned_vnd`, `min_vnd` | Nhân |
-| `recurring_bills` | `id`, `user_id`, `category_id`, `schedule`, `due_date` | Thịnh; design recurring occurrence separately |
-| `expense_records` | `id`, `user_id`, `category_id`, `spent_vnd`, `spent_on`, `source` | Tuấn Anh; actual spending source of truth |
-| `expense_checkins` | `id`, `user_id`, `occurrence_id`, `status`, `expense_record_id` | Tuấn Anh; prevent repeat check-in |
-| `recommendations` | `id`, `user_id`, `budget_month_id`, `reason`, `status` | Khiêm; user accepted/rejected |
-| `monthly_reviews` | `id`, `budget_month_id`, `rating`, `comment` | Khiêm |
+## Rules that require services
 
-Do not create tables until the team agrees PK/FK conventions, ownership boundaries, required columns and migrations.
+Models do not implement financial workflows or authorize arbitrary writes.
+Services must derive ownership from the existing authenticated session and check
+every referenced month/category/plan/task and JSON task ID. Simple FKs do not
+prove common ownership or that a plan and planned expense share a month.
 
-## Important database constraints
+Services must enforce P0 requirements, P1 minimums, funding feasibility,
+confirmed-plan immutability and original-funds conservation/snapshots. Mutable
+available_vnd is not historical truth. Weekly boundaries, partial periods,
+pre-tracking bills, cross-month late payments and automatic versus accepted
+adjustments remain feature decisions; no scheduling/reallocation policy is
+silently selected by the models.
 
-- `UNIQUE(user_id, month_start)` for one monthly plan per user.
-- One check-in per *logical occurrence*, with uniqueness on `user_id + occurrence_id` (exact occurrence model pending).
-- When check-in generates an expense, reference **one** `expense_record_id`; do not count both check-in and expense as two costs.
-- Use integer VND (`BIGINT` for amounts if needed), no floating-point currency math.
-- `UNKNOWN` = not confirmed; `NO_EXPENSE` = explicitly confirmed zero; `RECORDED` = actual amount supplied.
-- Define timezone and day/week boundaries consistently (Vietnam local date for user-facing periods).
-- Monthly comparison must mark incomplete check-in data and should not silently fill missing expense amounts with zero.
-- Add foreign keys, indexes for `(user_id, month_start)` and relevant record date columns.
+Check-in services must sum all task transactions, reject NO_EXPENSE while spending
+exists, and recalculate outcomes on edits/deletions. Completeness excludes
+pre-tracking dates and never treats missing data as zero. Reports exclude
+FUNDS_ADDED from spending. Funds additions must atomically insert the record and
+update funds once using a token and replay-payload validation. Uniqueness alone
+does not implement idempotent financial behavior.
 
-## Security decisions to make
+Adjustments must be accepted if recommendation-driven, contain at least one
+detail, touch eligible future tasks in one authorized month, protect minimums,
+preserve original limits and atomically update current limits plus history.
+Budget/expense/report/recommendation feature routes remain placeholders; these
+workflows are not implemented merely by adding tables.
 
-- Authentication: Flask-managed session or Supabase Auth? **Proposed: Flask-managed server sessions; not implemented.**
-- Flask backend must always verify ownership for user data. Do not accept arbitrary user IDs on queries.
-- Supabase database credentials must stay server-side and out of the repo. Supabase Data API exposure and RLS roles require separate review (do not assume that having Supabase automatically enforces per-user authorization for a server-side SQLAlchemy connection).
+## Append-only migration history
 
-## Migration workflow (after first model is approved)
-
-```bash
-flask --app app db init    # only once in the repository; commit generated folder
-flask --app app db migrate -m "create initial models"
-# Read/edit the generated migration BEFORE applying
-flask --app app db upgrade
+```text
+de12e989405f  existing foundation (unchanged)
+    -> 19a01e000001  add nullable tracking_start_date
+    -> 19a01e000002  backfill/enforce tracking; create 11 missing tables
 ```
 
-Never apply unreviewed migration to a shared project DB. Don't use `db.create_all()` as a substitute for later schema changes.
+For rolling deployment: expand, deploy writers supplying the tracking date, then
+finalize. Old writers must not remain active after NOT NULL is enforced. SQLite
+parent-table batch alteration occurs before adding incoming financial FKs.
+
+## Security
+
+Existing Flask session authentication, password hashing, CSRF and ownership checks
+remain in place. Credentials stay server-side. Supabase Data API exposure and
+RLS require separate review: using a server-side SQLAlchemy connection does not
+implicitly provide per-user database authorization.

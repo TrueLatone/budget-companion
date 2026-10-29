@@ -9,6 +9,7 @@ WTForms_MESSAGE_KEYS = {
     "This field is required.": "validation_required",
     "Invalid email address.": "validation_email",
     "Not a valid integer value.": "validation_integer",
+    "Not a valid date value.": "validation_date",
     "Number must be between %(min)s and %(max)s.": "validation_number_range",
     "Field cannot be longer than %(max)d character.": "validation_length_max",
     "Field cannot be longer than %(max)d characters.": "validation_length_max",

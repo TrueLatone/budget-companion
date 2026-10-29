@@ -1,5 +1,11 @@
 # Budget model/rules
 
+> KAN-19's [database design](database-design.md) and
+> [entity dictionary](entity-dictionary.md) define the implemented persistence
+> model. The examples below do not imply feature endpoints are implemented.
+> Weekly/partial-period scheduling, adjustment activation and original-funds
+> conservation remain service decisions, not model side effects.
+
 ## I. Budget model and algorithm
 
 **Overall Workflow:** Available Funds → P0 Reservation → P1 Baseline (based on reference/past months) → Three Budget Plans → User Confirmation.
