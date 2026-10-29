@@ -18,6 +18,14 @@
             {% for error in form.month.errors %}<div class="bc-form-error" role="alert">{{ error }}</div>{% endfor %}
           </div>
         {% endif %}
+        {% if form.tracking_start_date is defined %}
+          <div class="bc-form-group">
+            {{ form.tracking_start_date.label(class='bc-form-label') }}
+            {{ form.tracking_start_date(class='bc-form-control' + (' is-invalid' if form.tracking_start_date.errors else '')) }}
+            <div class="bc-form-help">{{ t('tracking_start_date_help') }}</div>
+            {% for error in form.tracking_start_date.errors %}<div class="bc-form-error" role="alert">{{ error }}</div>{% endfor %}
+          </div>
+        {% endif %}
         <div class="bc-form-group">
           {{ form.available_vnd.label(class='bc-form-label') }}
           <div class="bc-money-input">

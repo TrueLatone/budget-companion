@@ -1,5 +1,11 @@
 # Adaptive AI Budget Assistant (Rule-Based) — F18 and F19
 
+> The CSV prototype remains independent of the shared database. KAN-19's
+> [entity dictionary](entity-dictionary.md) is the canonical persistence contract;
+> summary/cache tables proposed here are not part of its 13 entities. Runtime
+> integration must derive display task states and exclude FUNDS_ADDED from
+> spending. No prototype CSV is imported automatically.
+
 **Project:** Budget Companion  
 **Scope:** F18 Data Completeness Check and F19 Monthly Budget Review  
 **Implementation:** Python and CSV, deterministic rule-based prototype  

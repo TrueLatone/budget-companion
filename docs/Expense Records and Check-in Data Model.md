@@ -1,5 +1,12 @@
 # Expense Planning & Smart Check-in — Design Specification
 
+> Historical module/prototype specification. The integrated KAN-19 persistence
+> contract is [database-design.md](database-design.md) and
+> [entity-dictionary.md](entity-dictionary.md). UUIDs, month/allocation links,
+> category FKs, record types and stored task states supersede the prototype
+> tables below. Five-tag scheduling and legacy data need explicit mapping;
+> they are not automatically implemented by the canonical models.
+
 ## I. Expense Model and Algorithms
 
 ### 1. Overall Workflow

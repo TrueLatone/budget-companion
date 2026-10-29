@@ -1,6 +1,8 @@
-# API contracts (DRAFT)
+# API contracts
 
-All endpoints below are **proposals** except `/api/health` and `/api/health/database`. Implement only after ticket review.
+The health and KAN-15 HTML routes below are implemented. Feature API endpoints
+remain proposals. KAN-19 adds shared models and tracking-date support, not the
+planned budget/expense/report/recommendation APIs.
 
 ## Implemented on day 1
 
@@ -25,6 +27,20 @@ All endpoints below are **proposals** except `/api/health` and `/api/health/data
 Mutating routes use CSRF-protected HTML forms. The backend always derives the
 account identity from the session and returns `404` for another user's budget
 period identifier.
+
+KAN-19 creation accepts optional `tracking_start_date` in `YYYY-MM-DD` format.
+It must fall inside the selected calendar month; omission defaults to its first
+day. Funds editing does not change it. The period list displays it.
+All internal model IDs/FKs use UUID; money remains integer VND. See the
+[entity dictionary](entity-dictionary.md).
+
+Future feature contracts must use canonical month/allocation/category links,
+allow multiple PLANNED records per task, and distinguish stored states
+PENDING/RECORDED/NO_EXPENSE from derived display outcomes. UNEXPECTED requires
+priority; FUNDS_ADDED is not spending. Retryable writes must use a token scoped
+to the budget month, validate replay payloads, and update funds exactly once
+in the same transaction. These service/API workflows are not implemented merely
+by adding model constraints.
 
 ## Planned endpoints — NOT IMPLEMENTED
 
