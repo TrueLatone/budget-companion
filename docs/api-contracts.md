@@ -74,6 +74,11 @@ drafts with tasks cannot be replaced. Confirmation accepts no allocation edits:
 only saved allocations, savings, current funds and current expense rules count.
 See [KAN-21 integration contract](kan21-budget-planning.md) for the Expense handoff.
 
+The internal read-only `budgets.services.get_confirmed_allocations(user_id,
+month_id)` interface returns only the authorized month's confirmed allocations;
+it excludes generated alternatives and creates no tasks. The Expense module
+must consume it before scheduling. This is a Python service, not a new HTTP API.
+
 ## Planned endpoints — NOT IMPLEMENTED
 
 | Owner | Method | Endpoint | Description |

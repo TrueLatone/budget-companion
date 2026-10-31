@@ -356,3 +356,76 @@ def test_corrupt_cross_owner_reference_does_not_expose_private_category(signed_c
         response = signed_client.get(path)
         assert response.status_code == 400
         assert b"Private category" not in response.data
+
+
+def test_expense_handoff_excludes_all_unconfirmed_allocations(app, budget):
+    with app.app_context():
+        assert services.get_confirmed_allocations(budget["user"], budget["month"]) == []
+        services.generate_budget_plans(budget["user"], budget["month"])
+        assert services.get_confirmed_allocations(budget["user"], budget["month"]) == []
+        assert db.session.scalar(db.select(db.func.count(BudgetAllocation.id))) == 15
+        assert db.session.scalar(db.select(db.func.count(AssignedExpenseTask.id))) == 0
+
+
+def test_expense_handoff_returns_only_owned_confirmed_month_with_uuid_links(app, budget):
+    with app.app_context():
+        plans = services.generate_budget_plans(budget["user"], budget["month"])
+        confirmed_id = plans[1].id
+        services.confirm_plan(budget["user"], budget["month"], confirmed_id)
+        later = BudgetMonth(user_id=budget["user"], month_start=date(2026, 11, 1), available_vnd=100)
+        db.session.add(later)
+        db.session.commit()
+        later_id = later.id
+        db.session.remove()
+
+        allocations = services.get_confirmed_allocations(budget["user"], budget["month"])
+        assert len(allocations) == 5
+        assert {a.plan_id for a in allocations} == {confirmed_id}
+        for allocation in allocations:
+            assert allocation.plan.status == "CONFIRMED"
+            assert allocation.plan.budget_month.user_id == budget["user"]
+            assert allocation.budget_expense.budget_month_id == budget["month"]
+            assert isinstance(allocation.id, UUID)
+            assert isinstance(allocation.plan_id, UUID)
+            assert isinstance(allocation.budget_expense_id, UUID)
+            assert isinstance(allocation.budget_expense.category_id, UUID)
+            assert type(allocation.allocated_amount) is int
+        assert sum(a.allocated_amount for a in allocations) + allocations[0].plan.planned_savings == 6_000_000
+        assert services.get_confirmed_allocations(budget["user"], later_id) == []
+        assert services.get_confirmed_allocations(budget["other"], budget["other_month"]) == []
+        with pytest.raises(services.BudgetNotFound):
+            services.get_confirmed_allocations(budget["other"], budget["month"])
+        assert db.session.scalar(db.select(db.func.count(AssignedExpenseTask.id))) == 0
+
+
+def test_expense_handoff_rejects_corrupt_cross_user_categories(app, budget):
+    with app.app_context():
+        plan = services.generate_budget_plans(budget["user"], budget["month"])[0]
+        services.confirm_plan(budget["user"], budget["month"], plan.id)
+        db.session.get(BudgetExpense, budget["expenses"][0]).category_id = budget["other_category"]
+        db.session.commit()
+        db.session.remove()
+        with pytest.raises(BudgetError, match="unauthorized category"):
+            services.get_confirmed_allocations(budget["user"], budget["month"])
+
+
+@pytest.mark.parametrize("action", ["create", "edit", "delete", "generate", "confirm"])
+def test_every_budget_mutation_requires_csrf(signed_client, app, budget, action):
+    with app.app_context():
+        plan_id = services.generate_budget_plans(budget["user"], budget["month"])[0].id
+    app.config["WTF_CSRF_ENABLED"] = True
+    root = f"/budget/{budget['month']}"
+    paths = {
+        "create": f"{root}/expenses/new",
+        "edit": f"{root}/expenses/{budget['expenses'][0]}/edit",
+        "delete": f"{root}/expenses/{budget['expenses'][0]}/delete",
+        "generate": f"{root}/plans/generate",
+        "confirm": f"{root}/plans/{plan_id}/confirm",
+    }
+    response = signed_client.post(paths[action], data=expense_data(budget))
+    assert response.status_code == 400
+    assert b"CSRF token is missing" in response.data
+    with app.app_context():
+        assert db.session.get(BudgetPlan, plan_id).status == "GENERATED"
+        assert db.session.scalar(db.select(db.func.count(BudgetExpense.id))) == 5
+        assert len(services.list_plans(budget["user"], budget["month"])) == 3

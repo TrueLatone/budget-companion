@@ -91,6 +91,22 @@ def get_plan(user_id, month_id, plan_id):
     return plan
 
 
+def get_confirmed_allocations(user_id, month_id):
+    """Expense handoff: authorized monthly allocations, excluding all drafts.
+
+    Amounts are monthly totals, not per-task amounts. This read-only function
+    does not generate schedules or modify confirmed allocations.
+    """
+    month = get_month(user_id, month_id)
+    plan_id = db.session.scalar(db.select(BudgetPlan.id).where(
+        BudgetPlan.budget_month_id == month.id, BudgetPlan.status == "CONFIRMED",
+    ))
+    if plan_id is None:
+        return []
+    plan = get_plan(user_id, month.id, plan_id)
+    return sorted(plan.allocations, key=lambda allocation: (allocation.budget_expense.expense_name, allocation.id))
+
+
 def get_expense(user_id, month_id, expense_id):
     month = get_month(user_id, month_id)
     expense = db.session.scalar(db.select(BudgetExpense).where(
