@@ -17,10 +17,14 @@ def test_database_health(client):
 
 
 def test_module_placeholders(client):
-    for path in ("/budget", "/expenses", "/dashboard", "/recommendations"):
+    for path in ("/budget", "/dashboard", "/recommendations"):
         response = client.get(path)
         assert response.status_code == 200
         assert "placeholder" in response.get_data(as_text=True)
+
+    expenses_response = client.get("/expenses")
+    assert expenses_response.status_code == 200
+    assert "Expense Planning" in expenses_response.get_data(as_text=True)
 
 
 def test_account_requires_login(client):

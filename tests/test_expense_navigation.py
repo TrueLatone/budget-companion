@@ -1,23 +1,128 @@
-import re
 from datetime import date
+import re
 
+from app.extensions import db
+from app.models import (
+    AssignedExpenseTask,
+    BudgetAllocation,
+    BudgetExpense,
+    BudgetMonth,
+    BudgetPlan,
+    ExpenseCategory,
+    User,
+)
 from app.modules.expenses import services
-
 
 USER = services.DEMO_USER_ID
 
 
-def _plan(title, amount, schedule_tag, **extra):
-    values = {
-        "title": title,
-        "planned_amount": str(amount),
-        "amount_source": "USER_ENTERED",
-        "priority": "P1",
-        "schedule_tag": schedule_tag,
-        "is_active": "1",
-    }
-    values.update(extra)
-    return services.create_plan_item(USER, values)
+def _seed_canonical_task(
+    user_id: str,
+    assigned_date: date,
+    amount: int = 50000,
+    title: str = "Hằng ngày",
+    schedule_tag: str = "DAILY",
+    payment_due_date: date | None = None,
+    period_end: date | None = None,
+    task_status: str = "PENDING",
+) -> AssignedExpenseTask:
+    user_uuid = services.to_uuid(user_id)
+    user = db.session.get(User, user_uuid)
+    if not user:
+        user = User(
+            id=user_uuid,
+            email=f"{user_id}@example.com",
+            password_hash="fake-hash",
+        )
+        db.session.add(user)
+        db.session.flush()
+
+    month_start = date(assigned_date.year, assigned_date.month, 1)
+    month = BudgetMonth.query.filter_by(
+        user_id=user_uuid, month_start=month_start
+    ).first()
+    if not month:
+        month = BudgetMonth(
+            user_id=user_uuid,
+            month_start=month_start,
+            tracking_start_date=month_start,
+            available_vnd=50000000,
+        )
+        db.session.add(month)
+        db.session.flush()
+
+    category = ExpenseCategory.query.filter_by(
+        user_id=user_uuid, category_name="Chi tiêu chung"
+    ).first()
+    if not category:
+        category = ExpenseCategory(user_id=user_uuid, category_name="Chi tiêu chung")
+        db.session.add(category)
+        db.session.flush()
+
+    alloc_freq = "DAILY"
+    is_recurring = True
+    due_day = None
+    if schedule_tag == "DAILY":
+        alloc_freq = "DAILY"
+    elif schedule_tag == "WEEKLY":
+        alloc_freq = "WEEKLY"
+    elif schedule_tag == "MONTHLY":
+        alloc_freq = "MONTHLY"
+    elif schedule_tag == "DAY_OF_MONTH":
+        alloc_freq = "MONTHLY"
+        due_day = 15
+    elif schedule_tag == "DATE":
+        alloc_freq = "MONTHLY"
+        is_recurring = False
+
+    expense = BudgetExpense.query.filter_by(
+        budget_month_id=month.id, expense_name=title
+    ).first()
+    if not expense:
+        expense = BudgetExpense(
+            budget_month=month,
+            category=category,
+            expense_name=title,
+            priority="P1",
+            allocation_frequency=alloc_freq,
+            is_recurring=is_recurring,
+            due_day=due_day,
+        )
+        db.session.add(expense)
+        db.session.flush()
+
+    plan = BudgetPlan.query.filter_by(
+        budget_month_id=month.id, status="CONFIRMED"
+    ).first()
+    if not plan:
+        plan = BudgetPlan(
+            budget_month=month, plan_type="BALANCED", status="CONFIRMED"
+        )
+        db.session.add(plan)
+        db.session.flush()
+
+    allocation = BudgetAllocation.query.filter_by(
+        plan_id=plan.id, budget_expense_id=expense.id
+    ).first()
+    if not allocation:
+        allocation = BudgetAllocation(
+            plan=plan, budget_expense=expense, allocated_amount=amount
+        )
+        db.session.add(allocation)
+        db.session.flush()
+
+    task = AssignedExpenseTask(
+        allocation=allocation,
+        assigned_date=assigned_date,
+        period_end=period_end or assigned_date,
+        original_limit=amount,
+        current_limit=amount,
+        task_status=task_status,
+        payment_due_date=payment_due_date,
+    )
+    db.session.add(task)
+    db.session.commit()
+    return task
 
 
 def test_year_period_and_navigation_boundaries(app):
@@ -68,8 +173,7 @@ def test_calendar_uses_real_days_and_marks_selected_day(app):
     assert days[-1] == date(2028, 2, 29)
     assert all(len(week) == 7 for week in leap_calendar)
 
-    _plan("Hằng ngày", 50000, "DAILY")
-    services.generate_tasks(USER, date(2026, 10, 1), date(2026, 10, 31))
+    _seed_canonical_task(USER, date(2026, 10, 5), amount=50000, title="Hằng ngày", schedule_tag="DAILY")
     summary = services.build_summary(
         USER, services.resolve_period("month", "2026-10-05")
     )
@@ -82,22 +186,22 @@ def test_calendar_uses_real_days_and_marks_selected_day(app):
 
 
 def test_day_items_include_due_task_once_and_assigned_task(app):
-    _plan("Hằng ngày", 50000, "DAILY")
-    _plan("Đến hạn riêng", 70000, "DATE", specific_date="2026-10-07")
-    services.generate_tasks(USER, date(2026, 10, 1), date(2026, 10, 31))
-
-    daily = next(
-        task
-        for task in services.list_tasks(USER, date(2026, 10, 5), date(2026, 10, 5))
-        if task.plan_item.title == "Hằng ngày"
+    _seed_canonical_task(
+        USER,
+        date(2026, 10, 5),
+        amount=50000,
+        title="Hằng ngày",
+        schedule_tag="DAILY",
+        payment_due_date=date(2026, 10, 5),
     )
-    date_task = next(
-        task
-        for task in services.list_tasks(USER, date(2026, 10, 7), date(2026, 10, 7))
-        if task.plan_item.title == "Đến hạn riêng"
+    _seed_canonical_task(
+        USER,
+        date(2026, 10, 7),
+        amount=70000,
+        title="Đến hạn riêng",
+        schedule_tag="DATE",
+        payment_due_date=date(2026, 10, 5),
     )
-    services.set_payment_due_date(USER, daily.task_id, "2026-10-05")
-    services.set_payment_due_date(USER, date_task.task_id, "2026-10-05")
 
     summary = services.build_summary(USER, services.resolve_period("day", "2026-10-05"))
     items = services.build_day_items(summary, date(2026, 10, 5))
@@ -119,8 +223,9 @@ def test_day_items_include_due_task_once_and_assigned_task(app):
 
 
 def test_monthly_task_is_only_on_last_day_but_stays_in_month_overview(app):
-    _plan("Tiền nhà", 4500000, "MONTHLY")
-    services.generate_tasks(USER, date(2026, 10, 1), date(2026, 10, 31))
+    _seed_canonical_task(
+        USER, date(2026, 10, 31), amount=4500000, title="Tiền nhà", schedule_tag="MONTHLY"
+    )
 
     before = services.build_summary(
         USER, services.resolve_period("day", "2026-10-30")
@@ -141,18 +246,17 @@ def test_monthly_task_is_only_on_last_day_but_stays_in_month_overview(app):
 
 
 def test_month_items_skip_daily_tasks_but_include_monthly_date_and_due_only(app):
-    _plan("Hằng ngày", 50000, "DAILY")
-    _plan("Cuối tháng", 300000, "MONTHLY")
-    _plan("Ngày cụ thể", 100000, "DATE", specific_date="2026-10-20")
-    _plan("Đến hạn từ tháng khác", 80000, "DATE", specific_date="2026-09-10")
-    services.generate_tasks(USER, date(2026, 9, 1), date(2026, 10, 31))
-
-    due_task = next(
-        task
-        for task in services.list_tasks(USER, date(2026, 9, 10), date(2026, 9, 10))
-        if task.plan_item.title == "Đến hạn từ tháng khác"
+    _seed_canonical_task(USER, date(2026, 10, 5), amount=50000, title="Hằng ngày", schedule_tag="DAILY")
+    _seed_canonical_task(USER, date(2026, 10, 31), amount=300000, title="Cuối tháng", schedule_tag="MONTHLY")
+    _seed_canonical_task(USER, date(2026, 10, 20), amount=100000, title="Ngày cụ thể", schedule_tag="DATE")
+    _seed_canonical_task(
+        USER,
+        date(2026, 9, 10),
+        amount=80000,
+        title="Đến hạn từ tháng khác",
+        schedule_tag="DATE",
+        payment_due_date=date(2026, 10, 15),
     )
-    services.set_payment_due_date(USER, due_task.task_id, "2026-10-15")
 
     summary = services.build_summary(
         USER, services.resolve_period("month", "2026-10-15")
@@ -168,13 +272,13 @@ def test_month_items_skip_daily_tasks_but_include_monthly_date_and_due_only(app)
 
 
 def test_year_schedule_filter_matches_all_five_tags(app):
-    _plan("Hằng ngày", 1000, "DAILY")
-    _plan("Hằng tuần", 2000, "WEEKLY", day_of_week="1")
-    _plan("Cuối tháng", 3000, "MONTHLY")
-    _plan("Ngày cố định", 4000, "DAY_OF_MONTH", day_of_month="15")
-    _plan("Một ngày", 5000, "DATE", specific_date="2026-06-15")
+    _seed_canonical_task(USER, date(2026, 6, 1), 1000, "Hằng ngày", "DAILY")
+    _seed_canonical_task(USER, date(2026, 6, 8), 2000, "Hằng tuần", "WEEKLY")
+    _seed_canonical_task(USER, date(2026, 6, 30), 3000, "Cuối tháng", "MONTHLY")
+    _seed_canonical_task(USER, date(2026, 6, 15), 4000, "Ngày cố định", "DAY_OF_MONTH")
+    _seed_canonical_task(USER, date(2026, 6, 15), 5000, "Một ngày", "DATE")
+
     period = services.resolve_period("year", "2026-06-15")
-    services.generate_tasks(USER, period.start, period.end)
     all_tasks = services.list_tasks(USER, period.start, period.end)
 
     for tag in ("DAILY", "WEEKLY", "MONTHLY", "DAY_OF_MONTH", "DATE"):
@@ -188,10 +292,9 @@ def test_year_schedule_filter_matches_all_five_tags(app):
 
 
 def test_year_filter_groups_date_task_in_its_month_without_losing_other_tasks(app):
-    _plan("Hằng ngày", 50000, "DAILY")
-    _plan("Cuối tháng", 300000, "MONTHLY")
-    _plan("Ngày cụ thể", 100000, "DATE", specific_date="2026-12-20")
-    services.generate_tasks(USER, date(2026, 1, 1), date(2026, 12, 31))
+    _seed_canonical_task(USER, date(2026, 10, 5), 50000, "Hằng ngày", "DAILY")
+    _seed_canonical_task(USER, date(2026, 10, 31), 300000, "Cuối tháng", "MONTHLY")
+    _seed_canonical_task(USER, date(2026, 12, 20), 100000, "Ngày cụ thể", "DATE")
 
     period = services.resolve_period("year", "2026-10-15")
     all_summary = services.build_summary(USER, period)
@@ -227,13 +330,17 @@ def test_month_and_year_pickers_keep_the_current_day_and_clamp(client):
 
 
 def test_day_view_keeps_actual_for_due_only_task_assigned_elsewhere(client, app):
-    _plan("Đến hạn khác tháng", 70000, "DATE", specific_date="2026-09-10")
-    services.generate_tasks(USER, date(2026, 9, 1), date(2026, 9, 30))
-    task = services.list_tasks(USER, date(2026, 9, 10), date(2026, 9, 10))[0]
-    services.set_payment_due_date(USER, task.task_id, "2026-10-05")
+    task = _seed_canonical_task(
+        USER,
+        date(2026, 9, 10),
+        amount=70000,
+        title="Đến hạn khác tháng",
+        schedule_tag="DATE",
+        payment_due_date=date(2026, 10, 5),
+    )
     services.checkin_task(
         USER,
-        task.task_id,
+        task.id,
         action="actual",
         amount_raw="80000",
         expense_date_raw="2026-10-05",
@@ -250,13 +357,17 @@ def test_day_view_keeps_actual_for_due_only_task_assigned_elsewhere(client, app)
     assert "0 task phân bổ trong ngày · 1 task chỉ đến hạn" in body
 
 
-def test_year_view_avoids_record_modal_list_but_day_view_keeps_edit(client):
-    _plan("Hằng ngày", 50000, "DAILY")
-    services.generate_tasks(USER, date(2026, 10, 1), date(2026, 10, 31))
-    task = services.list_tasks(USER, date(2026, 10, 5), date(2026, 10, 5))[0]
+def test_year_view_avoids_record_modal_list_but_day_view_keeps_edit(client, app):
+    task = _seed_canonical_task(
+        USER,
+        date(2026, 10, 5),
+        amount=50000,
+        title="Hằng ngày",
+        schedule_tag="DAILY",
+    )
     services.checkin_task(
         USER,
-        task.task_id,
+        task.id,
         action="actual",
         amount_raw="60000",
         expense_date_raw="2026-10-05",

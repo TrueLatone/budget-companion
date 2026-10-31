@@ -119,11 +119,19 @@ def difference(planned, actual):
 
 @bp.app_template_filter("status_label")
 def status_label(value) -> str:
-    return STATUS_LABELS.get(value, value)
+    if isinstance(value, (services.AssignedExpenseTask, services.ExpenseTaskAdapter)):
+        value = services.get_task_status(value)
+    elif hasattr(value, "display_status"):
+        value = value.display_status
+    return STATUS_LABELS.get(value, str(value))
 
 
 @bp.app_template_filter("status_class")
 def status_class(value) -> str:
+    if isinstance(value, (services.AssignedExpenseTask, services.ExpenseTaskAdapter)):
+        value = services.get_task_status(value)
+    elif hasattr(value, "display_status"):
+        value = value.display_status
     return STATUS_CLASSES.get(value, "secondary")
 
 
@@ -148,14 +156,18 @@ def _back_url():
     values = {"view": view}
     if raw_date:
         values["date"] = raw_date
-    raw_tag = request.form.get("tag") or request.args.get("tag")
-    if raw_tag:
-        values["tag"] = raw_tag
+    tag = request.form.get("tag") or request.args.get("tag")
+    if tag:
+        values["tag"] = tag
     return redirect(url_for("expenses.index", **values))
 
 
 def _flash_error(exc: Exception) -> None:
-    flash(str(exc), "danger")
+    if hasattr(exc, "messages") and isinstance(exc.messages, (list, tuple)):
+        for message in exc.messages:
+            flash(message, "danger")
+    else:
+        flash(str(exc), "danger")
 
 
 def _month_picker_date(raw_month: str, raw_date: str | None) -> str:
@@ -213,7 +225,7 @@ def index():
         schedule_tag=schedule_filter or None,
     )
 
-    calendar = []
+    calendar_weeks = []
     day_items = []
     month_items = []
     month_cards = []
@@ -222,7 +234,7 @@ def index():
     if period.view in ("day", "month"):
         month_period = services.resolve_period("month", period.anchor.isoformat())
         month_summary = services.build_summary(user_id, month_period)
-        calendar = services.build_month_calendar(
+        calendar_weeks = services.build_month_calendar(
             month_summary["tasks"],
             month_summary["records"],
             period.anchor.year,
@@ -252,7 +264,7 @@ def index():
         )
 
     navigation = services.build_navigation(period)
-    plan_items = services.list_plan_items(user_id, demo_only=True)
+    plan_items = []
 
     modal_records = []
     if period.view != "year":
@@ -271,7 +283,7 @@ def index():
         plan_items=plan_items,
         today=services.today_vn(),
         unexpected_token=uuid4().hex,
-        calendar=calendar,
+        calendar=calendar_weeks,
         day_items=day_items,
         day_totals=day_totals,
         month_items=month_items,
@@ -325,64 +337,6 @@ def history():
     )
 
 
-@bp.post("/expenses/sources")
-def create_source():
-    try:
-        services.create_plan_item(_user_id(), request.form, is_demo=True)
-        flash("Đã thêm khoản chi demo.", "success")
-    except ValidationError as exc:
-        _flash_error(exc)
-    return _back_url()
-
-
-@bp.post("/expenses/sources/<item_id>/edit")
-def edit_source(item_id: str):
-    try:
-        services.update_plan_item(_user_id(), item_id, request.form)
-        flash("Đã cập nhật khoản chi.", "success")
-    except NotFoundError:
-        abort(404)
-    except ValidationError as exc:
-        _flash_error(exc)
-    return _back_url()
-
-
-@bp.post("/expenses/sources/<item_id>/active")
-def set_source_active(item_id: str):
-    try:
-        services.set_plan_item_active(
-            _user_id(), item_id, request.form.get("active") == "1"
-        )
-        flash("Đã cập nhật trạng thái khoản chi.", "success")
-    except NotFoundError:
-        abort(404)
-    return _back_url()
-
-
-@bp.post("/expenses/sources/<item_id>/delete")
-def delete_source(item_id: str):
-    try:
-        services.delete_plan_item(_user_id(), item_id)
-        flash("Đã xóa khoản chi demo.", "success")
-    except NotFoundError:
-        abort(404)
-    except ValidationError as exc:
-        _flash_error(exc)
-    return _back_url()
-
-
-@bp.post("/expenses/plan/generate")
-def generate_plan():
-    try:
-        start = parse_date(request.form.get("period_start"), "Ngày bắt đầu")
-        end = parse_date(request.form.get("period_end"), "Ngày kết thúc")
-        created = services.generate_tasks(_user_id(), start, end)
-        flash(f"Đã tạo {created} task cho kỳ đã chọn.", "success")
-    except ValidationError as exc:
-        _flash_error(exc)
-    return _back_url()
-
-
 @bp.post("/expenses/tasks/<task_id>/checkin")
 def checkin(task_id: str):
     try:
@@ -403,13 +357,13 @@ def checkin(task_id: str):
     return _back_url()
 
 
-@bp.post("/expenses/tasks/<task_id>/due-date")
-def set_due_date(task_id: str):
+@bp.post("/expenses/tasks/<task_id>/payment-status")
+def set_payment_status(task_id: str):
     try:
-        services.set_payment_due_date(
-            _user_id(), task_id, request.form.get("payment_due_date")
-        )
-        flash("Đã cập nhật hạn thanh toán.", "success")
+        user_id = _user_id()
+        status = request.form.get("payment_status")
+        services.set_payment_status(user_id, task_id, status)
+        flash("Đã cập nhật trạng thái thanh toán tự ghi nhận.", "success")
     except NotFoundError:
         abort(404)
     except ValidationError as exc:
@@ -465,8 +419,7 @@ def delete_record(record_id: str):
 def clear_demo():
     counts = services.clear_demo_data(_user_id())
     flash(
-        "Đã xóa dữ liệu demo: "
-        f"{counts['items']} khoản chi, {counts['tasks']} task, {counts['records']} giao dịch.",
+        f"Đã xóa dữ liệu demo: {counts['records']} giao dịch.",
         "success",
     )
     return _back_url()

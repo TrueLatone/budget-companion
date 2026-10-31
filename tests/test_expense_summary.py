@@ -3,38 +3,152 @@ from datetime import date
 import pytest
 
 from app.extensions import db
+from app.models import (
+    AssignedExpenseTask,
+    BudgetAllocation,
+    BudgetExpense,
+    BudgetMonth,
+    BudgetPlan,
+    ExpenseCategory,
+    ExpenseRecord,
+    User,
+)
 from app.modules.expenses import services
 
+USER = services.DEMO_USER_ID
 
-USER = "test-user"
+
+def _seed_canonical_task(
+    user_id: str,
+    assigned_date: date,
+    amount: int = 100000,
+    title: str = "Tiền ăn",
+    schedule_tag: str = "WEEKLY",
+    payment_due_date: date | None = None,
+    period_end: date | None = None,
+    task_status: str = "PENDING",
+) -> AssignedExpenseTask:
+    user_uuid = services.to_uuid(user_id)
+    user = db.session.get(User, user_uuid)
+    if not user:
+        user = User(
+            id=user_uuid,
+            email=f"{user_id}@example.com",
+            password_hash="fake-hash",
+        )
+        db.session.add(user)
+        db.session.flush()
+
+    month_start = date(assigned_date.year, assigned_date.month, 1)
+    month = BudgetMonth.query.filter_by(
+        user_id=user_uuid, month_start=month_start
+    ).first()
+    if not month:
+        month = BudgetMonth(
+            user_id=user_uuid,
+            month_start=month_start,
+            tracking_start_date=month_start,
+            available_vnd=50000000,
+        )
+        db.session.add(month)
+        db.session.flush()
+
+    category = ExpenseCategory.query.filter_by(
+        user_id=user_uuid, category_name="Ăn uống"
+    ).first()
+    if not category:
+        category = ExpenseCategory(user_id=user_uuid, category_name="Ăn uống")
+        db.session.add(category)
+        db.session.flush()
+
+    alloc_freq = "DAILY"
+    is_recurring = True
+    due_day = None
+    if schedule_tag == "DAILY":
+        alloc_freq = "DAILY"
+    elif schedule_tag == "WEEKLY":
+        alloc_freq = "WEEKLY"
+    elif schedule_tag == "MONTHLY":
+        alloc_freq = "MONTHLY"
+    elif schedule_tag == "DAY_OF_MONTH":
+        alloc_freq = "MONTHLY"
+        due_day = 15
+    elif schedule_tag == "DATE":
+        alloc_freq = "MONTHLY"
+        is_recurring = False
+
+    expense = BudgetExpense.query.filter_by(
+        budget_month_id=month.id, expense_name=title
+    ).first()
+    if not expense:
+        expense = BudgetExpense(
+            budget_month=month,
+            category=category,
+            expense_name=title,
+            priority="P1",
+            allocation_frequency=alloc_freq,
+            is_recurring=is_recurring,
+            due_day=due_day,
+        )
+        db.session.add(expense)
+        db.session.flush()
+
+    plan = BudgetPlan.query.filter_by(
+        budget_month_id=month.id, status="CONFIRMED"
+    ).first()
+    if not plan:
+        plan = BudgetPlan(
+            budget_month=month, plan_type="BALANCED", status="CONFIRMED"
+        )
+        db.session.add(plan)
+        db.session.flush()
+
+    allocation = BudgetAllocation.query.filter_by(
+        plan_id=plan.id, budget_expense_id=expense.id
+    ).first()
+    if not allocation:
+        allocation = BudgetAllocation(
+            plan=plan, budget_expense=expense, allocated_amount=amount
+        )
+        db.session.add(allocation)
+        db.session.flush()
+
+    task = AssignedExpenseTask(
+        allocation=allocation,
+        assigned_date=assigned_date,
+        period_end=period_end or assigned_date,
+        original_limit=amount,
+        current_limit=amount,
+        task_status=task_status,
+        payment_due_date=payment_due_date,
+    )
+    db.session.add(task)
+    db.session.commit()
+    return task
 
 
 def _seed_october():
-    services.create_plan_item(
-        USER,
-        {
-            "title": "Tiền ăn",
-            "planned_amount": "100000",
-            "amount_source": "USER_ENTERED",
-            "priority": "P1",
-            "schedule_tag": "WEEKLY",
-            "day_of_week": "1",
-            "is_active": "1",
-        },
-    )
-    services.generate_tasks(USER, date(2026, 10, 1), date(2026, 10, 31))
-    tasks = services.list_tasks(USER, date(2026, 10, 1), date(2026, 10, 31))
-    assert len(tasks) == 4
+    t1 = _seed_canonical_task(USER, date(2026, 10, 5), amount=100000, title="Tiền ăn")
+    t2 = _seed_canonical_task(USER, date(2026, 10, 12), amount=100000, title="Tiền ăn")
+    t3 = _seed_canonical_task(USER, date(2026, 10, 19), amount=100000, title="Tiền ăn")
+    t4 = _seed_canonical_task(USER, date(2099, 10, 26), amount=100000, title="Tiền ăn")  # Future date for PENDING
+    # Actually for October 2026 tests, we need assigned_date in Oct 2026:
+    # To keep t4 as PENDING (not UNRECORDED), we give it a future period_end:
+    t4.assigned_date = date(2026, 10, 26)
+    t4.period_end = date(2099, 10, 26)
+    db.session.commit()
 
-    services.checkin_task(USER, tasks[0].task_id, action="planned")
+    tasks = [t1, t2, t3, t4]
+
+    services.checkin_task(USER, tasks[0].id, action="planned")
     services.checkin_task(
         USER,
-        tasks[1].task_id,
+        tasks[1].id,
         action="actual",
         amount_raw="120000",
         expense_date_raw="2026-10-12",
     )
-    services.checkin_task(USER, tasks[2].task_id, action="no_expense")
+    services.checkin_task(USER, tasks[2].id, action="no_expense")
 
     services.create_unexpected_record(
         USER,
@@ -98,19 +212,14 @@ def test_day_and_week_views_use_correct_boundaries(app):
 
 
 def test_pending_tasks_are_not_counted_as_zero_spending(app):
-    services.create_plan_item(
+    _seed_canonical_task(
         USER,
-        {
-            "title": "Chưa check-in",
-            "planned_amount": "250000",
-            "amount_source": "USER_ENTERED",
-            "priority": "P1",
-            "schedule_tag": "DATE",
-            "specific_date": "2026-11-01",
-            "is_active": "1",
-        },
+        date(2026, 11, 1),
+        amount=250000,
+        title="Chưa check-in",
+        schedule_tag="DATE",
+        period_end=date(2099, 11, 1),
     )
-    services.generate_tasks(USER, date(2026, 11, 1), date(2026, 11, 1))
 
     summary = services.build_summary(
         USER, services.resolve_period("month", "2026-11-15")
@@ -134,9 +243,8 @@ def test_record_outside_period_is_not_counted(app):
 
 
 def test_record_edit_and_delete_update_task_status(app):
-    _seed_october()
+    tasks = _seed_october()
 
-    tasks = services.list_tasks(USER, date(2026, 10, 1), date(2026, 10, 31))
     record = services.list_records(USER, date(2026, 10, 12), date(2026, 10, 12))[0]
     services.update_record(
         USER,
@@ -149,53 +257,23 @@ def test_record_edit_and_delete_update_task_status(app):
         },
     )
     db.session.refresh(tasks[1])
-    assert tasks[1].task_status == services.STATUS_WITHIN_BUDGET
+    assert services.get_task_status(tasks[1]) == services.STATUS_WITHIN_BUDGET
 
     services.delete_record(USER, record.record_id)
     db.session.refresh(tasks[1])
-    assert tasks[1].task_status == services.STATUS_UNRECORDED
-    assert tasks[1].checked_at is None
+    assert services.get_task_status(tasks[1]) == services.STATUS_UNRECORDED
+    assert tasks[1].task_status == services.STATUS_PENDING
 
 
 def test_demo_queries_do_not_mix_official_rows(app):
-    from app.models.expense_planning import AssignedExpenseTask, ExpensePlanItem, ExpenseRecord
-    from app.modules.expenses.idgen import new_id
-
-    item = ExpensePlanItem(
-        plan_item_id=new_id(),
-        user_id=USER,
-        title="Dữ liệu chính thức",
-        amount_source="USER_ENTERED",
-        planned_amount=500000,
-        priority="P0",
-        schedule_tag="DATE",
-        specific_date=date(2099, 2, 1),
-        is_active=True,
-        is_demo=False,
-    )
-    task = AssignedExpenseTask(
-        task_id=new_id(),
-        plan_item_id=item.plan_item_id,
-        user_id=USER,
-        assigned_date=date(2099, 2, 1),
-        planned_amount=500000,
-        priority="P0",
-        checkin_deadline_at=services.deadline_for(date(2099, 2, 1)),
-        task_status=services.STATUS_PENDING,
-        is_demo=False,
-    )
-    record = ExpenseRecord(
-        record_id=new_id(),
-        user_id=USER,
-        task_id=task.task_id,
-        record_type=services.RECORD_PLANNED,
+    other_user = "00000000-0000-0000-0000-000000000002"
+    _seed_canonical_task(
+        other_user,
+        date(2099, 2, 1),
         amount=500000,
-        expense_date=date(2099, 2, 1),
-        actual_amount_source="USER_ENTERED",
-        is_demo=False,
+        title="Dữ liệu chính thức",
+        schedule_tag="DATE",
     )
-    db.session.add_all([item, task, record])
-    db.session.commit()
 
     summary = services.build_summary(
         USER, services.resolve_period("month", "2099-02-01")
@@ -205,8 +283,5 @@ def test_demo_queries_do_not_mix_official_rows(app):
     assert summary["plan_total"] == 0
     assert summary["actual_total"] == 0
     assert len(services.list_tasks(
-        USER, date(2099, 2, 1), date(2099, 2, 1), demo_only=False
+        other_user, date(2099, 2, 1), date(2099, 2, 1)
     )) == 1
-
-    with pytest.raises(services.NotFoundError):
-        services.set_plan_item_active(USER, item.plan_item_id, False)

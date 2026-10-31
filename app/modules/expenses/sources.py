@@ -1,22 +1,25 @@
-"""Data-source adapters for expense plan items.
+"""Data-source adapters for budget expense plan items.
 
-The demo adapter reads module-owned rows flagged ``is_demo``. When Budget/M1
-publishes a real interface, implement ``M1BudgetSource`` and switch
-``get_expense_source`` without changing scheduling/check-in business logic.
+Reads confirmed budget allocations and expenses from the shared database schema.
 """
 
 from dataclasses import dataclass
 from datetime import date
 from typing import Literal, Optional, Protocol
 
-from app.models.expense_planning import ExpensePlanItem
+from app.models import (
+    BudgetAllocation,
+    BudgetExpense,
+    BudgetMonth,
+    BudgetPlan,
+)
 
 ScheduleTag = Literal["DAILY", "WEEKLY", "MONTHLY", "DAY_OF_MONTH", "DATE"]
 
 
 @dataclass(frozen=True)
 class SourceExpense:
-    """Normalized input contract shared by the demo and M1 adapters."""
+    """Normalized input contract representing an assigned budget expense."""
 
     user_id: str
     expense_id: str
@@ -33,56 +36,56 @@ class SourceExpense:
 
 class ExpenseSource(Protocol):
     def list_expenses(
-        self, user_id: str, period_start: date, period_end: date
+        self, user_id: object, period_start: date, period_end: date
     ) -> list[SourceExpense]: ...
 
 
-class DemoExpenseSource:
-    """Read active demo plan items owned by the current user."""
+class SharedBudgetSource:
+    """Read active confirmed budget allocations owned by the user from shared models."""
 
     def list_expenses(
-        self, user_id: str, period_start: date, period_end: date
+        self, user_id: object, period_start: date, period_end: date
     ) -> list[SourceExpense]:
-        items = (
-            ExpensePlanItem.query.filter_by(
-                user_id=user_id, is_active=True, is_demo=True
+        from app.modules.expenses.services import to_uuid
+
+        user_uuid = to_uuid(user_id)
+        allocations = (
+            BudgetAllocation.query.join(
+                BudgetPlan, BudgetAllocation.plan_id == BudgetPlan.id
             )
-            .order_by(ExpensePlanItem.created_at.asc())
+            .join(BudgetMonth, BudgetPlan.budget_month_id == BudgetMonth.id)
+            .join(
+                BudgetExpense,
+                BudgetAllocation.budget_expense_id == BudgetExpense.id,
+            )
+            .filter(
+                BudgetMonth.user_id == user_uuid,
+                BudgetPlan.status == "CONFIRMED",
+            )
             .all()
         )
-        return [
-            SourceExpense(
-                user_id=item.user_id,
-                expense_id=item.source_expense_id or item.plan_item_id,
-                title=item.title,
-                amount_source=item.amount_source,
-                amount=item.planned_amount,
-                priority=item.priority,
-                schedule_tag=item.schedule_tag,
-                day_of_week=item.day_of_week,
-                day_of_month=item.day_of_month,
-                specific_date=item.specific_date,
-                plan_item_id=item.plan_item_id,
+        results: list[SourceExpense] = []
+        for alloc in allocations:
+            exp = alloc.budget_expense
+            tag: ScheduleTag = "MONTHLY"
+            if exp.allocation_frequency in ("DAILY", "WEEKLY", "MONTHLY"):
+                tag = exp.allocation_frequency  # type: ignore[assignment]
+            results.append(
+                SourceExpense(
+                    user_id=str(user_uuid),
+                    expense_id=str(exp.id),
+                    title=exp.expense_name,
+                    amount_source="ALLOCATION",
+                    amount=alloc.allocated_amount,
+                    priority=exp.priority,
+                    schedule_tag=tag,
+                    day_of_month=exp.due_day,
+                    plan_item_id=str(alloc.id),
+                )
             )
-            for item in items
-        ]
-
-
-class M1BudgetSource:
-    """Placeholder for the real Budget/M1 adapter.
-
-    Do not fake network calls: M1 has not published an API yet
-    (docs/api-contracts.md is still a proposal).
-    """
-
-    def list_expenses(
-        self, user_id: str, period_start: date, period_end: date
-    ) -> list[SourceExpense]:
-        raise NotImplementedError(
-            "M1 Budget API chưa sẵn sàng; dùng nguồn demo trong MVP."
-        )
+        return results
 
 
 def get_expense_source() -> ExpenseSource:
-    """Return the active source. MVP uses the isolated demo adapter."""
-    return DemoExpenseSource()
+    """Return the active source backed by canonical shared database models."""
+    return SharedBudgetSource()
