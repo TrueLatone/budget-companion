@@ -79,21 +79,20 @@ BudgetMonth, month_start and tracking_start_date. Savings are not expense task
 allocations. Do not use list_plans or all BudgetAllocation rows as the handoff:
 generated plans intentionally coexist with the confirmed plan.
 
-The Expense module on this integration branch is still a placeholder; no actual
-Budget-to-Expense scheduling path is wired yet. The KAN-8 branch's
-SharedBudgetSource filters CONFIRMED and user ownership, but ignores its date
-window, returns all owned months, and is not called by its services. Its task
-listing/due-listing queries also lack a CONFIRMED filter. Those are required
-Expense integration fixes; that branch has not been merged here.
+KAN-23 now consumes this interface for actual Expense scheduling. The integration
+selectively reuses KAN-8 presentation code, replacing its unsafe data source,
+anonymous fallback and write paths; it does not activate the legacy models.
+All task reads require confirmed plans and owned, matching month/category links.
+See the [KAN-23 contract](kan23-expense-planning.md) for current behavior.
 
-### Proposed scheduler interfaces (not implemented)
+### Scheduler interfaces (implemented by KAN-23)
 
 | Interface | Responsibility |
 |---|---|
 | Budget: get_confirmed_allocations(user_id, month_id) | Implemented authorized, confirmed-only source |
-| Expense: build_task_schedule(allocation, tracking_start_date) | Proposed pure calculation of period dates and integer limits |
-| Expense: ensure_tasks_for_month(user_id, month_id) | Proposed authorized, atomic, repeat-safe task creation |
-| Expense: list_tasks(user_id, start, end) / list_due_tasks(user_id, start, end) | Existing KAN-8 interfaces need confirmed-plan filtering and authorized period scoping |
+| Expense: build_task_schedule(allocation, tracking_start_date) | Pure calculation of period dates and integer limits |
+| Expense: ensure_tasks_for_month(user_id, month_id) | Authorized, atomic, repeat-safe task creation |
+| Expense: list_tasks(user_id, start, end) / list_due_tasks(user_id, start, end) | Confirmed-plan filtering and authorized assigned/due date scoping |
 
 The adapter should consume the confirmed-only source per overlapping owned
 month, preserve explicit allocation_id and budget_month_id, and treat amount as
@@ -104,8 +103,8 @@ the expense in another month; do not invent those missing recurrence fields.
 
 ### Task construction and conservation contract
 
-The following is the recommended scheduling policy for the next Expense ticket,
-not scheduling behavior implemented by KAN-21:
+The following handoff is now implemented by KAN-23; KAN-21 itself still creates
+no tasks and retains its verified Budget behavior:
 
 1. Resolve and authorize the owned month, then obtain only its confirmed
    allocations. Lock the month while inserting a complete schedule transaction.
@@ -113,8 +112,8 @@ not scheduling behavior implemented by KAN-21:
 2. Build eligible periods within tracking_start_date through calendar month end.
    DAILY uses one day per period. WEEKLY uses Monday–Sunday periods clipped to
    the eligible interval. MONTHLY uses one period over the eligible interval.
-   This treats the confirmed allocation as funds for that eligible interval;
-   full-month versus partial-month funding semantics still require team agreement.
+   KAN-23 treats the complete confirmed allocation as funds for that eligible
+   interval, without changing the original monthly Budget plan or amounts.
 3. For monthly total A and chronological period weights w_i, use integer bases
    `A * w_i // sum(weights)`. Distribute the remaining VND one at a time by
    descending `A * w_i % sum(weights)`, breaking ties by period start date.
@@ -131,10 +130,9 @@ not scheduling behavior implemented by KAN-21:
 5. For a monthly bill due_day, clamp to the month's last calendar day and use
    payment_due_date; initialize payment_status UNPAID when a due date exists,
    otherwise NULL. Keep payment_due_date/payment_status NULL for non-bill tasks.
-   A bill due before tracking start needs an explicit policy (outstanding versus
-   already handled); do not silently drop it or shift its due date. Block that
-   allocation's scheduling until the policy is supplied. Do not partially commit
-   a month whose complete schedule cannot be validated.
+   KAN-23 retains a bill due before tracking start as outstanding UNPAID, with
+   the original due date; it is not assumed to have been paid. The UI states
+   this policy. A month whose full schedule is invalid is not partially committed.
 6. Enforce one task per (allocation_id, assigned_date) using the existing unique
    constraint. A retry must compare the expected dates and original limits with
    existing rows, insert only missing matching rows, and return existing UUIDs.
@@ -149,12 +147,10 @@ not scheduling behavior implemented by KAN-21:
 Scheduling must be idempotent per (allocation_id, assigned_date), respect
 tracking_start_date, preserve the sum of task original_limit values, initialize
 current_limit from original_limit and store PENDING rather than derived display
-states. Weekly boundaries, partial-month distribution and bills before tracking
-start still require an agreed Expense policy. Do not silently repeat a monthly
-allocation on each daily/weekly task. Actual spending, FUNDS_ADDED, adjustments,
-automatic reallocation, carry-forward, history-based suggestions and Dashboard
-data binding are outside this ticket. Expense routes' demo identity and cleanup
-behavior must be resolved separately before integrating that feature branch.
+states. Do not repeat a monthly allocation on each daily/weekly task. Actual
+spending and explicit check-ins are implemented by KAN-23. FUNDS_ADDED,
+adjustments, automatic reallocation, carry-forward, history-based suggestions
+and Dashboard data binding remain outside these two tickets.
 
 The new budget UI uses the existing page shell and language preference; its new
 form labels and explanatory copy are currently English. Mandatory P0 detection

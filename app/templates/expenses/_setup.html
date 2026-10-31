@@ -1,0 +1,18 @@
+<section class="card mb-3"><div class="card-body">
+  <form method="get" action="{{ url_for('expenses.index') }}" class="d-flex flex-wrap gap-2 align-items-center">
+    <label for="expense-budget-month">Budget month</label>
+    <select id="expense-budget-month" name="budget_month_id" class="form-select w-auto" required>
+      {% for month in budget_months %}<option value="{{ month.id }}" {% if selected_month and month.id == selected_month.id %}selected{% endif %}>{{ month_name(month.month_start) }}</option>{% endfor %}
+    </select>
+    <input type="hidden" name="view" value="month">
+    <button class="btn btn-outline-primary" type="submit">Open month</button>
+    <a href="{{ url_for('budgets.index') }}">Budget planning</a>
+  </form>
+  {% if can_schedule %}
+    <form method="post" action="{{ url_for('expenses.schedule', month_id=selected_month.id) }}" class="mt-3">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button class="btn btn-primary" type="submit">Create / verify spending schedule</button>
+    </form>
+    <p class="small text-secondary mt-2 mb-0">Monthly allocations are distributed across the tracking interval. Repeating scheduling preserves tasks and recorded spending. Bills due before tracking retain their due date and start as unpaid.</p>
+  {% else %}<p class="mt-2 mb-0">Select a month with a confirmed Budget plan to create its spending schedule.</p>{% endif %}
+</div></section>

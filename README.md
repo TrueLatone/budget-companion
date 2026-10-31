@@ -68,16 +68,23 @@ Available:
 - `/register`, `/login`, `/logout`, `/account` — basic session authentication.
 - `/budget-periods` — calendar-month setup and selection.
 - `/budget` — authenticated monthly expense setup, generated plans and confirmation (KAN-21).
-- `/expenses`, `/dashboard`, `/recommendations` — nonfunctional placeholders.
+- `/expenses`, `/expenses/history` — authenticated scheduling, spending, check-ins and history (KAN-23).
+- `/dashboard`, `/recommendations` — nonfunctional placeholders.
 
-**Not implemented:** expense task scheduling, actual expenses, check-ins, alerts,
-dashboard statistics, AI recommendations, and recurring bills. Do not
+**Not implemented:** automatic reallocation, funds additions, alerts,
+dashboard statistics, AI recommendations, and cross-month recurring bill copying. Do not
 represent these as completed.
 
 Budget Planning persists UUID-linked plans and integer VND allocations in the
 shared database. Open **Plan budget** from a budget month to begin. See the
 [KAN-21 integration contract](docs/kan21-budget-planning.md) for rules and the
 Expense Planning handoff.
+
+After confirming a Budget plan, open **Expenses & check-in for this month** and
+choose **Create / verify spending schedule**. Monthly totals are distributed
+across eligible dates without duplication. Record positive purchases or explicitly
+confirm **NO_EXPENSE**; missing check-ins remain Unknown. See the
+[KAN-23 contract](docs/kan23-expense-planning.md) for scheduling and retry rules.
 
 ## Project documentation
 

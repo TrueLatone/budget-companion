@@ -63,7 +63,7 @@ def test_explicit_choice_takes_precedence_and_can_switch_back_to_english(client)
     response = client.get("/?lang=en")
     assert_page_language(response, "en")
     assert language_cookie(response).value == "en"
-    assert_page_language(client.get("/expenses"), "en")
+    assert_page_language(client.get("/expenses", follow_redirects=True), "en")
 
 
 @pytest.mark.parametrize("path", ["/login", "/register", "/budget", "/expenses", "/dashboard", "/recommendations"])

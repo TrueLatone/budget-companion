@@ -70,9 +70,25 @@ and relies on the existing partial unique index for the single confirmed plan.
 Confirmed allocations, savings and expense setup are not edited by Budget
 services. Their sum preserves the original plan funding total even if mutable
 available_vnd later changes. No separate funds snapshot column is introduced.
-Expense/report/recommendation feature routes remain placeholders. Task scheduling,
-adjustment activation and check-ins are not implemented merely by adding tables.
-See [KAN-21 integration contract](kan21-budget-planning.md).
+KAN-23 now consumes confirmed allocations through the KAN-21 service and creates
+UUID-linked tasks atomically and repeatably. Daily, clipped calendar-week and
+monthly periods share the entire allocation using integer remainder splitting.
+The full confirmed allocation covers the tracking interval; original limits sum
+to its monthly allocation without changing Budget's saved amounts or funds.
+Retries preserve task UUIDs, original/current limits, recorded transactions and
+check-in/payment states, and reject incompatible saved schedules. Bills due
+before tracking retain their original due date and start UNPAID rather than
+being silently considered paid or discarded.
+
+Spending uses positive integer transactions and month-scoped retry tokens with
+payload comparison. Multiple planned transactions per task are summed; an
+explicit NO_EXPENSE check-in creates no zero-amount record and conflicts while
+spending exists. Deleting the last purchase restores PENDING, not NO_EXPENSE.
+Unknown check-ins/missing schedule periods keep comparison totals NULL.
+The existing schema and migration chain are unchanged. Dashboard/recommendation
+integration, funds additions and adjustment activation remain separate workflows.
+See the [KAN-21](kan21-budget-planning.md) and [KAN-23](kan23-expense-planning.md)
+contracts.
 
 ## Append-only migration history
 

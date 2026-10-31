@@ -1,8 +1,8 @@
 # API contracts
 
-The health, KAN-15 and KAN-21 HTML routes below are implemented. JSON feature API
-endpoints remain proposals. KAN-21 integrates budget setup and plan persistence;
-expense/check-in/report/recommendation feature endpoints remain unimplemented.
+The health, KAN-15, KAN-21 and KAN-23 HTML routes below are implemented. JSON
+feature API endpoints remain proposals. Budget and Expense services share the
+canonical database, authenticated session and global CSRF protection.
 
 ## Implemented on day 1
 
@@ -78,6 +78,51 @@ The internal read-only `budgets.services.get_confirmed_allocations(user_id,
 month_id)` interface returns only the authorized month's confirmed allocations;
 it excludes generated alternatives and creates no tasks. The Expense module
 must consume it before scheduling. This is a Python service, not a new HTTP API.
+
+## Implemented by KAN-23 — Expense Planning and Smart Check-in
+
+| Method | Endpoint | Behavior |
+|---|---|---|
+| GET | `/expenses?budget_month_id=<uuid>` | Open an owned month; otherwise use the active session month or date navigation |
+| GET | `/expenses?view=day\|month\|year&date=YYYY-MM-DD` | Calendar, assigned periods, due bills and recorded spending |
+| GET | `/expenses/history?start=YYYY-MM-DD&end=YYYY-MM-DD` | Owned spending history; FUNDS_ADDED is excluded |
+| POST | `/expenses/months/<uuid:month_id>/schedule` | Idempotently schedule only confirmed allocations, conserving each monthly total |
+| POST | `/expenses/tasks/<uuid:task_id>/checkin` | Add a positive actual transaction or explicitly confirm NO_EXPENSE |
+| POST | `/expenses/tasks/<uuid:task_id>/payment-status` | Set self-reported PAID/UNPAID on a bill task; no money is moved |
+| POST | `/expenses/records` | Add an unexpected transaction to an existing owned month |
+| POST | `/expenses/records/<uuid:record_id>/edit` | Correct a spending transaction within its original month/task period |
+| POST | `/expenses/records/<uuid:record_id>/delete` | Delete one owned spending transaction and recalculate task status |
+
+Every route requires login; every POST uses the existing CSRF architecture.
+No client user_id authorizes access. Unknown/malformed/foreign resources return
+404, invalid inputs 400, conflicting schedules/retry payloads 409, and successful
+POSTs redirect. GET requests create no schedules, users, months or transactions.
+No demo identity, bulk cleanup or legacy duplicate model is exposed.
+
+Check-in fields: action (`actual`, `planned`, `no_expense`), amount (required
+positive integer VND for actual), expense_date (optional, defaults to assigned
+date), category (optional override name), note and idempotency_key. Actual and
+planned submissions require a nonempty retry token of at most 64 characters.
+The token is unique within the budget month across both transaction types;
+identical replay returns the existing result and changed payload returns 409.
+Each new token may create a separate actual purchase; a task may have many.
+`planned` explicitly records current_limit once and is rejected if it is zero or
+other purchases already exist. NO_EXPENSE creates no zero-amount record, is
+repeat-safe, and conflicts while transactions exist. Future tasks cannot be
+checked in. Transaction dates must lie inside the tracked month and the linked
+task's inclusive period, and cannot be future dates.
+
+Unexpected fields: budget_month_id, title (1–120 characters), category (required
+name up to 100), priority (explicit P0/P1/P2), positive integer amount,
+expense_date, note (up to 2000), optional budget_impact_scope
+(DAILY/WEEKLY/MONTHLY) and idempotency_key. A month is never auto-created with
+zero funds. Unknown input is rejected, not replaced with a category/priority or
+zero amount. Updates do not move transactions across months or modify funds.
+
+Read totals label the observed transaction sum separately. Missing/unconfirmed
+check-ins and incomplete schedules keep the plan comparison Unknown (NULL),
+not zero. The [KAN-23 contract](kan23-expense-planning.md) defines period
+distribution, original/current limits, payment due dates and retry boundaries.
 
 ## Planned endpoints — NOT IMPLEMENTED
 

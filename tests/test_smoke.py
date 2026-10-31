@@ -17,7 +17,7 @@ def test_database_health(client):
 
 
 def test_module_placeholders(client):
-    for path in ("/expenses", "/dashboard", "/recommendations"):
+    for path in ("/dashboard", "/recommendations"):
         response = client.get(path)
         assert response.status_code == 200
         assert "placeholder" in response.get_data(as_text=True)
@@ -27,6 +27,10 @@ def test_budget_requires_login(client):
     response = client.get("/budget")
     assert response.status_code == 302
     assert "/login" in response.headers["Location"]
+
+
+def test_expenses_require_login(client):
+    assert client.get("/expenses").status_code == 302
 
 
 def test_account_requires_login(client):

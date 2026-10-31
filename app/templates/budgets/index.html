@@ -13,6 +13,7 @@
 {% if month %}
 <h2>{{ month_name(month.month_start) }}</h2>
 <p>Available funds: {{ money(month.available_vnd) }} VND · Tracking from {{ month.tracking_start_date }}</p>
+<p><a href="{{ url_for('expenses.index', budget_month_id=month.id) }}">Expenses &amp; check-in for this month</a></p>
 {% if locked %}<p role="status">This month has a confirmed plan. Its expense setup and allocations are locked.</p>{% else %}
 <p>Include Rent, Electricity and Water as P0 with positive estimated amounts. Internet is optional P0. P1 minimums are optional and must be positive.</p>
 <p>A blank estimate means unknown; an entered zero stays zero. Every included expense receives a positive allocation. Remove expenses with no planned spending.</p>
