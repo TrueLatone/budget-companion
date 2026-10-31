@@ -35,6 +35,13 @@ class User(db.Model):
         cascade="all, delete-orphan",
         passive_deletes=True,
     )
+    preference = db.relationship(
+        "UserPreference", back_populates="user", uselist=False,
+        cascade="all, delete-orphan", passive_deletes=True,
+    )
+    expense_categories = db.relationship(
+        "ExpenseCategory", back_populates="user", passive_deletes="all",
+    )
 
     __table_args__ = (
         db.CheckConstraint(

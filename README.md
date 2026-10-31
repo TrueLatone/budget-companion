@@ -87,7 +87,8 @@ Available routes:
 ## Project documentation
 
 - [Architecture](docs/architecture.md)
-- [Database design — DRAFT](docs/database-design.md)
+- [Database design](docs/database-design.md)
+- [Entity dictionary — 13 shared entities](docs/entity-dictionary.md)
 - [API contracts — DRAFT](docs/api-contracts.md)
 - [Architecture Decision](docs/decisions/tech-stack.md)
 - [Team contribution rules](CONTRIBUTING.md)
