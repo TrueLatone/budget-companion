@@ -1,8 +1,8 @@
 # API contracts
 
-The health and KAN-15 HTML routes below are implemented. Feature API endpoints
-remain proposals. KAN-19 adds shared models and tracking-date support, not the
-planned budget/expense/report/recommendation APIs.
+The health, KAN-15 and KAN-21 HTML routes below are implemented. JSON feature API
+endpoints remain proposals. KAN-21 integrates budget setup and plan persistence;
+expense/check-in/report/recommendation feature endpoints remain unimplemented.
 
 ## Implemented on day 1
 
@@ -41,6 +41,38 @@ priority; FUNDS_ADDED is not spending. Retryable writes must use a token scoped
 to the budget month, validate replay payloads, and update funds exactly once
 in the same transaction. These service/API workflows are not implemented merely
 by adding model constraints.
+
+## Implemented by KAN-21 — Budget Planning HTML routes
+
+All routes require the existing authenticated session. Every month, expense,
+category and plan is checked against that user; client-provided `user_id` fields
+never authorize access. Every POST uses global Flask-WTF CSRF protection.
+
+| Method | Endpoint | Behavior |
+|---|---|---|
+| GET | `/budget?budget_month_id=<uuid>` | Select an owned month; otherwise use the selected session month or latest owned month |
+| GET | `/budget/<uuid:month_id>` | List the month's expenses and saved plans |
+| GET, POST | `/budget/<uuid:month_id>/expenses/new` | Add an expense using an owned/built-in category or create an owned category |
+| GET, POST | `/budget/<uuid:month_id>/expenses/<uuid:expense_id>/edit` | Edit expense setup before confirmation |
+| POST | `/budget/<uuid:month_id>/expenses/<uuid:expense_id>/delete` | Remove an expense before confirmation |
+| POST | `/budget/<uuid:month_id>/plans/generate` | Persist Saving, Balanced and Lifestyle alternatives |
+| GET | `/budget/<uuid:month_id>/plans/<uuid:plan_id>` | Read a saved plan and allocations from SQLAlchemy |
+| POST | `/budget/<uuid:month_id>/plans/<uuid:plan_id>/confirm` | Revalidate and confirm the stored plan; repeated confirmation is harmless |
+
+Expense fields: `expense_name`, `category_id` OR `category_name`, `priority`,
+`estimated_amount`, `minimum_amount`, `allocation_frequency`, `is_recurring`,
+`due_day`. Blank estimates persist as NULL; explicit `0` persists as zero.
+Amounts must be integer VND, bounded by signed BIGINT. Frequencies are DAILY,
+WEEKLY or MONTHLY. Minimums are optional positive P1 amounts. Due day is optional
+1–31 for monthly expenses. Category names are reused within the owner namespace.
+
+Successful POSTs redirect. Invalid form/rule input returns 400, inaccessible
+resources return 404, and locked or conflicting state returns 409. Category
+choices submitted through WTForms must be in the visible owned/built-in list.
+Expense changes and regeneration atomically replace unconfirmed drafts only;
+drafts with tasks cannot be replaced. Confirmation accepts no allocation edits:
+only saved allocations, savings, current funds and current expense rules count.
+See [KAN-21 integration contract](kan21-budget-planning.md) for the Expense handoff.
 
 ## Planned endpoints — NOT IMPLEMENTED
 

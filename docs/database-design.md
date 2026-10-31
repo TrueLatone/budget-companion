@@ -63,8 +63,16 @@ does not implement idempotent financial behavior.
 Adjustments must be accepted if recommendation-driven, contain at least one
 detail, touch eligible future tasks in one authorized month, protect minimums,
 preserve original limits and atomically update current limits plus history.
-Budget/expense/report/recommendation feature routes remain placeholders; these
-workflows are not implemented merely by adding tables.
+KAN-21 now implements budget setup, candidate allocations and confirmation using
+these existing tables, without a migration. Confirmation locks the budget month
+row on PostgreSQL, checks ownership, P0/P1 requirements and exact conservation,
+and relies on the existing partial unique index for the single confirmed plan.
+Confirmed allocations, savings and expense setup are not edited by Budget
+services. Their sum preserves the original plan funding total even if mutable
+available_vnd later changes. No separate funds snapshot column is introduced.
+Expense/report/recommendation feature routes remain placeholders. Task scheduling,
+adjustment activation and check-ins are not implemented merely by adding tables.
+See [KAN-21 integration contract](kan21-budget-planning.md).
 
 ## Append-only migration history
 

@@ -67,11 +67,17 @@ Available:
 - `GET /api/health/database` — database connectivity.
 - `/register`, `/login`, `/logout`, `/account` — basic session authentication.
 - `/budget-periods` — calendar-month setup and selection.
-- `/budget`, `/expenses`, `/dashboard`, `/recommendations` — nonfunctional placeholders.
+- `/budget` — authenticated monthly expense setup, generated plans and confirmation (KAN-21).
+- `/expenses`, `/dashboard`, `/recommendations` — nonfunctional placeholders.
 
-**Not implemented:** budget plans and allocations, expenses, check-ins, alerts,
+**Not implemented:** expense task scheduling, actual expenses, check-ins, alerts,
 dashboard statistics, AI recommendations, and recurring bills. Do not
 represent these as completed.
+
+Budget Planning persists UUID-linked plans and integer VND allocations in the
+shared database. Open **Plan budget** from a budget month to begin. See the
+[KAN-21 integration contract](docs/kan21-budget-planning.md) for rules and the
+Expense Planning handoff.
 
 ## Project documentation
 
