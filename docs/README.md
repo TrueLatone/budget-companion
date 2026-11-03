@@ -5,5 +5,6 @@
 - `entity-dictionary.md` — Attribute tables for all 13 implemented entities.
 - [Budget core parity](budget-core-parity.md) — KAN-11 audit, restored setup/plan/meal flow and validation.
 - [Expense Calendar repair](expense-calendar-integration.md) — Diagnosis, guided scheduling and period visibility.
+- [KAN-27 spending analysis](kan27-spending-analysis.md) — Canonical data, F18 checks, read-only guidance and JSON routes.
 - `decisions/tech_stack.md` — Technology decision proposal.
 

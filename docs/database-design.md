@@ -85,8 +85,12 @@ payload comparison. Multiple planned transactions per task are summed; an
 explicit NO_EXPENSE check-in creates no zero-amount record and conflicts while
 spending exists. Deleting the last purchase restores PENDING, not NO_EXPENSE.
 Unknown check-ins/missing schedule periods keep comparison totals NULL.
-The existing schema and migration chain are unchanged. Dashboard/recommendation
-integration, funds additions and adjustment activation remain separate workflows.
+The existing schema and migration chain are unchanged. KAN-27 now derives
+read-only analysis from these confirmed tasks and actual transactions, persisting
+only Recommendation and optional MonthlyReview metadata. ACCEPT is disabled;
+BudgetAdjustment/Detail are not activated. Dashboard integration, funds additions
+and adjustment activation remain separate workflows. See the
+[KAN-27 contract](kan27-spending-analysis.md).
 See the [KAN-21](kan21-budget-planning.md) and [KAN-23](kan23-expense-planning.md)
 contracts.
 

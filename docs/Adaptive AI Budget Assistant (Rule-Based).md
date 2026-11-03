@@ -1,5 +1,10 @@
 # Adaptive AI Budget Assistant (Rule-Based) — F18 and F19
 
+The [KAN-27 integration](kan27-spending-analysis.md) now adapts the source
+backend to canonical Budget/Expense data with unchanged F18 thresholds and
+financially read-only guidance. The CSV workflow below remains a separate
+prototype; it is never imported into user accounts.
+
 > The CSV prototype remains independent of the shared database. KAN-19's
 > [entity dictionary](entity-dictionary.md) is the canonical persistence contract;
 > summary/cache tables proposed here are not part of its 13 entities. Runtime

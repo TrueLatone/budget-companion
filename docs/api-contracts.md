@@ -1,7 +1,7 @@
 # API contracts
 
-The health, KAN-15, KAN-21 and KAN-23 HTML routes below are implemented. JSON
-feature API endpoints remain proposals. Budget and Expense services share the
+The health, KAN-15, KAN-21, KAN-23 and KAN-27 routes below are implemented.
+Budget, Expense and Recommendation services share the
 canonical database, authenticated session and global CSRF protection.
 
 ## Implemented on day 1
@@ -142,6 +142,22 @@ Read totals label the observed transaction sum separately. Missing/unconfirmed
 check-ins and incomplete schedules keep the plan comparison Unknown (NULL),
 not zero. The [KAN-23 contract](kan23-expense-planning.md) defines period
 distribution, original/current limits, payment due dates and retry boundaries.
+
+## Implemented by KAN-27 — Spending analysis
+
+KAN-27's implemented HTML and JSON endpoints use `/recommendations`, not the
+proposed `/api/recommendations` path below. GET `/recommendations` is an
+authenticated page. GET `/recommendations/analysis`, `/completeness` and
+`/monthly-review` take `month=YYYY-MM` and optional `as_of=YYYY-MM-DD`.
+POST `/recommendations/generate` takes the same fields as a JSON object.
+GET `/recommendations/<uuid>` reads an owned saved snapshot;
+POST `/recommendations/<uuid>/decision` takes `decision` (REJECT is repeat-safe;
+ACCEPT always returns 409 because financial adjustments are disabled).
+POST `/recommendations/monthly-review/feedback` upserts owned feedback.
+All POSTs retain global CSRF; JSON callers use `X-CSRFToken`. See the
+[KAN-27 contract](kan27-spending-analysis.md) for exact statuses, baseline guidance,
+replay behavior, F18 thresholds and HTML actions. Other `/api/...` entries below
+remain proposals.
 
 ## Planned endpoints — NOT IMPLEMENTED
 

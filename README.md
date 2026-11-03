@@ -69,10 +69,11 @@ Available:
 - `/budget-periods` — calendar-month setup and selection.
 - `/budget` — authenticated monthly expense setup, generated plans and confirmation (KAN-21).
 - `/expenses`, `/expenses/history` — authenticated scheduling, spending, check-ins and history (KAN-23).
-- `/dashboard`, `/recommendations` — nonfunctional placeholders.
+- `/recommendations` — authenticated spending analysis, F18 completeness and read-only guidance (KAN-27).
+- `/dashboard` — nonfunctional placeholder.
 
 **Not implemented:** automatic reallocation, funds additions, alerts,
-dashboard statistics, AI recommendations, and cross-month recurring bill copying. Do not
+dashboard statistics, LLM recommendations, and cross-month recurring bill copying. Do not
 represent these as completed.
 
 Budget Planning persists UUID-linked plans and integer VND allocations in the
@@ -96,6 +97,12 @@ Confirming a plan now opens its Expense month with explicit schedule-state
 guidance. Daily expenses appear in the calendar/month list; weekly/monthly
 periods and bill due dates remain visible without duplicating allocations.
 See the [Expense Calendar diagnosis and repair](docs/expense-calendar-integration.md).
+
+Open **Spending analysis** after recording real expenses. KAN-27 preserves F18's
+10-transaction / 3-category / 30-day / 80% thresholds and explains insufficient
+data with baseline guidance. Eligible comparisons use completed scheduled periods.
+Guidance can be saved or dismissed; financial ACCEPT adjustments are disabled.
+See the [KAN-27 contract](docs/kan27-spending-analysis.md) for JSON routes and limits.
 
 ## Project documentation
 
