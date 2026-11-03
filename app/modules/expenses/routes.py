@@ -355,6 +355,7 @@ def history():
         start=start,
         end=end,
         total=summary["actual_total"],
+        selected_month=services.find_month(user_id, end),
     )
 
 

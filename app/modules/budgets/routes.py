@@ -1,4 +1,4 @@
-from flask import Blueprint, abort, flash, g, redirect, render_template, request, session, url_for
+from flask import Blueprint, abort, flash, g, redirect, render_template, request, url_for
 
 from app.modules.accounts.auth import login_required
 from app.modules.budget_periods.services import list_budget_months
@@ -6,6 +6,8 @@ from app.modules.budgets import services
 from app.modules.budgets.forms import BudgetActionForm, ExpenseForm
 from app.modules.budgets.rules import BudgetError
 from app.modules.budgets.suggestions import SUGGESTED_EXPENSES
+from app.workspace import select_month
+from app.i18n import translate
 
 bp = Blueprint("budgets", __name__)
 
@@ -14,11 +16,7 @@ bp = Blueprint("budgets", __name__)
 @login_required
 def index():
     months = list_budget_months(g.current_user.id)
-    month_id = request.args.get("budget_month_id") or session.get("active_budget_month_id")
-    if month_id:
-        month = services.get_month(g.current_user.id, month_id)
-    else:
-        month = months[0] if months else None
+    month = select_month(g.current_user.id)
     return _workspace(month, months)
 
 
@@ -33,11 +31,14 @@ def _workspace(month, months=None):
     plans = services.list_plans(g.current_user.id, month.id) if month else []
     form = ExpenseForm()
     _category_choices(form)
+    summary_plan = next((plan for plan in plans if plan.status == "CONFIRMED"), None)
+    summary_plan = summary_plan or next((plan for plan in plans if plan.plan_type == "BALANCED"), None)
     return render_template(
         "budgets/index.html", month=month, expenses=expenses, plans=plans,
         months=months if months is not None else list_budget_months(g.current_user.id),
         locked=any(plan.status == "CONFIRMED" for plan in plans), action_form=BudgetActionForm(),
         expense_form=form, suggestions=SUGGESTED_EXPENSES,
+        summary_plan=summary_plan,
         existing_names={expense.expense_name.strip().casefold() for expense in expenses},
         breakdowns={plan.id: services.plan_breakdown(g.current_user.id, month.id, plan.id) for plan in plans},
     )
@@ -69,7 +70,7 @@ def _expense_form(month_id, expense_id=None):
 
 
 def _category_choices(form):
-    form.category_id.choices = [("", "Enter a new category below")] + [
+    form.category_id.choices = [("", translate("live_enter_category"))] + [
         (str(category.id), category.category_name)
         for category in services.list_categories(g.current_user.id)
     ]

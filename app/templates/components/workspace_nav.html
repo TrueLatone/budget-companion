@@ -1,0 +1,17 @@
+{% from 'components/icons.html' import icon %}
+<aside class="ws-sidebar" id="workspace-sidebar">
+  <div class="ws-sidebar-heading">
+    <a class="ws-brand" href="{{ url_for('core.home') }}" aria-label="{{ t('brand_home') }}"><span class="ws-brand-mark">{{ icon('sprout', 'ws-icon') }}</span><span class="ws-brand-name">Budget<br>Companion</span></a>
+    <button class="ws-sidebar-close" type="button" data-sidebar-close aria-label="{{ t('ws_close_menu') }}">{{ icon('close', 'ws-icon') }}</button>
+  </div>
+  <nav class="ws-nav" aria-label="{{ t('ws_navigation') }}">
+    {% for page, symbol, label in [('dashboard', 'home', 'ws_overview'), ('budgets', 'pie', 'ws_my_budget'), ('expenses', 'calendar', 'ws_expenses'), ('recommendations', 'bulb', 'ws_spending_tips')] %}
+    <a class="ws-nav-item{% if active_page == page %} is-active{% endif %}" data-workspace-page="{{ page }}" href="{{ workspace_urls[page] }}" {% if active_page == page %}aria-current="page"{% endif %}>{{ icon(symbol, 'ws-icon') }}<span class="ws-nav-copy">{{ t(label) }}</span></a>
+    {% endfor %}
+  </nav>
+  <nav class="ws-nav ws-sidebar-bottom" aria-label="{{ t('ws_settings') }}">
+    <a class="ws-nav-item" href="{{ url_for('budget_periods.index') }}">{{ icon('coins', 'ws-icon') }}<span>{{ t('manage_budget_months') }}</span></a>
+    <a class="ws-nav-item" href="{{ url_for('accounts.index') }}">{{ icon('settings', 'ws-icon') }}<span>{{ t('account_nav') }}</span></a>
+    <span class="ws-nav-item is-disabled" aria-disabled="true">{{ icon('help', 'ws-icon') }}<span>{{ t('ws_help') }}<small class="ws-later">{{ t('ws_later') }}</small></span></span>
+  </nav>
+</aside>

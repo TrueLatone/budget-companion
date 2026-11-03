@@ -1,6 +1,6 @@
-{% extends 'base.html' %}
+{% extends 'workspace_base.html' %}
 {% block title %}Spending analysis · Budget Companion{% endblock %}
-{% block content %}
+{% block workspace_content %}
 <h1>Spending analysis</h1>
 {% for message in get_flashed_messages() %}<p class="alert alert-info" role="status">{{ message }}</p>{% endfor %}
 <p>Read-only guidance from your saved Budget and Expense data. Automatic adjustments are disabled.</p>

@@ -1,6 +1,6 @@
-{% extends 'base.html' %}
+{% extends 'workspace_base.html' %}
 {% block title %}{{ plan.plan_type }} budget plan{% endblock %}
-{% block content %}
+{% block workspace_content %}
 <h1>{{ plan.plan_type }} · {{ month_name(month.month_start) }}</h1>
 <p>Status: <strong>{{ plan.status }}</strong></p>
 <p>Setup → Generate / Compare → Confirm → Spending Schedule</p>

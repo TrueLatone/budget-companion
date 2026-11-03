@@ -1,4 +1,4 @@
-{% extends 'base.html' %}
+{% extends 'workspace_base.html' %}
 {% block title %}Expense Planning & Smart Check-in — Budget Companion{% endblock %}
 
 {% macro render_meal_guidance(task) %}
@@ -144,8 +144,8 @@
 {% if task.period_end != task.assigned_date %}<p class="small text-secondary mb-1">Period: {{ task.assigned_date|date_vn }} - {{ task.period_end|date_vn }}. The displayed limit applies to this entire period.</p>{% endif %}
 {% endmacro %}
 
-{% block extra_styles %}<link rel="stylesheet" href="{{ url_for('static', filename='css/expenses.css') }}">{% endblock %}
-{% block content %}
+{% block extra_styles %}{{ super() }}<link rel="stylesheet" href="{{ url_for('static', filename='css/expenses.css') }}">{% endblock %}
+{% block workspace_content %}
 {% include 'expenses/_flashes.html' %}
 {% include 'expenses/_setup.html' %}
 <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-3">
@@ -688,7 +688,7 @@
 {% endfor %}
 {% endblock %}
 
-{% block scripts %}
+{% block workspace_scripts %}
 <script>
   document.querySelectorAll('form.schedule-form').forEach(function (form) {
     var select = form.querySelector('[name="schedule_tag"]');

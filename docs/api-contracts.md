@@ -1,6 +1,6 @@
 # API contracts
 
-The health, KAN-15, KAN-21, KAN-23 and KAN-27 routes below are implemented.
+The health, KAN-15, KAN-21, KAN-23, KAN-25 and KAN-27 routes below are implemented.
 Budget, Expense and Recommendation services share the
 canonical database, authenticated session and global CSRF protection.
 
@@ -142,6 +142,16 @@ Read totals label the observed transaction sum separately. Missing/unconfirmed
 check-ins and incomplete schedules keep the plan comparison Unknown (NULL),
 not zero. The [KAN-23 contract](kan23-expense-planning.md) defines period
 distribution, original/current limits, payment due dates and retry boundaries.
+
+## Implemented by KAN-25 — Workspace and Dashboard
+
+KAN-25 adds authenticated GET `/dashboard`, selecting an owned
+`budget_month_id=<uuid>` or `month=YYYY-MM`, otherwise the active session month
+or latest owned month. It renders confirmed allocations, savings, observed
+spending and nullable remaining allocation using canonical services. It adds no
+financial write endpoint. The shared Workspace carries that owned month across
+Budget, Expense and Recommendation pages. See the
+[KAN-25 contract](kan25-workspace-dashboard.md) for formulas and UI behavior.
 
 ## Implemented by KAN-27 — Spending analysis
 

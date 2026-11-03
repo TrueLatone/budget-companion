@@ -70,10 +70,10 @@ Available:
 - `/budget` — authenticated monthly expense setup, generated plans and confirmation (KAN-21).
 - `/expenses`, `/expenses/history` — authenticated scheduling, spending, check-ins and history (KAN-23).
 - `/recommendations` — authenticated spending analysis, F18 completeness and read-only guidance (KAN-27).
-- `/dashboard` — nonfunctional placeholder.
+- `/dashboard` — authenticated monthly overview, real spending, savings, check-in completeness and owned recent transactions (KAN-25).
 
 **Not implemented:** automatic reallocation, funds additions, alerts,
-dashboard statistics, LLM recommendations, and cross-month recurring bill copying. Do not
+cross-month dashboard reports, LLM recommendations, and cross-month recurring bill copying. Do not
 represent these as completed.
 
 Budget Planning persists UUID-linked plans and integer VND allocations in the
@@ -103,6 +103,12 @@ Open **Spending analysis** after recording real expenses. KAN-27 preserves F18's
 data with baseline guidance. Eligible comparisons use completed scheduled periods.
 Guidance can be saved or dismissed; financial ACCEPT adjustments are disabled.
 See the [KAN-27 contract](docs/kan27-spending-analysis.md) for JSON routes and limits.
+
+The [KAN-25 Workspace integration](docs/kan25-workspace-dashboard.md) preserves
+Thien's responsive design across Dashboard → Budget → Expenses → Recommendations.
+Each link carries the selected owned Budget Month. Dashboard reads the shared
+database; savings, unallocated funds and unknown remaining spending are separate.
+No financial localStorage prototype or ui_demo data is used by live pages.
 
 ## Project documentation
 

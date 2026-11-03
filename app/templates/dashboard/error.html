@@ -1,0 +1,2 @@
+{% extends 'workspace_base.html' %}
+{% block workspace_content %}<section class="ws-card"><h1>{{ t('live_dashboard_unavailable') }}</h1><p role="alert">{{ t(message) }}</p><a href="{{ url_for('budget_periods.index') }}">{{ t('manage_budget_months') }}</a></section>{% endblock %}

@@ -22,7 +22,6 @@ if (exampleButton) {
           form.elements[`${key}_allocation_frequency`].value !== "MONTHLY") continue;
       field.value = field.dataset.example;
     }
-    document.getElementById("budget-example-notice").textContent =
-      "Example amounts loaded for selected expenses only. Review them before Apply selected expenses. Nothing has been saved; available funds and existing expenses are unchanged.";
+    document.getElementById("budget-example-notice").textContent = exampleButton.dataset.notice;
   });
 }

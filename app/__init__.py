@@ -40,4 +40,7 @@ def create_app(test_config=None):
 
     app.before_request(load_current_user)
 
+    from app.workspace import register_workspace
+    register_workspace(app)
+
     return app

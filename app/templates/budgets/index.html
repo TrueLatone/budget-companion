@@ -1,68 +1,61 @@
-{% extends 'base.html' %}
-{% block title %}Budget planning · Budget Companion{% endblock %}
-{% block content %}
-<h1>Budget planning</h1>
+{% extends 'pages/budget.html' %}
+{% block budget_editor %}
+<h2 class="ws-card-title">{{ t("live_budget_setup") }}</h2>
 {% for message in get_flashed_messages() %}<p class="alert alert-success" role="status">{{ message }}</p>{% endfor %}
-<form method="get" action="{{ url_for('budgets.index') }}" class="mb-3">
-  <label for="budget-month">Budget month</label>
-  <select id="budget-month" name="budget_month_id" required>
-    {% for period in months %}<option value="{{ period.id }}" {% if month and period.id == month.id %}selected{% endif %}>{{ month_name(period.month_start) }}</option>{% endfor %}
-  </select>
-  <button class="btn btn-secondary" type="submit">Open month</button>
-  <a href="{{ url_for('budget_periods.create') }}">Create a budget month</a>
-</form>
+
 {% if month %}
 <nav aria-label="Budget planning steps" class="mb-3"><ol class="d-flex flex-wrap gap-4">
-  <li><a href="#setup">Setup</a></li><li><a href="#compare">Generate / Compare</a></li>
-  <li>Confirm saved plan</li><li><a href="{{ url_for('expenses.index', budget_month_id=month.id, view='month') }}">Spending Schedule</a></li>
+  <li><a href="#setup">{{ t('ui_setup') }}</a></li><li><a href="#compare">{{ t('ui_compare') }}</a></li>
+  <li>{{ t('ui_confirm') }}</li><li><a href="{{ url_for('expenses.index', budget_month_id=month.id, view='month') }}">{{ t('ui_schedule') }}</a></li>
 </ol></nav>
 <section id="setup" aria-label="Budget setup">
 <h2>{{ month_name(month.month_start) }}</h2>
-<p>Available funds: {{ money(month.available_vnd) }} VND · Tracking from {{ month.tracking_start_date }}</p>
-<p><a href="{{ url_for('expenses.index', budget_month_id=month.id) }}">Expenses &amp; check-in for this month</a></p>
-{% if locked %}<p role="status">This month has a confirmed plan. Its expense setup and allocations are locked.</p>{% else %}
-<p>Include Rent, Electricity and Water as P0 with positive estimated amounts. Internet is optional P0. P1 minimums are optional and must be positive.</p>
-<p>A blank estimate means unknown; an entered zero stays zero. Every included expense receives a positive allocation. Remove expenses with no planned spending.</p>
-<p>Saving, Balanced and Lifestyle target P1/P2/savings ratios of 70/5/25, 65/15/20 and 60/30/10 after P0. P1 minimums take precedence. P1/P2 estimates are informational, not allocation caps.</p>
+<p>{{ t('live_available') }}: {{ money(month.available_vnd) }} VND · {{ t('live_tracking') }} {{ month.tracking_start_date }}</p>
+<p><a href="{{ url_for('expenses.index', budget_month_id=month.id) }}">{{ t('live_open_checkin') }}</a></p>
+{% if locked %}<p role="status">{{ t('ui_locked') }}</p>{% else %}
+<p>{{ t('ui_required') }}</p>
+<p>{{ t('ui_unknown_rule') }}</p>
+<p>{{ t('ui_ratios') }}</p>
 {% include 'budgets/_suggestions.html' %}
-<details class="card mb-3" id="add-expense"><summary class="card-header">Add a custom expense</summary>
+<details class="card mb-3" id="add-expense"><summary class="card-header">{{ t('ui_custom') }}</summary>
   <form class="card-body" method="post" action="{{ url_for('budgets.create_expense', month_id=month.id) }}">
     {{ expense_form.hidden_tag() }}
     <div class="row">{% for field in expense_form if field.type not in ('CSRFTokenField', 'SubmitField') %}
       <div class="col-md-4 mb-3">{{ field.label(class_='form-label') }} {{ field(class_='form-check-input' if field.type == 'BooleanField' else 'form-control') }}</div>
     {% endfor %}</div>
-    <button class="btn btn-primary" type="submit">Save expense and add another</button>
+    <button class="btn btn-primary" type="submit">{{ t('ui_save_another') }}</button>
   </form>
 </details>
-<p>Editing expenses or generating again replaces unconfirmed draft plans.</p>
+<p>{{ t('ui_draft_replace') }}</p>
 {% endif %}
 <div class="table-responsive"><table class="table">
-  <thead><tr><th>Name</th><th>Category</th><th>Priority</th><th>Estimate (VND)</th><th>P1 minimum (VND)</th><th>Frequency</th><th>Actions</th></tr></thead>
+  <thead><tr><th>{{ t('ui_name') }}</th><th>{{ t('ui_category') }}</th><th>{{ t('ui_priority') }}</th><th>{{ t('ui_estimate') }}</th><th>{{ t('ui_minimum') }}</th><th>{{ t('ui_frequency') }}</th><th>{{ t('ui_actions') }}</th></tr></thead>
   <tbody>{% for expense in expenses %}<tr>
     <td>{{ expense.expense_name }}</td><td>{{ expense.category.category_name }}</td><td>{{ expense.priority }}</td>
-    <td>{{ 'Unknown' if expense.estimated_amount is none else money(expense.estimated_amount) }}</td>
-    <td>{{ 'Not specified' if expense.minimum_amount is none else money(expense.minimum_amount) }}</td>
-    <td>{{ expense.allocation_frequency }}{% if expense.due_day %} · Due day {{ expense.due_day }}{% endif %}</td>
-    <td>{% if not locked %}<a href="{{ url_for('budgets.edit_expense', month_id=month.id, expense_id=expense.id) }}">Edit</a>
+    <td>{{ t('live_unknown') if expense.estimated_amount is none else money(expense.estimated_amount) }}</td>
+    <td>{{ t('ui_not_specified') if expense.minimum_amount is none else money(expense.minimum_amount) }}</td>
+    <td>{{ t('live_frequency_' ~ expense.allocation_frequency) }}{% if expense.due_day %} · {{ t('ui_due_day') }} {{ expense.due_day }}{% endif %}</td>
+    <td>{% if not locked %}<a href="{{ url_for('budgets.edit_expense', month_id=month.id, expense_id=expense.id) }}">{{ t('ui_edit') }}</a>
       <form method="post" action="{{ url_for('budgets.delete_expense', month_id=month.id, expense_id=expense.id) }}">
-        {{ action_form.hidden_tag() }}<button class="btn btn-sm btn-outline-danger" type="submit">Remove expense</button>
+        {{ action_form.hidden_tag() }}<button class="btn btn-sm btn-outline-danger" type="submit">{{ t('ui_remove') }}</button>
       </form>{% endif %}</td>
-  </tr>{% else %}<tr><td colspan="7">No expenses yet. Add the required P0 expenses to begin.</td></tr>{% endfor %}</tbody>
+  </tr>{% else %}<tr><td colspan="7">{{ t('ui_no_expenses') }}</td></tr>{% endfor %}</tbody>
 </table></div>
 </section>
-<section id="compare" aria-label="Plan comparison">
+{% else %}<p>{{ t('ui_no_month') }}</p>{% endif %}
+{% endblock %}
+{% block budget_comparison %}{% if month %}<section class="ws-card mt-3" id="compare" aria-label="Plan comparison">
 {% if not locked %}<form method="post" action="{{ url_for('budgets.generate', month_id=month.id) }}">
-  {{ action_form.hidden_tag() }}<button class="btn btn-primary" type="submit">Generate three plans</button>
+  {{ action_form.hidden_tag() }}<button class="btn btn-primary" type="submit">{{ t('ui_generate') }}</button>
 </form>{% endif %}
-<h2 class="mt-4">Compare saved plans</h2>
-<p>All values below are stored plan amounts in VND. Targets apply after reserving P0; minimums and positive included allocations take precedence. Confirmation uses these saved allocations unchanged.</p>
+<h2 class="mt-4">{{ t('ui_compare_saved') }}</h2>
+<p>{{ t('ui_compare_help') }}</p>
 <div class="row g-3">{% for plan in plans %}{% set totals = breakdowns[plan.id] %}<article class="col-md-4"><div class="card h-100"><div class="card-body">
   <h3 class="h5">{{ plan.plan_type }}</h3><p>{{ plan.status }}</p>
   <dl>{% for label, amount in totals.items() %}<dt>{{ label }}</dt><dd>{{ money(amount) }} VND</dd>{% endfor %}
     <dt>Plan total</dt><dd>{{ money(totals.values()|sum) }} VND</dd></dl>
   <a class="btn btn-outline-primary" href="{{ url_for('budgets.plan', month_id=month.id, plan_id=plan.id) }}">Review {{ plan.plan_type }}{% if not locked %} / Confirm{% endif %}</a>
-</div></div></article>{% else %}<p>No saved plans yet.</p>{% endfor %}</div>
+</div></div></article>{% else %}<p>{{ t('ui_no_saved') }}</p>{% endfor %}</div>
 </section>
-{% else %}<p>Create a budget month before adding expenses.</p>{% endif %}
-{% endblock %}
-{% block scripts %}<script src="{{ url_for('static', filename='js/budget-setup.js') }}" defer></script>{% endblock %}
+{% endif %}{% endblock %}
+{% block workspace_scripts %}<script src="{{ url_for('static', filename='js/budget-setup.js') }}" defer></script>{% endblock %}
