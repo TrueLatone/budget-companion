@@ -126,6 +126,51 @@ def ensure_tasks_for_month(user_id, month_id):
     return tasks
 
 
+@dataclass(frozen=True)
+class ScheduleState:
+    code: str
+    message: str
+    can_schedule: bool = False
+    plan_id: uuid.UUID | None = None
+
+
+def get_schedule_state(user_id, month_id):
+    """Read-only diagnosis of the owned month's Budget-to-Expense handoff."""
+    month = get_month(user_id, month_id)
+    expenses = budgets.list_expenses(user_id, month.id)
+    plans = budgets.list_plans(user_id, month.id)
+    confirmed = next((plan for plan in plans if plan.status == "CONFIRMED"), None)
+    if confirmed is None:
+        if not expenses:
+            return ScheduleState("NO_EXPENSES", "No budget expenses or plan exist. Add expenses in Budget setup first.")
+        if not plans:
+            return ScheduleState("NO_PLAN", "No budget plan exists. Generate plans in Budget setup first.")
+        return ScheduleState("UNCONFIRMED", "No confirmed plan exists. Review and confirm a saved Budget plan first.")
+    allocations = budgets.get_confirmed_allocations(user_id, month.id)
+    if not allocations:
+        return ScheduleState("NO_ALLOCATIONS", "The confirmed plan has no allocations to schedule. Review the saved Budget plan.", plan_id=confirmed.id)
+    expected = {
+        (allocation.id, item.assigned_date): (item.period_end, item.original_limit, item.payment_due_date)
+        for allocation in allocations
+        for item in build_task_schedule(allocation, month.tracking_start_date)
+    }
+    # Allocation IDs have already been authorized through the confirmed Budget
+    # service. Inspect even malformed stored periods so filtering cannot make a
+    # conflicting schedule look like one that has never been created.
+    tasks = list(db.session.scalars(db.select(AssignedExpenseTask).where(
+        AssignedExpenseTask.allocation_id.in_([allocation.id for allocation in allocations]),
+    )))
+    actual = {(task.allocation_id, task.assigned_date):
+              (task.period_end, task.original_limit, task.payment_due_date) for task in tasks}
+    if not tasks:
+        return ScheduleState("NOT_SCHEDULED", "Your plan is confirmed, but its spending schedule has not been created. Create spending schedule to fill the calendar.", True, confirmed.id)
+    if any(key not in expected or values != expected[key] for key, values in actual.items()):
+        return ScheduleState("CONFLICT", "Saved task dates or original limits differ from the confirmed plan. The schedule cannot be overwritten; review the saved plan.", plan_id=confirmed.id)
+    if actual.keys() != expected.keys():
+        return ScheduleState("INCOMPLETE", "Some scheduled tasks are missing. Create / verify spending schedule to add missing tasks and preserve existing check-ins.", True, confirmed.id)
+    return ScheduleState("READY", "Spending schedule ready. Select a calendar date for daily expenses and active weekly/monthly periods.", True, confirmed.id)
+
+
 def _task_statement(user_id):
     return (
         db.select(AssignedExpenseTask)

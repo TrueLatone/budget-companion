@@ -132,7 +132,8 @@ def plan(month_id, plan_id):
 def confirm(month_id, plan_id):
     _require_action()
     services.confirm_plan(g.current_user.id, month_id, plan_id)
-    return redirect(url_for("budgets.plan", month_id=month_id, plan_id=plan_id))
+    flash("Budget plan confirmed. Create or verify its spending schedule below to display planned expenses.", "success")
+    return redirect(url_for("expenses.index", budget_month_id=month_id, view="month"))
 
 
 @bp.errorhandler(services.BudgetNotFound)

@@ -427,6 +427,12 @@ class CalendarDay:
     pending_count: int
     unrecorded_count: int
     confirmed_count: int
+    daily_names: tuple[str, ...] = ()
+    period_starts: tuple[str, ...] = ()
+    continuing_count: int = 0
+    due_count: int = 0
+    record_count: int = 0
+    no_expense_count: int = 0
 
 
 @dataclass(frozen=True)
@@ -442,6 +448,7 @@ class DayItemTotals:
     due_only_count: int
     assigned_plan_total: int
     due_only_plan_total: int
+    continuing_count: int = 0
 
 
 def build_month_calendar(
@@ -450,18 +457,30 @@ def build_month_calendar(
     year: int,
     month: int,
 ) -> list[list[CalendarDay | None]]:
-    """Build a standard Monday-to-Sunday matrix of real days in (year, month)."""
+    """Display starts, active periods, due dates and actuals independently.
+
+    plan_total and task_count count assignments once, on their start date.
+    Repeated period/status indicators never repeat a financial allocation.
+    """
     tasks_by_day: dict[date, list[ExpenseTaskAdapter]] = defaultdict(list)
+    active_by_day: dict[date, list[ExpenseTaskAdapter]] = defaultdict(list)
+    due_by_day: dict[date, list[ExpenseTaskAdapter]] = defaultdict(list)
     records_by_day: dict[date, list[ExpenseRecordAdapter]] = defaultdict(list)
+    first = date(year, month, 1)
+    last_day = calendar.monthrange(year, month)[1]
+    last = date(year, month, last_day)
     for task in tasks:
         if task.assigned_date.year == year and task.assigned_date.month == month:
             tasks_by_day[task.assigned_date].append(task)
+        begin, finish = max(first, task.assigned_date), min(last, task.period_end)
+        for offset in range(max(0, (finish - begin).days + 1)):
+            active_by_day[begin + timedelta(days=offset)].append(task)
+        if task.payment_due_date and first <= task.payment_due_date <= last:
+            due_by_day[task.payment_due_date].append(task)
     for record in records:
-        if record.expense_date.year == year and record.expense_date.month == month:
+        if record.record_type in ("PLANNED", "UNEXPECTED") and first <= record.expense_date <= last:
             records_by_day[record.expense_date].append(record)
 
-    first = date(year, month, 1)
-    last_day = calendar.monthrange(year, month)[1]
     weeks: list[list[CalendarDay | None]] = []
     week: list[CalendarDay | None] = [None] * first.weekday()
 
@@ -469,23 +488,26 @@ def build_month_calendar(
         day = date(year, month, day_number)
         day_tasks = tasks_by_day[day]
         day_records = records_by_day[day]
+        visible = {str(task.id): task for task in active_by_day[day] + due_by_day[day]}
+        statuses = [get_task_status(task) for task in visible.values()]
         week.append(
             CalendarDay(
                 day=day,
                 task_count=len(day_tasks),
                 plan_total=sum(task.current_limit for task in day_tasks),
                 actual_total=sum(record.amount for record in day_records),
-                pending_count=sum(
-                    1 for task in day_tasks if get_task_status(task) == STATUS_PENDING
+                pending_count=statuses.count(STATUS_PENDING),
+                unrecorded_count=statuses.count(STATUS_UNRECORDED),
+                confirmed_count=sum(status in CONFIRMED_STATUSES for status in statuses),
+                daily_names=tuple(task.title for task in day_tasks if task.schedule_tag == "DAILY"),
+                period_starts=tuple(
+                    f"{task.title}: {task.assigned_date.isoformat()} - {task.period_end.isoformat()}"
+                    for task in day_tasks if task.schedule_tag != "DAILY"
                 ),
-                unrecorded_count=sum(
-                    1 for task in day_tasks if get_task_status(task) == STATUS_UNRECORDED
-                ),
-                confirmed_count=sum(
-                    1
-                    for task in day_tasks
-                    if get_task_status(task) in CONFIRMED_STATUSES
-                ),
+                continuing_count=sum(task.assigned_date < day for task in active_by_day[day]),
+                due_count=len(due_by_day[day]),
+                record_count=len(day_records),
+                no_expense_count=statuses.count(STATUS_NO_EXPENSE),
             )
         )
         if len(week) == 7:
@@ -499,7 +521,7 @@ def build_month_calendar(
 
 
 def build_day_items(
-    summary: dict[str, object], selected_date: date
+    summary: dict[str, object], selected_date: date, *, covering_tasks=(),
 ) -> list[TaskEntry]:
     items: list[TaskEntry] = []
     seen: set[str] = set()
@@ -525,6 +547,14 @@ def build_day_items(
             )
             seen.add(str(task.id))
 
+    # A continuing period is discoverable, but its full weekly/monthly limit
+    # is not a new assignment to this day and does not enter the day total.
+    for task in covering_tasks:
+        if str(task.id) not in seen and task.assigned_date <= selected_date <= task.period_end:
+            items.append(TaskEntry(task=task, assigned_in_period=False,
+                                   due_in_period=task.payment_due_date == selected_date))
+            seen.add(str(task.id))
+
     def sort_key(entry: TaskEntry):
         due_only = 1 if (not entry.assigned_in_period and entry.due_in_period) else 0
         return (due_only, entry.task.priority, entry.task.title)
@@ -544,17 +574,16 @@ def summarize_day_items(items: list[TaskEntry]) -> DayItemTotals:
         due_only_count=len(due_only),
         assigned_plan_total=sum(entry.task.current_limit for entry in assigned),
         due_only_plan_total=sum(entry.task.current_limit for entry in due_only),
+        continuing_count=sum(not entry.assigned_in_period and not entry.due_in_period for entry in items),
     )
 
 
 def build_month_items(summary: dict[str, object]) -> list[TaskEntry]:
-    """Return non-daily tasks and due-only obligations for month view."""
+    """Return all assigned tasks once, including daily Food, plus due-only bills."""
     items: list[TaskEntry] = []
     seen: set[str] = set()
 
     for task in summary["tasks"]:  # type: ignore[union-attr]
-        if task.plan_item and task.plan_item.schedule_tag == "DAILY":
-            continue
         items.append(
             TaskEntry(
                 task=task,
@@ -575,7 +604,7 @@ def build_month_items(summary: dict[str, object]) -> list[TaskEntry]:
             )
             seen.add(str(task.id))
 
-    return sorted(items, key=lambda entry: (entry.task.priority, entry.task.title))
+    return sorted(items, key=lambda entry: (entry.task.priority, entry.task.title, entry.task.assigned_date))
 
 
 @dataclass(frozen=True)

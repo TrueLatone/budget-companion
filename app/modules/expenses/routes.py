@@ -17,7 +17,6 @@ from flask import (
 from app.modules.expenses import services
 from app.modules.accounts.auth import login_required
 from app.modules.budget_periods.services import list_budget_months
-from app.modules.budgets import services as budgets
 from app.modules.budgets.rules import BudgetError
 from app.modules.expenses.services import (
     NotFoundError,
@@ -206,10 +205,18 @@ def index():
     raw_date = request.args.get("date")
     raw_month = request.args.get("month")
     raw_year = request.args.get("year")
-    month_id = request.args.get("budget_month_id") or session.get("active_budget_month_id")
+    explicit_month_id = request.args.get("budget_month_id")
+    month_id = explicit_month_id or session.get("active_budget_month_id")
     if month_id:
         active_month = services.get_month(user_id, month_id)
-        if not (raw_date or raw_month or raw_year):
+        if explicit_month_id:
+            # An explicit owned month selection wins over stale navigation
+            # fields. Date-only navigation can still leave the session month.
+            selected_date = parse_optional_date(raw_date)
+            if not selected_date or selected_date.replace(day=1) != active_month.month_start:
+                raw_date = active_month.tracking_start_date.isoformat()
+            raw_month = raw_year = None
+        elif not (raw_date or raw_month or raw_year):
             today = services.today_vn()
             raw_date = (today if today.replace(day=1) == active_month.month_start else active_month.tracking_start_date).isoformat()
 
@@ -251,7 +258,7 @@ def index():
             period = month_period
             month_items = services.build_month_items(month_summary)
         else:
-            day_items = services.build_day_items(summary, period.anchor)
+            day_items = services.build_day_items(summary, period.anchor, covering_tasks=month_summary["tasks"])
     else:
         month_cards = services.build_year_months(
             summary,
@@ -283,6 +290,7 @@ def index():
                 seen_record_ids.add(record.record_id)
 
     selected_month = services.find_month(user_id, period.anchor)
+    schedule_state = services.get_schedule_state(user_id, selected_month.id) if selected_month else None
     return render_template(
         "pages/expenses.html",
         summary=summary,
@@ -293,7 +301,8 @@ def index():
         checkin_tokens={entry.task.task_id: uuid4().hex for entry in day_items},
         selected_month=selected_month,
         budget_months=list_budget_months(user_id),
-        can_schedule=bool(selected_month and budgets.get_confirmed_allocations(user_id, selected_month.id)),
+        schedule_state=schedule_state,
+        can_schedule=bool(schedule_state and schedule_state.can_schedule),
         calendar=calendar_weeks,
         day_items=day_items,
         day_totals=day_totals,
@@ -400,7 +409,7 @@ def schedule(month_id):
     month = services.get_month(_user_id(), month_id)
     services.ensure_tasks_for_month(_user_id(), month.id)
     flash("Spending schedule saved. Repeating this action preserves existing tasks and check-ins.", "success")
-    return redirect(url_for("expenses.index", view="month", date=month.tracking_start_date.isoformat()))
+    return redirect(url_for("expenses.index", budget_month_id=month.id, view="month", date=month.tracking_start_date.isoformat()))
 
 
 @bp.errorhandler(NotFoundError)

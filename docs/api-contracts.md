@@ -75,6 +75,11 @@ drafts with tasks cannot be replaced. Confirmation accepts no allocation edits:
 only saved allocations, savings, current funds and current expense rules count.
 See [KAN-21 integration contract](kan21-budget-planning.md) for the Expense handoff.
 
+Successful confirmation now redirects to the owned month's Expense calendar,
+where the user explicitly POSTs **Create spending schedule**. Confirmation
+itself still creates no tasks. Scheduling errors preserve the confirmed plan
+and allow retry; no GET creates financial records.
+
 Suggested setup fields: repeated `suggestion` keys from `rent`, `electricity`,
 `water`, `internet`, `food`, `transportation`, plus optional
 `<key>_estimated_amount`, `<key>_minimum_amount` (P1 only),

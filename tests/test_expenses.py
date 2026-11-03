@@ -5,6 +5,7 @@ import re
 from uuid import UUID, uuid4
 
 import pytest
+from flask import template_rendered
 from sqlalchemy import event
 from sqlalchemy.exc import IntegrityError
 from werkzeug.security import generate_password_hash
@@ -516,3 +517,300 @@ def test_http_cross_user_posts_do_not_trust_submitted_identity(signed_client, ap
         response = signed_client.post(url, data=dict(unexpected(setup), user_id=str(setup["user"]), action="no_expense"))
         assert response.status_code == 404
     assert signed_client.get(f"/expenses?budget_month_id={setup['month']}").status_code == 404
+
+
+def calendar_page(app, client, path):
+    """Exercise the rendered Flask route and inspect its actual view model."""
+    rendered = {}
+
+    def capture(sender, template, context: dict, **extra):
+        if template.name == "pages/expenses.html":
+            rendered.update(context)
+
+    with template_rendered.connected_to(capture, app):
+        response = client.get(path)
+    assert response.status_code == 200
+    return response, rendered
+
+
+def financial_snapshot():
+    return {
+        model.__tablename__: list(db.session.execute(db.select(*model.__table__.columns).order_by(model.id)))
+        for model in (BudgetMonth, BudgetPlan, BudgetAllocation, AssignedExpenseTask, ExpenseRecord)
+    }
+
+
+def calendar_days(context):
+    return {cell.day: cell for week in context["calendar"] for cell in week if cell}
+
+
+def test_calendar_diagnosis_before_and_after_explicit_scheduling(app, setup, signed_client):
+    with app.app_context():
+        budgets.confirm_plan(setup["user"], setup["month"], setup["plans"][1])
+        assert len(budgets.get_confirmed_allocations(setup["user"], setup["month"])) == 6
+        before = financial_snapshot()
+    response, context = calendar_page(app, signed_client, f"/expenses?budget_month_id={setup['month']}&view=month")
+    assert context["schedule_state"].code == "NOT_SCHEDULED"
+    assert b"schedule has not been created" in response.data
+    assert b"Create spending schedule" in response.data
+    assert not context["month_items"] and all(cell.task_count == 0 for cell in calendar_days(context).values())
+    with app.app_context():
+        assert financial_snapshot() == before
+    assert signed_client.post(f"/expenses/months/{setup['month']}/schedule").status_code == 302
+    response, context = calendar_page(app, signed_client, f"/expenses?budget_month_id={setup['month']}&view=month")
+    assert context["schedule_state"].code == "READY"
+    cells = calendar_days(context)
+    assert all("Food" in cells[date(2026, 10, day)].daily_names for day in range(15, 32))
+    assert all(not cells[date(2026, 10, day)].daily_names for day in range(1, 15))
+    assert len([entry for entry in context["month_items"] if entry.task.title == "Food"]) == 17
+    with app.app_context():
+        allocations = budgets.get_confirmed_allocations(setup["user"], setup["month"])
+        tasks = services.list_tasks(setup["user"], date(2026, 10, 1), date(2026, 10, 31))
+        assert sum(cell.task_count for cell in cells.values()) == len(tasks)
+        assert sum(cell.plan_total for cell in cells.values()) == sum(a.allocated_amount for a in allocations)
+        for allocation in allocations:
+            assert sum(task.original_limit for task in tasks if task.raw_task.allocation_id == allocation.id) == allocation.allocated_amount
+        assert all(isinstance(task.id, UUID) and type(task.current_limit) is int for task in tasks)
+
+
+def test_confirmation_guides_to_owned_month_and_safe_csrf_post(app, setup, client):
+    app.config["WTF_CSRF_ENABLED"] = True
+    token = csrf_token(client.get("/login"))
+    assert client.post("/login", data={"email": "expenses@example.com", "password": "correct-horse", "csrf_token": token}).status_code == 302
+    root = f"/budget/{setup['month']}/plans/{setup['plans'][1]}"
+    token = csrf_token(client.get(root))
+    response = client.post(root + "/confirm", data={"csrf_token": token})
+    assert "/expenses?" in response.location and str(setup["month"]) in response.location
+    page, context = calendar_page(app, client, response.location)
+    assert context["selected_month"].id == setup["month"]
+    assert context["schedule_state"].code == "NOT_SCHEDULED"
+    assert str(setup["month"]).encode() in page.data
+    with app.app_context():
+        assert db.session.scalar(db.select(db.func.count(AssignedExpenseTask.id))) == 0
+    schedule_url = f"/expenses/months/{setup['month']}/schedule"
+    assert client.post(schedule_url).status_code == 400
+    response = client.post(schedule_url, data={"csrf_token": csrf_token(page)}, follow_redirects=True)
+    assert response.status_code == 200 and b'data-schedule-state="READY"' in response.data
+
+
+@pytest.mark.parametrize("stage, expected, message", [
+    ("empty", "NO_EXPENSES", b"No budget expenses or plan exist"),
+    ("setup", "NO_PLAN", b"No budget plan exists"),
+    ("draft", "UNCONFIRMED", b"No confirmed plan exists"),
+    ("confirmed", "NOT_SCHEDULED", b"schedule has not been created"),
+])
+def test_calendar_empty_states_are_actionable_and_read_only(app, setup, signed_client, stage, expected, message):
+    with app.app_context():
+        empty = create_budget_month(setup["user"], "2026-09", 100_003)
+        if stage == "empty":
+            month_id = empty.id
+        else:
+            month_id = setup["month"]
+            if stage == "setup":
+                data = dict(expense_name="Study", category_name="Learning", priority="P1", allocation_frequency="DAILY")
+                budgets.save_expense(setup["user"], month_id, data)  # Invalidates drafts.
+            if stage == "confirmed":
+                budgets.confirm_plan(setup["user"], month_id, setup["plans"][0])
+        before = financial_snapshot()
+    page, context = calendar_page(app, signed_client, f"/expenses?budget_month_id={month_id}&view=month")
+    assert context["schedule_state"].code == expected
+    assert message in page.data
+    assert f"/budget/{month_id}".encode() in page.data
+    assert bool(context["can_schedule"]) == (stage == "confirmed")
+    with app.app_context():
+        assert financial_snapshot() == before
+
+
+def test_calendar_without_owned_month_explains_and_links_setup(app, setup, signed_client):
+    page, context = calendar_page(app, signed_client, "/expenses?view=month&date=2025-01-15")
+    assert context["selected_month"] is None
+    assert b"no Budget Month exists" in page.data and b"/budget-periods/new" in page.data
+
+
+@pytest.mark.parametrize("stale_query", ["date=2026-11-01", "month=2026-11", "year=2027"])
+def test_explicit_calendar_month_wins_over_stale_navigation_fields(app, setup, signed_client, stale_query):
+    with app.app_context():
+        schedule(setup)
+        november = make_budget(setup["user"], "2026-11")
+    with signed_client.session_transaction() as session:
+        session["active_budget_month_id"] = str(november["month"])
+    _, context = calendar_page(app, signed_client, f"/expenses?budget_month_id={setup['month']}&view=month&{stale_query}")
+    assert context["selected_month"].id == setup["month"]
+    assert context["period"].start == date(2026, 10, 1)
+    assert context["schedule_state"].code == "READY"
+    # Date-only calendar navigation must still move away from the session month.
+    _, context = calendar_page(app, signed_client, "/expenses?view=month&date=2026-10-16")
+    assert context["selected_month"].id == setup["month"]
+
+
+def test_continuing_periods_and_due_dates_do_not_repeat_financial_totals(app, setup, signed_client):
+    with app.app_context():
+        tasks = schedule(setup)
+        weekly = next(task for task in tasks if task.allocation.budget_expense.expense_name == "Transportation")
+        rent = next(task for task in tasks if task.allocation.budget_expense.expense_name == "Rent")
+        assert (weekly.assigned_date, weekly.period_end) == (date(2026, 10, 15), date(2026, 10, 18))
+        before = financial_snapshot()
+    page, context = calendar_page(app, signed_client, "/expenses?view=day&date=2026-10-16")
+    items = {entry.task.title: entry for entry in context["day_items"]}
+    assert {"Food", "Transportation", "Rent", "Electricity", "Water", "Entertainment"} == set(items)
+    assert items["Food"].assigned_in_period
+    assert not items["Transportation"].assigned_in_period and not items["Transportation"].due_in_period
+    assert context["day_totals"].continuing_count == 5
+    assert context["summary"]["plan_total"] == items["Food"].task.current_limit
+    assert b"Continuing period; excluded" in page.data
+    assert b"2026-10-16" in page.data  # Continuing task check-in uses the selected date.
+    cells = calendar_days(context)
+    assert cells[date(2026, 10, 1)].due_count == 1  # Rent due before tracking remains visible.
+    assert cells[date(2026, 10, 1)].plan_total == 0
+    assert cells[date(2026, 10, 15)].period_starts
+    assert cells[date(2026, 10, 16)].continuing_count == 5
+    assert cells[date(2026, 10, 16)].plan_total == items["Food"].task.current_limit
+    with app.app_context():
+        assert financial_snapshot() == before
+
+
+def test_calendar_distinguishes_actual_pending_no_expense_and_unrecorded(app, setup, signed_client, monkeypatch):
+    with app.app_context():
+        tasks = schedule(setup)
+        foods = sorted([task for task in tasks if task.allocation.budget_expense.expense_name == "Food"], key=lambda task: task.assigned_date)
+        actual(setup, foods[0].id, "123")
+        services.checkin_task(setup["user"], foods[1].id, action="no_expense")
+        funds = ExpenseRecord(budget_month_id=setup["month"], amount=999999,
+                              expense_date=date(2026, 10, 15), record_type="FUNDS_ADDED")
+        db.session.add(funds)
+        db.session.commit()
+        before = financial_snapshot()
+    monkeypatch.setattr(presentation, "now_utc", lambda: datetime(2026, 10, 17, 16))
+    page, context = calendar_page(app, signed_client, "/expenses?view=month&date=2026-10-16")
+    cells = calendar_days(context)
+    assert cells[date(2026, 10, 15)].actual_total == 123
+    assert cells[date(2026, 10, 15)].record_count == 1
+    assert cells[date(2026, 10, 16)].no_expense_count == 1
+    assert cells[date(2026, 10, 17)].pending_count > 0
+    assert cells[date(2026, 10, 18)].record_count == 0
+    assert context["summary"]["difference"] is None
+    assert b"NO_EXPENSE" in page.data and b"PENDING" in page.data and b"UNRECORDED" not in page.data  # No unresolved task has yet ended.
+    monkeypatch.setattr(presentation, "now_utc", lambda: datetime(2026, 10, 20, 16))
+    page, context = calendar_page(app, signed_client, "/expenses?view=month&date=2026-10-16")
+    # Both this Food day and its covering weekly Transportation period ended.
+    assert calendar_days(context)[date(2026, 10, 17)].unrecorded_count == 2
+    assert b"UNRECORDED" in page.data
+    with app.app_context():
+        assert financial_snapshot() == before
+
+
+def test_calendar_scheduling_retry_preserves_ids_actuals_and_adjusted_limits(app, setup, signed_client):
+    with app.app_context():
+        tasks = schedule(setup)
+        food = food_task(tasks)
+        actual(setup, food.id, "7")
+        untouched = next(task for task in tasks if task.id != food.id)
+        services.checkin_task(setup["user"], untouched.id, action="no_expense")
+        food.current_limit += 9
+        db.session.commit()
+        before = financial_snapshot()
+    for _ in range(2):
+        response = signed_client.post(f"/expenses/months/{setup['month']}/schedule", follow_redirects=True)
+        assert response.status_code == 200
+        assert b'data-schedule-state="READY"' in response.data
+    with app.app_context():
+        assert financial_snapshot() == before
+
+
+def test_calendar_partial_schedule_is_explicit_and_repaired_without_overwriting(app, setup, signed_client):
+    with app.app_context():
+        tasks = schedule(setup)
+        deleted = food_task(tasks)
+        deleted_date = deleted.assigned_date
+        db.session.delete(deleted)
+        db.session.commit()
+        existing_ids = {task.id for task in tasks if task.id != deleted.id}
+    page, context = calendar_page(app, signed_client, "/expenses?view=month&date=2026-10-16")
+    assert context["schedule_state"].code == "INCOMPLETE" and b"tasks are missing" in page.data
+    assert "Food" not in calendar_days(context)[deleted_date].daily_names
+    assert signed_client.post(f"/expenses/months/{setup['month']}/schedule").status_code == 302
+    with app.app_context():
+        assert services.get_schedule_state(setup["user"], setup["month"]).code == "READY"
+        assert existing_ids.issubset({task.id for task in services.list_tasks(setup["user"], date(2026, 10, 1), date(2026, 10, 31))})
+
+
+def test_conflicting_calendar_schedule_is_explained_and_not_overwritten(app, setup, signed_client):
+    with app.app_context():
+        task = food_task(schedule(setup))
+        task.original_limit += 1
+        db.session.commit()
+        before = financial_snapshot()
+    page, context = calendar_page(app, signed_client, "/expenses?view=month&date=2026-10-16")
+    assert context["schedule_state"].code == "CONFLICT" and not context["can_schedule"]
+    assert b"cannot be overwritten" in page.data
+    assert signed_client.post(f"/expenses/months/{setup['month']}/schedule").status_code == 409
+    with app.app_context():
+        assert financial_snapshot() == before
+
+
+def test_calendar_readiness_and_display_never_include_other_users_data(app, setup, signed_client):
+    with app.app_context():
+        foreign = make_budget(setup["other"])
+        schedule(foreign)
+        with pytest.raises(services.NotFoundError):
+            services.get_schedule_state(setup["user"], foreign["month"])
+        before = financial_snapshot()
+    assert signed_client.get(f"/expenses?budget_month_id={foreign['month']}").status_code == 404
+    assert signed_client.post(f"/expenses/months/{foreign['month']}/schedule", data={"user_id": str(setup["other"])}).status_code == 404
+    page, context = calendar_page(app, signed_client, "/expenses?view=month&date=2026-10-16")
+    assert context["schedule_state"].code == "UNCONFIRMED"
+    assert sum(cell.task_count for cell in calendar_days(context).values()) == 0
+    assert context["month_items"] == []
+    with app.app_context():
+        assert financial_snapshot() == before
+
+
+def test_confirmed_plan_without_allocations_explains_corrupt_handoff(app, setup, signed_client):
+    with app.app_context():
+        empty = create_budget_month(setup["user"], "2026-09", 1000)
+        # An incomplete legacy/imported row; normal Budget confirmation never
+        # produces this. Diagnostics must explain it rather than invent tasks.
+        db.session.add(BudgetPlan(budget_month_id=empty.id, plan_type="MANUAL", status="CONFIRMED", planned_savings=1000))
+        db.session.commit()
+        month_id = empty.id
+        before = financial_snapshot()
+    page, context = calendar_page(app, signed_client, f"/expenses?budget_month_id={month_id}&view=month")
+    assert context["schedule_state"].code == "NO_ALLOCATIONS"
+    assert not context["can_schedule"] and b"has no allocations" in page.data
+    assert signed_client.post(f"/expenses/months/{month_id}/schedule").status_code == 400
+    with app.app_context():
+        assert financial_snapshot() == before
+
+
+def test_ownership_date_filter_cannot_disguise_a_conflicting_saved_schedule(app, setup, signed_client):
+    with app.app_context():
+        food = food_task(schedule(setup))
+        food.assigned_date = date(2026, 10, 14)  # Before tracking; ordinary reads exclude it.
+        db.session.commit()
+        before = financial_snapshot()
+    page, context = calendar_page(app, signed_client, f"/expenses?budget_month_id={setup['month']}&view=month")
+    assert context["schedule_state"].code == "CONFLICT" and b"cannot be overwritten" in page.data
+    assert signed_client.post(f"/expenses/months/{setup['month']}/schedule").status_code == 409
+    with app.app_context():
+        assert financial_snapshot() == before
+
+
+def test_schedule_post_failure_preserves_confirmation_and_allows_retry(app, setup, signed_client):
+    def fail_insert(mapper, connection, target):
+        raise IntegrityError("simulated schedule insert failure", {}, RuntimeError("failure"))
+
+    url = f"/expenses/months/{setup['month']}/schedule"
+    assert signed_client.post(f"/budget/{setup['month']}/plans/{setup['plans'][1]}/confirm").status_code == 302
+    with app.app_context():
+        before = financial_snapshot()
+        event.listen(AssignedExpenseTask, "before_insert", fail_insert)
+    try:
+        assert signed_client.post(url).status_code == 409
+    finally:
+        event.remove(AssignedExpenseTask, "before_insert", fail_insert)
+    with app.app_context():
+        assert financial_snapshot() == before
+        assert services.get_schedule_state(setup["user"], setup["month"]).code == "NOT_SCHEDULED"
+    assert signed_client.post(url, follow_redirects=True).status_code == 200
+    with app.app_context():
+        assert services.get_schedule_state(setup["user"], setup["month"]).code == "READY"

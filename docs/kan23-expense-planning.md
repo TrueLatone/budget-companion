@@ -1,5 +1,10 @@
 # KAN-23 — Expense Planning and Smart Check-in
 
+The subsequent [Expense Calendar repair](expense-calendar-integration.md)
+documents the confirmation redirect, schedule diagnostics, daily expense
+visibility and continuing-period indicators. Scheduler and financial contracts
+below remain unchanged.
+
 Integrated selectively from feature/KAN-8-expense-checkin at
 c382f6caaf31255bfc9dd7793a6d368f638fa8a1 on integration/pa2-20261031.
 The KAN-21 Budget implementation and all 13 canonical models/migrations are

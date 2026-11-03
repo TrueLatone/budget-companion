@@ -92,6 +92,11 @@ across eligible dates without duplication. Record positive purchases or explicit
 confirm **NO_EXPENSE**; missing check-ins remain Unknown. See the
 [KAN-23 contract](docs/kan23-expense-planning.md) for scheduling and retry rules.
 
+Confirming a plan now opens its Expense month with explicit schedule-state
+guidance. Daily expenses appear in the calendar/month list; weekly/monthly
+periods and bill due dates remain visible without duplicating allocations.
+See the [Expense Calendar diagnosis and repair](docs/expense-calendar-integration.md).
+
 ## Project documentation
 
 - [Architecture](docs/architecture.md)

@@ -26,9 +26,18 @@
     {% for cell in week %}
       {% if cell %}
       <a class="bc-calendar-day {{ 'is-selected' if cell.day == period.anchor else '' }}"
+         data-date="{{ cell.day.isoformat() }}" data-assigned-count="{{ cell.task_count }}" data-plan-vnd="{{ cell.plan_total }}"
          href="{{ url_for('expenses.index', view='day', date=cell.day.isoformat(), tag=tag) }}"
-         aria-label="{{ cell.day|date_vn }}{% if cell.task_count %}, {{ cell.task_count }} task{% endif %}">
+         aria-label="{{ cell.day|date_vn }}{% if cell.daily_names %}, scheduled {{ cell.daily_names|join(', ') }}{% endif %}{% if cell.period_starts %}, {{ cell.period_starts|join(', ') }}{% endif %}{% if cell.continuing_count %}, {{ cell.continuing_count }} active periods{% endif %}{% if cell.due_count %}, {{ cell.due_count }} bills due{% endif %}{% if cell.record_count %}, actual {{ cell.actual_total|vnd }}{% endif %}{% if cell.pending_count %}, PENDING {{ cell.pending_count }}{% endif %}{% if cell.unrecorded_count %}, UNRECORDED {{ cell.unrecorded_count }}{% endif %}{% if cell.no_expense_count %}, NO_EXPENSE {{ cell.no_expense_count }}{% endif %}">
         <span class="bc-day-number">{{ cell.day.day }}</span>
+        {% for name in cell.daily_names %}<span class="bc-calendar-label">{{ name }}</span>{% endfor %}
+        {% for label in cell.period_starts %}<span class="bc-calendar-label" title="{{ label }}">{{ label }}</span>{% endfor %}
+        {% if cell.continuing_count %}<span class="bc-calendar-label">{{ cell.continuing_count }} active periods</span>{% endif %}
+        {% if cell.due_count %}<span class="bc-calendar-label">{{ cell.due_count }} bills due</span>{% endif %}
+        {% if cell.record_count %}<span class="bc-calendar-label">Actual: {{ cell.actual_total|vnd }} ({{ cell.record_count }})</span>{% endif %}
+        {% if cell.pending_count %}<span class="bc-calendar-label">PENDING {{ cell.pending_count }}</span>{% endif %}
+        {% if cell.unrecorded_count %}<span class="bc-calendar-label">UNRECORDED {{ cell.unrecorded_count }}</span>{% endif %}
+        {% if cell.no_expense_count %}<span class="bc-calendar-label">NO_EXPENSE {{ cell.no_expense_count }}</span>{% endif %}
         <span class="bc-day-dots" aria-hidden="true">
           {% if cell.task_count %}<span class="bc-dot bc-dot-plan"></span>{% endif %}
           {% if cell.unrecorded_count %}<span class="bc-dot bc-dot-overdue"></span>{% endif %}
@@ -48,6 +57,7 @@
   <span><span class="bc-dot bc-dot-overdue me-1"></span>Quá hạn</span>
   <span><span class="bc-dot bc-dot-done me-1"></span>Đã xác nhận</span>
 </div>
+<p class="small text-secondary mt-2">Names mark scheduled expenses. Active periods and bill due dates refer to existing tasks, not additional daily allocations. Actual amounts show recorded spending only; pending or missing check-ins remain unknown.</p>
 {% endmacro %}
 
 {% macro render_checkin_modal(entry, summary, period, tag) %}
@@ -72,6 +82,7 @@
           <input type="hidden" name="date" value="{{ period.anchor.isoformat() }}">
           <input type="hidden" name="tag" value="{{ tag }}">
           <div class="alert alert-light border py-2 small mb-3">
+            {% if task.period_end != task.assigned_date %}<p>Period: {{ task.assigned_date|date_vn }} - {{ task.period_end|date_vn }}. NO_EXPENSE confirms no spending for this entire period, not just the selected day.</p>{% endif %}
             Kế hoạch: <strong>{{ task.planned_amount|vnd }}</strong>
             {% if task.payment_due_date %}<span class="ms-2">· Hạn thanh toán: <strong>{{ task.payment_due_date|date_vn }}</strong></span>{% endif %}{% if task.payment_status %}<span class="ms-2">· Thanh toán: <strong>{{ "Đã thanh toán (tự ghi)" if task.payment_status == "PAID" else "Chưa thanh toán" }}</strong></span>{% endif %}
           </div>
@@ -96,7 +107,7 @@
           <div class="row g-2">
             <div class="col-12 col-sm-6">
               <label for="expense-date-{{ task.task_id }}" class="form-label small">Ngày phát sinh</label>
-              <input type="date" id="expense-date-{{ task.task_id }}" name="expense_date" class="form-control form-control-sm" min="{{ task.assigned_date }}" max="{{ [task.period_end, today]|min }}" value="{{ task.assigned_date.isoformat() }}">
+              <input type="date" id="expense-date-{{ task.task_id }}" name="expense_date" class="form-control form-control-sm" min="{{ task.assigned_date }}" max="{{ [task.period_end, today]|min }}" value="{{ (period.anchor if task.assigned_date <= period.anchor <= task.period_end else task.assigned_date).isoformat() }}">
             </div>
             <div class="col-12 col-sm-6">
               <label for="category-{{ task.task_id }}" class="form-label small">Danh mục</label>
@@ -126,9 +137,11 @@
 <div class="d-flex flex-wrap gap-1 mb-1">
   {% if entry.assigned_in_period %}<span class="badge text-bg-secondary">Phân bổ trong ngày</span>{% endif %}
   {% if entry.due_in_period %}<span class="badge text-bg-primary">Đến hạn trong ngày</span>{% endif %}
-  {% if not entry.assigned_in_period %}<span class="badge text-bg-warning text-dark">Chỉ đến hạn, phân bổ {{ task.assigned_date|date_vn }}</span>{% endif %}
+  {% if not entry.assigned_in_period and entry.due_in_period %}<span class="badge text-bg-warning text-dark">Chỉ đến hạn, phân bổ {{ task.assigned_date|date_vn }}</span>{% endif %}
+  {% if not entry.assigned_in_period and not entry.due_in_period %}<span class="badge text-bg-info">Continuing period; excluded from today's assigned total</span>{% endif %}
   {% if task.payment_status == "PAID" %}<span class="badge bg-success-subtle text-success border border-success-subtle">Đã thanh toán</span>{% elif task.payment_status == "UNPAID" %}<span class="badge bg-warning-subtle text-warning border border-warning-subtle">Chưa thanh toán</span>{% endif %}
 </div>
+{% if task.period_end != task.assigned_date %}<p class="small text-secondary mb-1">Period: {{ task.assigned_date|date_vn }} - {{ task.period_end|date_vn }}. The displayed limit applies to this entire period.</p>{% endif %}
 {% endmacro %}
 
 {% block extra_styles %}<link rel="stylesheet" href="{{ url_for('static', filename='css/expenses.css') }}">{% endblock %}
@@ -294,6 +307,7 @@
         <div>
           <h2 class="h5 mb-0">{{ selected_day_label }}</h2>
           <span class="small text-secondary">{{ day_totals.assigned_count }} task phân bổ trong ngày · {{ day_totals.due_only_count }} task chỉ đến hạn</span>
+          {% if day_totals.continuing_count %}<span class="small text-secondary"> · {{ day_totals.continuing_count }} continuing periods (not added to today's total)</span>{% endif %}
         </div>
         <div class="d-flex flex-wrap gap-1">
           <span class="badge text-bg-light border">{{ day_totals.assigned_plan_total|vnd }} kế hoạch phân bổ</span>
@@ -388,7 +402,7 @@
           {% endfor %}
         </div>
         {% else %}
-        <p class="text-secondary mb-0">No task starts on this day. Open the month overview, or create a spending schedule from its confirmed Budget plan.</p>
+        <p class="text-secondary mb-0">No tasks cover this date. Check the selected month and tracking start date, or use the setup/scheduling action above.</p>
         {% endif %}
       </div>
     </section>
@@ -398,7 +412,7 @@
       <div class="card-header bg-white d-flex flex-wrap justify-content-between align-items-center gap-2">
         <div>
           <h2 class="h5 mb-0">Nghĩa vụ trong tháng</h2>
-          <span class="small text-secondary">Không đổ toàn bộ task hằng ngày; task chỉ đến hạn từ kỳ khác không cộng vào tổng phân bổ tháng.</span>
+          <span class="small text-secondary">Daily, weekly and monthly tasks are listed once. Select a task or calendar date for check-in; continuing periods and due-date markers do not add to monthly totals.</span>
         </div>
         <span class="badge text-bg-light border">{{ month_items|length }} khoản cần chú ý</span>
       </div>
@@ -415,6 +429,7 @@
                 <div class="small text-secondary">
                   {{ task.plan_item.schedule_tag|schedule_label if task.plan_item else '—' }}
                   · Phân bổ {{ task.assigned_date|date_vn }}
+                  {% if task.period_end != task.assigned_date %} · Period ends {{ task.period_end|date_vn }}{% endif %}
                   {% if task.payment_due_date %}· Hạn {{ task.payment_due_date|date_vn }}{% endif %}
                 </div>
                 <div class="d-flex flex-wrap gap-1 mt-1">
@@ -432,7 +447,7 @@
           {% endfor %}
         </div>
         {% else %}
-        <p class="text-secondary mb-0">Tháng này chưa có nghĩa vụ định kỳ hoặc khoản đến hạn. Các task hằng ngày (nếu có) được xem khi chọn từng ngày trên lịch.</p>
+        <p class="text-secondary mb-0">No tasks for the selected month. Follow the Budget setup or Create spending schedule action above.</p>
         {% endif %}
       </div>
     </section>
