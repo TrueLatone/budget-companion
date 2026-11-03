@@ -80,6 +80,12 @@ shared database. Open **Plan budget** from a budget month to begin. See the
 [KAN-21 integration contract](docs/kan21-budget-planning.md) for rules and the
 Expense Planning handoff.
 
+Budget setup now offers explicit suggested expenses and optional **Load Example**
+amounts, inline custom expense entry, and P0/P1/P2/Savings plan comparison.
+Examples are never saved automatically. Confirmed daily Food tasks offer optional
+30/40/30 meal guidance without adding transactions or duplicating limits. See
+the [before/after Budget parity audit](docs/budget-core-parity.md).
+
 After confirming a Budget plan, open **Expenses & check-in for this month** and
 choose **Create / verify spending schedule**. Monthly totals are distributed
 across eligible dates without duplication. Record positive purchases or explicitly

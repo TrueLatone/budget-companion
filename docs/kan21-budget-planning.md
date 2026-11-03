@@ -1,5 +1,10 @@
 # KAN-21: Budget Planning integration
 
+The subsequent [Budget core parity restoration](budget-core-parity.md) adds
+explicit suggested setup, optional example loading, inline expense entry,
+saved-plan comparisons and presentation-only daily Food meal guidance. The
+rules, confirmed-plan immutability and Expense handoff below remain unchanged.
+
 The existing application factory registers the Budget blueprint. It now uses
 User → BudgetMonth → BudgetExpense → BudgetPlan → BudgetAllocation through the
 existing SQLAlchemy extension. No schema changes, migrations, alternate Flask

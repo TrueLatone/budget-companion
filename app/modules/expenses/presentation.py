@@ -11,6 +11,7 @@ from datetime import date, datetime, time, timedelta, timezone
 import uuid
 
 from app.models import AssignedExpenseTask, ExpenseCategory, ExpenseRecord
+from app.modules.budgets.rules import meal_breakdown
 from app.modules.expenses.validators import parse_optional_date
 
 VN_TZ = timezone(timedelta(hours=7))
@@ -295,6 +296,14 @@ class ExpenseTaskAdapter:
     @property
     def planned_amount(self) -> int:
         return self._task.current_limit
+
+    @property
+    def meal_guidance(self) -> dict[str, int] | None:
+        """Optional display subdivisions of this Food task, never new tasks."""
+        expense = self._task.allocation.budget_expense
+        if expense.expense_name.strip().casefold() == "food" and expense.allocation_frequency == "DAILY":
+            return meal_breakdown(self._task.current_limit)
+        return None
 
     @property
     def task_status(self) -> str:

@@ -11,6 +11,7 @@ from app.models import (
     BudgetPlan, ExpenseCategory,
 )
 from app.modules.budgets.rules import BudgetError, ExpenseInput, generate_plans, money, validate_allocations
+from app.modules.budgets.suggestions import SUGGESTED_EXPENSES
 
 
 class BudgetNotFound(LookupError):
@@ -176,48 +177,55 @@ def _category(user_id, data):
 
 def save_expense(user_id, month_id, data, *, expense_id=None):
     with _write_month(user_id, month_id) as month:
-        _assert_editable(month)
-        expense = get_expense(user_id, month.id, expense_id) if expense_id else None
-        name = str(data.get("expense_name") or "").strip()
-        priority = data.get("priority")
-        frequency = data.get("allocation_frequency")
-        if not name or len(name) > 120:
-            raise BudgetError("Enter an expense name of 1 to 120 characters.")
-        if priority not in {"P0", "P1", "P2"} or frequency not in {"DAILY", "WEEKLY", "MONTHLY"}:
-            raise BudgetError("Choose a valid priority and allocation frequency.")
-        for existing in list_expenses(user_id, month.id):
-            if existing.id != (expense.id if expense else None) and existing.expense_name.casefold() == name.casefold():
-                raise BudgetError("Expense names must be unique within the month.")
-        estimate = money(data.get("estimated_amount"), "Estimated amount", optional=True)
-        minimum = money(data.get("minimum_amount"), "Minimum amount", optional=True, positive=True)
-        if minimum is not None and priority != "P1":
-            raise BudgetError("Only P1 expenses may specify a minimum.")
-        due_day = data.get("due_day")
-        if due_day in (None, ""):
-            due_day = None
-        else:
-            try:
-                due_day = money(due_day, "Due day", positive=True)
-            except BudgetError:
-                raise BudgetError("Due day must be an integer from 1 to 31.") from None
-            if due_day > 31 or frequency != "MONTHLY":
-                raise BudgetError("Due day must be 1 to 31 and only applies to monthly expenses.")
-        recurring = data.get("is_recurring", False)
-        if type(recurring) is not bool:
-            raise BudgetError("Recurring must be a boolean.")
-        category = _category(month.user_id, data)
-        _discard_drafts(month)
-        if expense is None:
-            expense = BudgetExpense(budget_month_id=month.id)
-            db.session.add(expense)
-        expense.expense_name = name
-        expense.category_id = category.id
-        expense.priority = priority
-        expense.estimated_amount = estimate
-        expense.minimum_amount = minimum
-        expense.allocation_frequency = frequency
-        expense.is_recurring = recurring
-        expense.due_day = due_day
+        expense = _save_expense(month, data, expense_id=expense_id)
+    return expense
+
+
+def _save_expense(month, data, *, expense_id=None):
+    """Shared validation/write path; caller owns the locked month transaction."""
+    user_id = month.user_id
+    _assert_editable(month)
+    expense = get_expense(user_id, month.id, expense_id) if expense_id else None
+    name = str(data.get("expense_name") or "").strip()
+    priority = data.get("priority")
+    frequency = data.get("allocation_frequency")
+    if not name or len(name) > 120:
+        raise BudgetError("Enter an expense name of 1 to 120 characters.")
+    if priority not in {"P0", "P1", "P2"} or frequency not in {"DAILY", "WEEKLY", "MONTHLY"}:
+        raise BudgetError("Choose a valid priority and allocation frequency.")
+    for existing in list_expenses(user_id, month.id):
+        if existing.id != (expense.id if expense else None) and existing.expense_name.casefold() == name.casefold():
+            raise BudgetError("Expense names must be unique within the month.")
+    estimate = money(data.get("estimated_amount"), "Estimated amount", optional=True)
+    minimum = money(data.get("minimum_amount"), "Minimum amount", optional=True, positive=True)
+    if minimum is not None and priority != "P1":
+        raise BudgetError("Only P1 expenses may specify a minimum.")
+    due_day = data.get("due_day")
+    if due_day in (None, ""):
+        due_day = None
+    else:
+        try:
+            due_day = money(due_day, "Due day", positive=True)
+        except BudgetError:
+            raise BudgetError("Due day must be an integer from 1 to 31.") from None
+        if due_day > 31 or frequency != "MONTHLY":
+            raise BudgetError("Due day must be 1 to 31 and only applies to monthly expenses.")
+    recurring = data.get("is_recurring", False)
+    if type(recurring) is not bool:
+        raise BudgetError("Recurring must be a boolean.")
+    category = _category(month.user_id, data)
+    _discard_drafts(month)
+    if expense is None:
+        expense = BudgetExpense(budget_month_id=month.id)
+        db.session.add(expense)
+    expense.expense_name = name
+    expense.category_id = category.id
+    expense.priority = priority
+    expense.estimated_amount = estimate
+    expense.minimum_amount = minimum
+    expense.allocation_frequency = frequency
+    expense.is_recurring = recurring
+    expense.due_day = due_day
     return expense
 
 
@@ -227,6 +235,53 @@ def delete_expense(user_id, month_id, expense_id):
         expense = get_expense(user_id, month.id, expense_id)
         _discard_drafts(month)
         db.session.delete(expense)
+
+
+def apply_suggested_expenses(user_id, month_id, selected_keys, values=None):
+    """Atomically add selected hints through the normal Budget write path.
+
+    Idempotency is semantic: an existing case-insensitive expense name in this
+    month always wins, including user edits and explicit zero/unknown values.
+    No submitted amount, priority or identity can overwrite an existing row.
+    """
+    with _write_month(user_id, month_id) as month:
+        _assert_editable(month)
+        known = {item.key: item for item in SUGGESTED_EXPENSES}
+        if (not isinstance(selected_keys, (list, tuple)) or not selected_keys
+                or any(not isinstance(key, str) or key not in known for key in selected_keys)
+                or len(set(selected_keys)) != len(selected_keys)):
+            raise BudgetError("Select at least one valid suggested expense, once each.")
+        if values is not None and not isinstance(values, dict):
+            raise BudgetError("Invalid suggested expense values.")
+        values = values or {}
+        existing = {e.expense_name.strip().casefold() for e in list_expenses(user_id, month.id)}
+        created = []
+        for key in selected_keys:
+            suggestion = known[key]
+            if suggestion.name.casefold() in existing:
+                continue
+            fields = values.get(key, {})
+            if not isinstance(fields, dict):
+                raise BudgetError("Invalid suggested expense fields.")
+            created.append(_save_expense(month, {
+                "expense_name": suggestion.name, "priority": suggestion.priority,
+                "category_name": suggestion.category,
+                "estimated_amount": fields.get("estimated_amount"),
+                "minimum_amount": fields.get("minimum_amount"),
+                "allocation_frequency": fields.get("allocation_frequency", suggestion.frequency),
+                "due_day": fields.get("due_day"),
+            }))
+            existing.add(suggestion.name.casefold())
+    return created
+
+
+def plan_breakdown(user_id, month_id, plan_id):
+    """Compute display totals from saved allocations, never mutable month funds."""
+    plan = get_plan(user_id, month_id, plan_id)
+    totals = {"P0": 0, "P1": 0, "P2": 0, "Savings": plan.planned_savings}
+    for allocation in plan.allocations:
+        totals[allocation.budget_expense.priority] += allocation.allocated_amount
+    return totals
 
 
 def _inputs(user_id, month_id):

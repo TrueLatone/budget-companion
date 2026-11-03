@@ -3,6 +3,8 @@
 {% block content %}
 <h1>{{ plan.plan_type }} · {{ month_name(month.month_start) }}</h1>
 <p>Status: <strong>{{ plan.status }}</strong></p>
+<p>Setup → Generate / Compare → Confirm → Spending Schedule</p>
+<dl class="row">{% for label, amount in breakdown.items() %}<dt class="col-sm-3">{{ label }}</dt><dd class="col-sm-9">{{ money(amount) }} VND</dd>{% endfor %}</dl>
 <table class="table"><thead><tr><th>Expense</th><th>Priority</th><th>Frequency</th><th>Monthly allocation (VND)</th></tr></thead>
 <tbody>{% for allocation in plan.allocations|sort(attribute='budget_expense.expense_name') %}<tr>
   <td>{{ allocation.budget_expense.expense_name }}</td><td>{{ allocation.budget_expense.priority }}</td><td>{{ allocation.budget_expense.allocation_frequency }}</td><td>{{ money(allocation.allocated_amount) }}</td>
@@ -12,6 +14,8 @@
 {% if plan.status == 'GENERATED' %}<p>Confirming locks this month's expense setup and the saved allocations. Funds and P0/P1 requirements are checked again before confirmation.</p>
 <form method="post" action="{{ url_for('budgets.confirm', month_id=month.id, plan_id=plan.id) }}">
   {{ action_form.hidden_tag() }}<button class="btn btn-primary" type="submit">Confirm saved plan</button>
-</form>{% else %}<p>This is the original confirmed plan. Later changes to available funds do not rewrite it.</p>{% endif %}
+</form>{% else %}<p>This is the original confirmed plan. Later changes to available funds do not rewrite it.</p>
+<a class="btn btn-primary mb-3" href="{{ url_for('expenses.index', budget_month_id=month.id, view='month') }}">Continue to Spending Schedule</a>
+<p>Create / verify the schedule there with an explicit action, then open a day for check-in. Daily Food has optional illustrative meal guidance; it creates no extra tasks or spending.</p>{% endif %}
 <a href="{{ url_for('budgets.month', month_id=month.id) }}">Back to budget</a>
 {% endblock %}

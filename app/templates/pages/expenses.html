@@ -1,6 +1,15 @@
 {% extends 'base.html' %}
 {% block title %}Expense Planning & Smart Check-in — Budget Companion{% endblock %}
 
+{% macro render_meal_guidance(task) %}
+{% set meals = task.meal_guidance %}{% if meals is not none %}
+<details class="small mt-2"><summary>Optional meal guidance · 30/40/30</summary>
+  <p class="text-secondary mb-1">Illustrative parts of this daily Food allowance, not extra spending or tasks.</p>
+  <dl class="mb-0">{% for name, amount in meals.items() %}<dt>{{ name }}</dt><dd>{{ amount|vnd }}</dd>{% endfor %}</dl>
+</details>
+{% endif %}
+{% endmacro %}
+
 {% macro render_calendar(calendar, period, navigation, tag, month_title, weekday_labels) %}
 <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
   <h2 class="h5 mb-0">{{ month_title }}</h2>
@@ -324,6 +333,7 @@
                 </td>
                 <td class="text-nowrap">
                   <div>KH: <strong>{{ task.planned_amount|vnd }}</strong></div>
+                  {{ render_meal_guidance(task) }}
                   {% if record %}
                     <div>TT: <strong>{{ record.amount|vnd }}</strong></div>
                     {% set task_diff = task.planned_amount|difference(record.amount) %}
@@ -361,6 +371,7 @@
                 <span class="badge text-bg-{{ task.display_status|status_class }}">{{ task.display_status|status_label }}</span>
               </div>
               {{ render_task_meta(entry) }}
+              {{ render_meal_guidance(task) }}
               <div class="row g-2 small mt-1">
                 <div class="col-6"><span class="text-secondary">Kế hoạch</span><div class="fw-semibold">{{ task.planned_amount|vnd }}</div></div>
                 <div class="col-6"><span class="text-secondary">Recorded spending</span><div class="fw-semibold">{{ record.amount|vnd if record else ('0 ₫' if task.task_status == 'NO_EXPENSE' else '—') }}</div></div>

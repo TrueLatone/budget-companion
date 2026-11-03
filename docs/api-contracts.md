@@ -53,6 +53,7 @@ never authorize access. Every POST uses global Flask-WTF CSRF protection.
 | GET | `/budget?budget_month_id=<uuid>` | Select an owned month; otherwise use the selected session month or latest owned month |
 | GET | `/budget/<uuid:month_id>` | List the month's expenses and saved plans |
 | GET, POST | `/budget/<uuid:month_id>/expenses/new` | Add an expense using an owned/built-in category or create an owned category |
+| POST | `/budget/<uuid:month_id>/expenses/suggested` | Atomically add selected suggested expenses before confirmation; existing names are skipped |
 | GET, POST | `/budget/<uuid:month_id>/expenses/<uuid:expense_id>/edit` | Edit expense setup before confirmation |
 | POST | `/budget/<uuid:month_id>/expenses/<uuid:expense_id>/delete` | Remove an expense before confirmation |
 | POST | `/budget/<uuid:month_id>/plans/generate` | Persist Saving, Balanced and Lifestyle alternatives |
@@ -73,6 +74,19 @@ Expense changes and regeneration atomically replace unconfirmed drafts only;
 drafts with tasks cannot be replaced. Confirmation accepts no allocation edits:
 only saved allocations, savings, current funds and current expense rules count.
 See [KAN-21 integration contract](kan21-budget-planning.md) for the Expense handoff.
+
+Suggested setup fields: repeated `suggestion` keys from `rent`, `electricity`,
+`water`, `internet`, `food`, `transportation`, plus optional
+`<key>_estimated_amount`, `<key>_minimum_amount` (P1 only),
+`<key>_allocation_frequency` and `<key>_due_day` (monthly only). Names, default
+priorities and categories come from the server's suggestion list, not submitted
+identity fields. Omitted frequencies use monthly bills / daily Food / weekly
+Transportation. Blank estimates stay NULL; example amounts require explicit
+user input or the unsaved **Load Example** action. Existing case-insensitive
+names are always preserved on retries, even if submitted values differ. The
+entire batch uses the existing Budget write path and rolls back on failure.
+No GET seeds financial records. See [Budget core parity](budget-core-parity.md)
+for examples, read-only plan comparison and presentation-only meal guidance.
 
 The internal read-only `budgets.services.get_confirmed_allocations(user_id,
 month_id)` interface returns only the authorized month's confirmed allocations;

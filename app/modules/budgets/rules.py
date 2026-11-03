@@ -11,6 +11,8 @@ from uuid import UUID
 MAX_VND = 9_223_372_036_854_775_807
 PLAN_RATIOS = {"SAVING": (70, 5), "BALANCED": (65, 15), "LIFESTYLE": (60, 30)}
 REQUIRED_P0 = {"rent", "electricity", "water"}
+# Illustrative KAN-11 meal guidance, not researched dietary recommendations.
+MEAL_WEIGHTS = {"Breakfast": 30, "Lunch": 40, "Dinner": 30}
 
 
 class BudgetError(ValueError):
@@ -104,6 +106,12 @@ def validate_allocations(funds, expenses, allocations, savings):
         raise BudgetError("Every included expense requires an allocation.")
     if total != funds:
         raise BudgetError("Allocations plus planned savings must exactly equal available funds; generate plans again.")
+
+
+def meal_breakdown(daily_limit):
+    """Presentation only: subdivide one existing daily Food limit, even zero."""
+    daily_limit = money(daily_limit, "Daily Food limit")
+    return dict(zip(MEAL_WEIGHTS, split_integer(daily_limit, list(MEAL_WEIGHTS.values()))))
 
 
 def generate_plans(funds, expenses):
