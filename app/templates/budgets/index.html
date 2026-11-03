@@ -1,0 +1,61 @@
+{% extends 'pages/budget.html' %}
+{% block budget_editor %}
+<h2 class="ws-card-title">{{ t("live_budget_setup") }}</h2>
+{% for message in get_flashed_messages() %}<p class="alert alert-success" role="status">{{ message }}</p>{% endfor %}
+
+{% if month %}
+<nav aria-label="Budget planning steps" class="mb-3"><ol class="d-flex flex-wrap gap-4">
+  <li><a href="#setup">{{ t('ui_setup') }}</a></li><li><a href="#compare">{{ t('ui_compare') }}</a></li>
+  <li>{{ t('ui_confirm') }}</li><li><a href="{{ url_for('expenses.index', budget_month_id=month.id, view='month') }}">{{ t('ui_schedule') }}</a></li>
+</ol></nav>
+<section id="setup" aria-label="Budget setup">
+<h2>{{ month_name(month.month_start) }}</h2>
+<p>{{ t('live_available') }}: {{ money(month.available_vnd) }} VND · {{ t('live_tracking') }} {{ month.tracking_start_date }}</p>
+<p><a href="{{ url_for('expenses.index', budget_month_id=month.id) }}">{{ t('live_open_checkin') }}</a></p>
+{% if locked %}<p role="status">{{ t('ui_locked') }}</p>{% else %}
+<p>{{ t('ui_required') }}</p>
+<p>{{ t('ui_unknown_rule') }}</p>
+<p>{{ t('ui_ratios') }}</p>
+{% include 'budgets/_suggestions.html' %}
+<details class="card mb-3" id="add-expense"><summary class="card-header">{{ t('ui_custom') }}</summary>
+  <form class="card-body" method="post" action="{{ url_for('budgets.create_expense', month_id=month.id) }}">
+    {{ expense_form.hidden_tag() }}
+    <div class="row">{% for field in expense_form if field.type not in ('CSRFTokenField', 'SubmitField') %}
+      <div class="col-md-4 mb-3">{{ field.label(class_='form-label') }} {{ field(class_='form-check-input' if field.type == 'BooleanField' else 'form-control') }}</div>
+    {% endfor %}</div>
+    <button class="btn btn-primary" type="submit">{{ t('ui_save_another') }}</button>
+  </form>
+</details>
+<p>{{ t('ui_draft_replace') }}</p>
+{% endif %}
+<div class="table-responsive"><table class="table">
+  <thead><tr><th>{{ t('ui_name') }}</th><th>{{ t('ui_category') }}</th><th>{{ t('ui_priority') }}</th><th>{{ t('ui_estimate') }}</th><th>{{ t('ui_minimum') }}</th><th>{{ t('ui_frequency') }}</th><th>{{ t('ui_actions') }}</th></tr></thead>
+  <tbody>{% for expense in expenses %}<tr>
+    <td>{{ expense.expense_name }}</td><td>{{ expense.category.category_name }}</td><td>{{ expense.priority }}</td>
+    <td>{{ t('live_unknown') if expense.estimated_amount is none else money(expense.estimated_amount) }}</td>
+    <td>{{ t('ui_not_specified') if expense.minimum_amount is none else money(expense.minimum_amount) }}</td>
+    <td>{{ t('live_frequency_' ~ expense.allocation_frequency) }}{% if expense.due_day %} · {{ t('ui_due_day') }} {{ expense.due_day }}{% endif %}</td>
+    <td>{% if not locked %}<a href="{{ url_for('budgets.edit_expense', month_id=month.id, expense_id=expense.id) }}">{{ t('ui_edit') }}</a>
+      <form method="post" action="{{ url_for('budgets.delete_expense', month_id=month.id, expense_id=expense.id) }}">
+        {{ action_form.hidden_tag() }}<button class="btn btn-sm btn-outline-danger" type="submit">{{ t('ui_remove') }}</button>
+      </form>{% endif %}</td>
+  </tr>{% else %}<tr><td colspan="7">{{ t('ui_no_expenses') }}</td></tr>{% endfor %}</tbody>
+</table></div>
+</section>
+{% else %}<p>{{ t('ui_no_month') }}</p>{% endif %}
+{% endblock %}
+{% block budget_comparison %}{% if month %}<section class="ws-card mt-3" id="compare" aria-label="Plan comparison">
+{% if not locked %}<form method="post" action="{{ url_for('budgets.generate', month_id=month.id) }}">
+  {{ action_form.hidden_tag() }}<button class="btn btn-primary" type="submit">{{ t('ui_generate') }}</button>
+</form>{% endif %}
+<h2 class="mt-4">{{ t('ui_compare_saved') }}</h2>
+<p>{{ t('ui_compare_help') }}</p>
+<div class="row g-3">{% for plan in plans %}{% set totals = breakdowns[plan.id] %}<article class="col-md-4"><div class="card h-100"><div class="card-body">
+  <h3 class="h5">{{ plan.plan_type }}</h3><p>{{ plan.status }}</p>
+  <dl>{% for label, amount in totals.items() %}<dt>{{ label }}</dt><dd>{{ money(amount) }} VND</dd>{% endfor %}
+    <dt>Plan total</dt><dd>{{ money(totals.values()|sum) }} VND</dd></dl>
+  <a class="btn btn-outline-primary" href="{{ url_for('budgets.plan', month_id=month.id, plan_id=plan.id) }}">Review {{ plan.plan_type }}{% if not locked %} / Confirm{% endif %}</a>
+</div></div></article>{% else %}<p>{{ t('ui_no_saved') }}</p>{% endfor %}</div>
+</section>
+{% endif %}{% endblock %}
+{% block workspace_scripts %}<script src="{{ url_for('static', filename='js/budget-setup.js') }}" defer></script>{% endblock %}

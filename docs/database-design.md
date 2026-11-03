@@ -63,8 +63,36 @@ does not implement idempotent financial behavior.
 Adjustments must be accepted if recommendation-driven, contain at least one
 detail, touch eligible future tasks in one authorized month, protect minimums,
 preserve original limits and atomically update current limits plus history.
-Budget/expense/report/recommendation feature routes remain placeholders; these
-workflows are not implemented merely by adding tables.
+KAN-21 now implements budget setup, candidate allocations and confirmation using
+these existing tables, without a migration. Confirmation locks the budget month
+row on PostgreSQL, checks ownership, P0/P1 requirements and exact conservation,
+and relies on the existing partial unique index for the single confirmed plan.
+Confirmed allocations, savings and expense setup are not edited by Budget
+services. Their sum preserves the original plan funding total even if mutable
+available_vnd later changes. No separate funds snapshot column is introduced.
+KAN-23 now consumes confirmed allocations through the KAN-21 service and creates
+UUID-linked tasks atomically and repeatably. Daily, clipped calendar-week and
+monthly periods share the entire allocation using integer remainder splitting.
+The full confirmed allocation covers the tracking interval; original limits sum
+to its monthly allocation without changing Budget's saved amounts or funds.
+Retries preserve task UUIDs, original/current limits, recorded transactions and
+check-in/payment states, and reject incompatible saved schedules. Bills due
+before tracking retain their original due date and start UNPAID rather than
+being silently considered paid or discarded.
+
+Spending uses positive integer transactions and month-scoped retry tokens with
+payload comparison. Multiple planned transactions per task are summed; an
+explicit NO_EXPENSE check-in creates no zero-amount record and conflicts while
+spending exists. Deleting the last purchase restores PENDING, not NO_EXPENSE.
+Unknown check-ins/missing schedule periods keep comparison totals NULL.
+The existing schema and migration chain are unchanged. KAN-27 now derives
+read-only analysis from these confirmed tasks and actual transactions, persisting
+only Recommendation and optional MonthlyReview metadata. ACCEPT is disabled;
+BudgetAdjustment/Detail are not activated. Dashboard integration, funds additions
+and adjustment activation remain separate workflows. See the
+[KAN-27 contract](kan27-spending-analysis.md).
+See the [KAN-21](kan21-budget-planning.md) and [KAN-23](kan23-expense-planning.md)
+contracts.
 
 ## Append-only migration history
 

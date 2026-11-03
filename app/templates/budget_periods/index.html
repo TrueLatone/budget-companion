@@ -35,6 +35,7 @@
                 <td>{{ money(period.available_vnd) }} VND</td>
                 <td>
                   <div class="bc-table-actions">
+                    <a class="bc-button bc-button-soft bc-button-compact" href="{{ url_for('budgets.month', month_id=period.id) }}">Plan budget</a>
                     <a class="bc-button bc-button-light bc-button-compact" href="{{ url_for('budget_periods.edit', budget_month_id=period.id) }}">{{ t('edit') }}</a>
                     {% if active_budget_month_id != period.id|string %}
                       <form method="post" action="{{ url_for('budget_periods.select', budget_month_id=period.id) }}">

@@ -1,0 +1,21 @@
+<details class="card mb-3" {% if not expenses %}open{% endif %}>
+  <summary class="card-header">{{ t('ui_suggested') }}</summary>
+  <div class="card-body">
+    <p>{{ t('ui_suggested_help') }}</p>
+    <form method="post" action="{{ url_for('budgets.apply_suggestions', month_id=month.id) }}" id="suggested-expenses">
+      {{ action_form.hidden_tag() }}
+      <div class="table-responsive"><table class="table"><thead><tr><th>{{ t('ui_include') }}</th><th>{{ t('ui_priority') }}</th><th>Monthly estimate (VND)</th><th>{{ t('ui_minimum') }}</th><th>{{ t('ui_frequency') }}</th><th>{{ t('ui_due_day') }}</th></tr></thead>
+      <tbody>{% for item in suggestions %}{% set exists = item.name.lower() in existing_names %}<tr>
+        <td><label><input type="checkbox" name="suggestion" value="{{ item.key }}" {% if item.selected and not exists %}checked{% endif %} {% if exists %}disabled{% endif %}> {{ item.name }}</label>{% if exists %}<small>{{ t('ui_existing') }}</small>{% endif %}{% if item.key == 'internet' %}<small> ({{ t('ui_optional') }})</small>{% endif %}</td>
+        <td>{{ item.priority }}</td>
+        <td><input class="form-control" name="{{ item.key }}_estimated_amount" inputmode="numeric" pattern="[0-9]*" placeholder="{{ t('live_unknown') }}" aria-label="{{ item.name }} estimate" {% if item.example_amount is not none %}data-example="{{ item.example_amount }}"{% endif %} {% if exists %}disabled{% endif %}></td>
+        <td>{% if item.priority == 'P1' %}<input class="form-control" name="{{ item.key }}_minimum_amount" inputmode="numeric" pattern="[0-9]*" placeholder="{{ t('ui_no_minimum') }}" aria-label="{{ item.name }} minimum" {% if exists %}disabled{% endif %}>{% else %}Not applicable{% endif %}</td>
+        <td><select class="form-select" name="{{ item.key }}_allocation_frequency" aria-label="{{ item.name }} frequency" {% if exists %}disabled{% endif %}>{% for frequency in ('DAILY', 'WEEKLY', 'MONTHLY') %}<option value="{{ frequency }}" {% if frequency == item.frequency %}selected{% endif %}>{{ frequency }}</option>{% endfor %}</select></td>
+        <td><input class="form-control" type="number" min="1" max="31" name="{{ item.key }}_due_day" aria-label="{{ item.name }} due day" {% if item.example_due_day is not none %}data-example="{{ item.example_due_day }}"{% endif %} {% if exists %}disabled{% endif %}></td>
+      </tr>{% endfor %}</tbody></table></div>
+      <button class="btn btn-outline-secondary" type="button" id="load-budget-example" data-notice="{{ t('ui_example_loaded') }}" hidden>{{ t('ui_load_example') }}</button>
+      <button class="btn btn-primary" type="submit">{{ t('ui_apply') }}</button>
+      <p class="small mt-2" id="budget-example-notice" role="status">{{ t('ui_example_notice') }}</p>
+    </form>
+  </div>
+</details>

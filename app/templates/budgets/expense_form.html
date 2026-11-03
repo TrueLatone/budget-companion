@@ -1,0 +1,16 @@
+{% extends 'workspace_base.html' %}
+{% block title %}{{ 'Edit' if expense else 'Add' }} budget expense{% endblock %}
+{% block workspace_content %}
+<h1>{{ 'Edit' if expense else 'Add' }} expense · {{ month_name(month.month_start) }}</h1>
+<p>Amounts are whole VND. Leave an unknown estimate blank; enter 0 only for an explicit zero estimate.</p>
+<form method="post">
+  {{ form.hidden_tag() }}
+  {% for field in form if field.type not in ('CSRFTokenField', 'SubmitField') %}
+    <div class="mb-3">{{ field.label(class_='form-label') }} {{ field(class_='form-check-input' if field.type == 'BooleanField' else 'form-control') }}
+      {% for error in field.errors %}<p class="text-danger" role="alert">{{ error }}</p>{% endfor %}
+    </div>
+  {% endfor %}
+  {{ form.submit(class_='btn btn-primary') }}
+  <a href="{{ url_for('budgets.month', month_id=month.id) }}">Back to budget</a>
+</form>
+{% endblock %}

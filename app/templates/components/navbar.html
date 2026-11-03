@@ -22,6 +22,8 @@
           {% endfor %}
         </div>
         {% if g.current_user %}
+          <a class="bc-text-link" href="{{ url_for('dashboard.index') }}">{{ t('ws_overview') }}</a>
+          <a class="bc-text-link" href="{{ url_for('recommendations.index') }}">Spending analysis</a>
           <a class="bc-text-link{% if request.endpoint == 'accounts.index' %} is-active{% endif %}" href="{{ url_for('accounts.index') }}">{{ t('account_nav') }}</a>
           <a class="bc-button bc-button-primary bc-button-small" href="{{ url_for('budget_periods.index') }}">{{ t('manage_budget_months') }}</a>
         {% else %}

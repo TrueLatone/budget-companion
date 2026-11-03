@@ -1,0 +1,26 @@
+<section class="card mb-3"><div class="card-body">
+  <form method="get" action="{{ url_for('expenses.index') }}" class="d-flex flex-wrap gap-2 align-items-center">
+    <label for="expense-budget-month">Budget month</label>
+    <select id="expense-budget-month" name="budget_month_id" class="form-select w-auto" required>
+      {% for month in budget_months %}<option value="{{ month.id }}" {% if selected_month and month.id == selected_month.id %}selected{% endif %}>{{ month_name(month.month_start) }}</option>{% endfor %}
+    </select>
+    <input type="hidden" name="view" value="month">
+    <button class="btn btn-outline-primary" type="submit">Open month</button>
+    <a href="{{ url_for('budgets.month', month_id=selected_month.id) if selected_month else url_for('budgets.index') }}">Budget planning for selected month</a>
+  </form>
+  {% if schedule_state %}
+    <p class="mt-3 mb-1" role="status" data-schedule-state="{{ schedule_state.code }}">{{ schedule_state.message }}</p>
+    <p class="small text-secondary">Tracking starts {{ selected_month.tracking_start_date }}. Weekly/monthly limits cover their whole period; bill due dates may be earlier than tracking.</p>
+    {% if schedule_state.plan_id %}<a href="{{ url_for('budgets.plan', month_id=selected_month.id, plan_id=schedule_state.plan_id) }}">Review confirmed Budget plan</a>{% endif %}
+  {% else %}
+    <p class="mt-3 mb-1" role="status" data-schedule-state="NO_MONTH">No tasks for the selected month: no Budget Month exists for this date. Select an existing month or create a Budget Month first.</p>
+    <a href="{{ url_for('budget_periods.create') }}">Create a Budget Month</a>
+  {% endif %}
+  {% if can_schedule %}
+    <form method="post" action="{{ url_for('expenses.schedule', month_id=selected_month.id) }}" class="mt-3">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button class="btn btn-primary" type="submit">{{ 'Create spending schedule' if schedule_state.code == 'NOT_SCHEDULED' else 'Create / verify spending schedule' }}</button>
+    </form>
+    <p class="small text-secondary mt-2 mb-0">Monthly allocations are distributed across the tracking interval. Repeating scheduling preserves tasks and recorded spending. Bills due before tracking retain their due date and start as unpaid.</p>
+  {% endif %}
+</div></section>

@@ -6,6 +6,12 @@
 > Weekly/partial-period scheduling, adjustment activation and original-funds
 > conservation remain service decisions, not model side effects.
 
+> KAN-21 implements the KAN-11 prototype's post-P0 strategy targets from the
+> **second** percentage table below (70/5/25, 65/15/20, 60/30/10), protecting
+> P1 minimums and positive included allocations. The first extra-P1 table remains
+> an alternative proposal, not the implemented policy. See the
+> [KAN-21 integration contract](kan21-budget-planning.md) for current scope.
+
 ## I. Budget model and algorithm
 
 **Overall Workflow:** Available Funds → P0 Reservation → P1 Baseline (based on reference/past months) → Three Budget Plans → User Confirmation.

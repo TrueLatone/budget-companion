@@ -1,0 +1,19 @@
+{% extends 'workspace_base.html' %}
+{% from 'components/icons.html' import icon %}
+{% block title %}{{ t('ws_my_budget') }} · Budget Companion{% endblock %}
+{% block workspace_content %}
+<div class="ws-page-heading"><div><h1 class="ws-page-title">{{ t('budget_title') }}</h1><p class="ws-page-subtitle">{{ t('live_budget_help') }}</p></div><div class="ws-heading-actions"><a class="ws-button" href="{{ url_for('budget_periods.create') }}">{{ icon('plus', 'ws-icon') }} {{ t('budget_create_title') }}</a></div></div>
+<div class="ws-budget-layout">
+  <section class="ws-budget-editor ws-card">{% block budget_editor %}{% endblock %}</section>
+  <aside class="ws-budget-summary"><section class="ws-card ws-summary-card"><h2 class="ws-card-title">{{ t('budget_summary_title') }}</h2>
+    {% if month %}<p class="ws-summary-available">{{ workspace_money(month.available_vnd) }}</p><p class="ws-summary-help">{{ t('live_available') }}</p><a href="{{ url_for('budget_periods.edit', budget_month_id=month.id) }}">{{ t('live_edit_funds') }}</a>{% endif %}
+    {% if summary_plan %}<p class="mt-3">{{ summary_plan.plan_type }} · {{ t('live_confirmed_summary') if summary_plan.status == 'CONFIRMED' else t('live_draft_summary') }}</p>
+      <dl class="ws-summary-breakdown">{% for label, amount in breakdowns[summary_plan.id].items() %}<div class="ws-summary-row"><dt class="ws-summary-label"><i class="ws-summary-dot" data-group="{{ label|lower }}"></i>{{ t('live_savings') if label == 'Savings' else label }}</dt><dd>{{ workspace_money(amount) }}</dd></div>{% endfor %}</dl>
+      <div class="ws-unallocated">{{ icon('coins', 'ws-icon') }}<div><span>{{ t('live_plan_total') }}</span><strong>{{ workspace_money(breakdowns[summary_plan.id].values()|sum) }}</strong></div></div>
+      <a class="ws-button ws-button-primary w-100" href="{{ url_for('budgets.plan', month_id=month.id, plan_id=summary_plan.id) }}">{{ t('live_review_budget') }}</a>
+    {% else %}<p class="mt-3">{{ t('live_no_plan') }}</p>{% endif %}
+    <p class="ws-summary-help mt-3">{{ t('live_budget_summary_help') }}</p>
+  </section></aside>
+</div>
+{% block budget_comparison %}{% endblock %}
+{% endblock %}

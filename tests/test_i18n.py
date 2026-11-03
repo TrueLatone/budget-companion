@@ -53,7 +53,7 @@ def test_vietnamese_choice_is_remembered_across_pages_and_refreshes(client):
     assert int(cookie["max-age"]) == 365 * 24 * 60 * 60
     assert cookie["path"] == "/"
 
-    assert_page_language(client.get("/budget"), "vi")
+    assert_page_language(client.get("/budget", follow_redirects=True), "vi")
     assert_page_language(client.get("/"), "vi")
 
 
@@ -63,13 +63,13 @@ def test_explicit_choice_takes_precedence_and_can_switch_back_to_english(client)
     response = client.get("/?lang=en")
     assert_page_language(response, "en")
     assert language_cookie(response).value == "en"
-    assert_page_language(client.get("/expenses"), "en")
+    assert_page_language(client.get("/expenses", follow_redirects=True), "en")
 
 
 @pytest.mark.parametrize("path", ["/login", "/register", "/budget", "/expenses", "/dashboard", "/recommendations"])
 def test_remembered_language_applies_to_all_module_pages(client, path):
     client.set_cookie("bc_language", "vi")
-    response = client.get(path)
+    response = client.get(path, follow_redirects=True)
     assert_page_language(response, "vi")
     assert "Đăng nhập" in response.get_data(as_text=True)
 
