@@ -19,8 +19,10 @@ class ExpenseForm(FlaskForm):
     category_id = SelectField("Existing category", choices=[])
     category_name = StringField("Or new category", validators=[Optional(), Length(max=100)])
     priority = SelectField("Priority", choices=[("P0", "P0 — mandatory"), ("P1", "P1 — essential"), ("P2", "P2 — flexible")])
-    estimated_amount = StringField("Estimated monthly amount (VND)", filters=[lambda value: value.strip() if value else value])
-    minimum_amount = StringField("P1 minimum (VND, optional)", filters=[lambda value: value.strip() if value else value])
+    # WTForms also filters values loaded from obj=expense. Stored VND amounts
+    # are integers; leave them (and None/zero) intact when rendering edits.
+    estimated_amount = StringField("Estimated monthly amount (VND)", filters=[lambda value: value.strip() if isinstance(value, str) else value])
+    minimum_amount = StringField("P1 minimum (VND, optional)", filters=[lambda value: value.strip() if isinstance(value, str) else value])
     allocation_frequency = SelectField("Frequency", choices=[("DAILY", "Daily"), ("WEEKLY", "Weekly"), ("MONTHLY", "Monthly")], default="MONTHLY")
     due_day = StringField("Monthly due day (optional)")
     is_recurring = BooleanField("Recurring expense")

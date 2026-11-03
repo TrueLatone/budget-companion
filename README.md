@@ -2,7 +2,9 @@
 
 **Project:** Responsive web application for student renters to plan and monitor living expenses.  
 **Source:** Vision v1.0 and Software Development Plan v1.0, 18 October 2026.  
-**Status:** Sprint 2 scaffolding (20 October 2026). **Not a functional MVP yet.**
+**Status:** Build 1 integration on `integration/pa2-20261031`, verified 3 November 2026.
+KAN-21, KAN-23, KAN-27 and KAN-25 share the authenticated application and database.
+See the [final verification and limitations](docs/build1-verification.md) before deployment.
 
 ## Technical stack
 
@@ -10,8 +12,8 @@
 - Frontend: Jinja2 + Bootstrap 5 + vanilla JavaScript.
 - ORM: Flask-SQLAlchemy; migrations: Flask-Migrate.
 - Database: PostgreSQL managed by Supabase (`DATABASE_URL`).
-- Local bootstrap: optional SQLite fallback; final integration needs PostgreSQL testing.
-- Testing: pytest + GitHub Actions CI.
+- Local verification: SQLite; live PostgreSQL/Supabase testing remains a deployment gate.
+- Testing: pytest. No GitHub Actions workflow is configured in this repository yet.
 
 ## Getting started
 
@@ -43,23 +45,49 @@ source .venv/bin/activate
 python -m pip install -r requirements.txt
 ```
 
-Copy `.env.example` to `.env` (PowerShell: `Copy-Item .env.example .env`; Linux: `cp .env.example .env`).
+Copy `.env.example` to `.env` only if `.env` does not already exist
+(PowerShell: `Copy-Item .env.example .env`; Linux: `cp -n .env.example .env`).
+Replace the example `FLASK_SECRET_KEY` with a generated secret, for example from
+`python -c "import secrets; print(secrets.token_hex(32))"`.
 
-For first boot, the example uses **local SQLite only**. To switch to the team's Supabase PostgreSQL, follow [Supabase setup](docs/supabase-setup.md). `.env` must never be committed.
+For first boot, the example uses **local SQLite only**. For PostgreSQL, set
+`DATABASE_URL` to the team's authorized database connection string; generic
+`postgres://` and `postgresql://` URLs are normalized to the psycopg 3 driver.
+`.env` must never be committed. For HTTPS deployment, disable debug mode and set
+`SESSION_COOKIE_SECURE=true`.
 
-### 3. Run application
+### 3. Migrate and run application
 
 ```bash
+flask --app app db upgrade
 flask --app app run --debug
 ```
 
-Visit `http://127.0.0.1:5000`.
+Visit `http://127.0.0.1:5000`. Run migrations against the intended database before
+startup; application startup does not create tables or seed financial records.
 
 ### 4. Basic verification
 
 ```bash
 python -m pytest -q
 ```
+
+The suite uses disposable databases. The Build 1 acceptance test also migrates a
+fresh file, exercises authenticated forms with CSRF enabled, restarts the factory
+against that file and verifies record preservation. It never resets live data.
+
+## Build 1 implementation status
+
+| Area | Status | Available behavior / boundary |
+|---|---|---|
+| Accounts and months | Completed core | Register, login, owned UUID month selection, integer VND funding input |
+| Budget (KAN-21) | Completed core | Explicit suggested/custom expenses, optional examples, three plans, immutable confirmation |
+| Expenses (KAN-23) | Completed core | Explicit schedule creation, calendar, actual/unexpected purchases, NO_EXPENSE, corrections and replay protection |
+| Recommendations (KAN-27) | Partial product scope | Real-data F18 analysis and explainable read-only guidance; ACCEPT financial adjustments disabled |
+| Workspace and Dashboard (KAN-25) | Completed core | Shared owned-month navigation, confirmed plan/savings, observed spending and completeness-aware remaining allocation |
+| EN/VI | Partial | Shared navigation, Dashboard and Budget translated; some Expense/Recommendation/validation prose remains mixed |
+| Prototype examples | Illustrative only | Load Example fills unsaved inputs; optional meals subdivide Food without extra records; no live financial localStorage/ui_demo |
+| Later functions | Not implemented | Funds additions, automatic reallocation, alerts, cross-month reports/copying, LLM advice, bank integration and Help |
 
 Available:
 - `GET /` — landing page.
@@ -115,13 +143,18 @@ No financial localStorage prototype or ui_demo data is used by live pages.
 - [Architecture](docs/architecture.md)
 - [Database design](docs/database-design.md)
 - [Entity dictionary — 13 shared entities](docs/entity-dictionary.md)
-- [API contracts — DRAFT](docs/api-contracts.md)
-- [Architecture Decision](docs/decisions/tech-stack.md)
+- [API contracts — implemented routes and separate proposals](docs/api-contracts.md)
+- [Build 1 verification and limitations](docs/build1-verification.md)
+- [Architecture Decision](docs/decisions/tech_stack.md)
 - [Team contribution rules](CONTRIBUTING.md)
 
 ## Functional scope
 
-Monthly income/budget setup; P0 mandatory bills, P1 essentials, P2 flexible Manual expense/check-in; Unknown is not zero; plan vs actual; month-over-month comparison with missing-data flags; basic rule-based recommendations; account management. Shared-living expenses are LATER.
+Build 1 supports monthly budget setup, P0 mandatory bills, P1 essentials, P2
+flexible spending, manual expense/check-in, plan versus observed actual and
+rule-based guidance. Unknown is not zero. Planned savings are not verified bank
+savings, and available funds are user-entered funding rather than a bank balance.
+Month-over-month reports and shared-living expenses remain later work.
 
 ## Team ownership
 
@@ -131,7 +164,8 @@ See `CONTRIBUTING.md`. Integrate via Jira tickets and code-reviewed Pull Request
 
 - 18/10/2026: Vision & Project Plan v1.0.
 - 20/10/2026: KAN-14 repository setup.
-- 01/11/2026: Early demo / Build 1 (planned).
+- 31/10/2026: Integration deadline.
+- 03/11/2026: Build 1 integration verification; merge remains subject to review.
 - 15/11/2026: Alpha (planned).
 - 29/11/2026: Beta (planned).
 - 13/12/2026: Final product (planned).

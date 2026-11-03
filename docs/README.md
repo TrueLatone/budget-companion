@@ -1,5 +1,6 @@
 # Documentation index
 
+- [Build 1 verification and limitations](build1-verification.md) — Final acceptance, schema/startup checks, completed and partial scope.
 - `architecture.md` — Architecture and module boundaries.
 - `database-design.md` — KAN-19 schema, migration and service rules.
 - `entity-dictionary.md` — Attribute tables for all 13 implemented entities.

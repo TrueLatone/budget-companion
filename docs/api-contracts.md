@@ -4,6 +4,22 @@ The health, KAN-15, KAN-21, KAN-23, KAN-25 and KAN-27 routes below are implement
 Budget, Expense and Recommendation services share the
 canonical database, authenticated session and global CSRF protection.
 
+## Build 1 status and boundaries
+
+Budget setup/three-plan confirmation, explicit Expense scheduling/check-ins,
+and the monthly Dashboard are implemented core flows. Recommendation analysis
+is implemented with the original F18 gate; financial adjustment is disabled.
+An insufficient-data response includes reasons and separately labeled baseline
+guidance, not synthetic transactions or a reduced completeness threshold.
+See [Build 1 verification](build1-verification.md) for reproducible acceptance
+coverage and remaining deployment limitations.
+
+Load Example and Food's 30/40/30 meal guidance are illustrative presentation
+features, not demo persistence or additional transactions. No live endpoint uses
+`ui_demo.py` or browser localStorage as financial storage. Funds addition,
+cross-month reports, automatic adjustments and LLM advice have no implemented
+write contract. Some legacy Expense/Recommendation text still needs translation.
+
 ## Implemented on day 1
 
 | Method | Endpoint | Behavior |
@@ -181,11 +197,23 @@ remain proposals.
 | Khiêm | GET | `/api/recommendations?month=YYYY-MM` | Explainable suggestions |
 | Thịnh | GET | `/api/recurring-bills` | Scheduled/recurring costs |
 
-## Contract conventions to decide
+## Established conventions and future API work
 
-- Login/session transport and CSRF protection for mutating requests.
-- Authentication and user authorization (backend derives account identity from the session).
-- ISO dates; calendar month string `YYYY-MM`; integer VND values.
-- Error envelope, e.g. `{ "error": { "code": "...", "message": "..." } }`.
-- Create/submit endpoints must be repeat-safe or provide idempotency/unique key to prevent duplicate expenses.
-- Agree whether page POST actions submit HTML forms, JSON fetch or both; don't duplicate business logic.
+- Implemented financial routes require the Flask authenticated session; no
+  submitted `user_id` grants access. Global Flask-WTF protects all POSTs,
+  including login/register/logout. HTML forms carry `csrf_token`; JSON clients
+  supply `X-CSRFToken` obtained from their session's rendered page.
+- Internal IDs/FKs are UUIDs; dates use ISO format, months use `YYYY-MM`, and
+  money is integer VND. Blank estimates remain NULL and explicit zero remains zero.
+- Budget/Expense HTML writes redirect on success, with 400 invalid input, 404
+  inaccessible resources and 409 state/replay conflicts. Recommendation JSON
+  response bodies/statuses are defined in the KAN-27 contract; a universal JSON
+  error envelope for the proposed `/api/...` endpoints is not implemented.
+- Suggestions preserve existing names; schedule/confirmation retries preserve
+  IDs and check-ins. Purchase tokens are scoped to an owned month and reject
+  changed payloads. Recommendation generation reuses snapshots of unchanged data.
+  These guarantees do not make every form (such as account registration) an
+  arbitrary idempotency-token endpoint.
+- GETs may update the selected month/language in the session but create no
+  financial records. Confirmation redirects to an explicit CSRF-protected
+  schedule POST; refreshing the calendar alone never creates tasks.

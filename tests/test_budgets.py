@@ -93,6 +93,27 @@ def test_expense_crud_preserves_unknown_and_zero_and_invalidates_drafts(app, bud
         assert db.session.get(BudgetExpense, item_id) is None
 
 
+@pytest.mark.parametrize("expense_index", range(5))
+def test_edit_form_loads_saved_integer_amounts_and_round_trips_null_and_zero(app, budget, signed_client, expense_index):
+    expense_id = budget["expenses"][expense_index]
+    path = f"/budget/{budget['month']}/expenses/{expense_id}/edit"
+    with app.app_context():
+        expense = db.session.get(BudgetExpense, expense_id)
+        estimate, minimum = expense.estimated_amount, expense.minimum_amount
+        payload = dict(expense_name=expense.expense_name, priority=expense.priority,
+                       category_id=str(expense.category_id), allocation_frequency=expense.allocation_frequency,
+                       estimated_amount="" if estimate is None else str(estimate),
+                       minimum_amount="" if minimum is None else str(minimum))
+    response = signed_client.get(path)
+    assert response.status_code == 200
+    for field in ("estimated_amount", "minimum_amount"):
+        assert re.search(fr'name="{field}"[^>]*value="{payload[field]}"', response.get_data(as_text=True))
+    assert signed_client.post(path, data=payload).status_code == 302
+    with app.app_context():
+        saved = db.session.get(BudgetExpense, expense_id)
+        assert (saved.estimated_amount, saved.minimum_amount) == (estimate, minimum)
+
+
 def test_builtin_category_is_allowed_and_private_category_is_not(app, budget):
     with app.app_context():
         data = expense_data(budget)
