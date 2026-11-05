@@ -1,0 +1,39 @@
+{% extends 'workspace_base.html' %}
+{% from 'components/icons.html' import icon %}
+{% block title %}{{ t('period_nav') }} · Budget Companion{% endblock %}
+{% block extra_styles %}{{ super() }}<link href="{{ url_for('static', filename='css/periods.css') }}" rel="stylesheet">{% endblock %}
+{% block workspace_notice %}{{ t('period_preview_note') }}{% endblock %}
+{% block workspace_content %}
+<div class="period-page">
+  <div class="ws-page-heading">
+    <div><p class="period-eyebrow">{{ t('period_eyebrow') }}</p><h1 class="ws-page-title">{{ t('period_title') }}</h1><p class="ws-page-subtitle">{{ t('period_subtitle') }}</p></div>
+    <a class="ws-button" href="{{ url_for('dashboard.index', month='2026-11') }}">{{ t('period_example') }} {{ icon('arrow-right', 'ws-icon') }}</a>
+  </div>
+  <ol class="period-steps" aria-label="{{ t('period_flow') }}"><li><span>1</span>{{ t('period_step_one') }}</li><li><span>2</span>{{ t('period_step_two') }}</li><li><span>3</span>{{ t('period_step_three') }}</li></ol>
+  <div class="period-layout">
+    <section class="ws-card period-create" aria-labelledby="period-create-title">
+      <span class="period-hero-icon" aria-hidden="true">{{ icon('calendar', 'ws-icon') }}</span>
+      <h2 class="ws-card-title" id="period-create-title">{{ t('period_create_title') }}</h2>
+      <p class="period-caption">{{ t('period_create_help') }}</p>
+      <form id="period-form" novalidate>
+        <label class="ws-field-label" for="period-month">{{ t('period_month') }}</label>
+        <input type="month" id="period-month" name="month" min="0001-01" max="9999-12" required aria-describedby="period-month-help period-error">
+        <p class="period-caption" id="period-month-help">{{ t('period_calendar_help') }}</p>
+        <dl class="period-range"><div><dt>{{ t('period_start') }}</dt><dd id="period-start">—</dd></div><div><dt>{{ t('period_end') }}</dt><dd id="period-end">—</dd></div></dl>
+        <p class="ws-error" id="period-error" role="alert" hidden></p>
+        <a class="period-inline-link" id="period-existing" hidden>{{ t('period_open_existing') }} {{ icon('arrow-right', 'ws-icon') }}</a>
+        <button class="ws-button ws-button-primary period-submit" id="period-create" type="submit" disabled>{{ icon('plus', 'ws-icon') }} {{ t('period_create') }}</button>
+      </form>
+      <section class="period-success" id="period-success" role="status" aria-labelledby="period-success-title" hidden>
+        <span aria-hidden="true">{{ icon('check', 'ws-icon') }}</span><h3 id="period-success-title">{{ t('period_success_title') }}</h3><p id="period-success-copy"></p>
+        <a class="ws-button ws-button-primary" id="period-success-overview">{{ t('period_view_overview') }} {{ icon('arrow-right', 'ws-icon') }}</a>
+      </section>
+    </section>
+    <section class="ws-card period-collection" aria-labelledby="period-list-title">
+      <header><div><h2 class="ws-card-title" id="period-list-title">{{ t('period_yours') }}</h2><p class="period-caption">{{ t('period_list_help') }}</p></div><span class="period-count" id="period-count">0</span></header>
+      <p class="ws-error" id="period-storage-error" role="alert" hidden></p>
+      <div id="period-list"><div class="period-empty"><span aria-hidden="true">{{ icon('calendar', 'ws-icon') }}</span><h3>{{ t('period_empty') }}</h3><p>{{ t('period_empty_help') }}</p></div></div>
+    </section>
+  </div>
+</div>
+{% endblock %}

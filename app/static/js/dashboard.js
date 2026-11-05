@@ -130,6 +130,8 @@
     let storedPlan = false;
     let planWarning = "";
     let previewWarning = "";
+    let periodWarning = "";
+    let managedPeriod = false;
     let blocked = false;
     let hasLocalPreview = false;
     let baselineFingerprint = null;
@@ -138,8 +140,8 @@
 
     function showWarning() {
       if (!warning) return;
-      warning.textContent = translate(previewWarning || planWarning);
-      warning.hidden = !previewWarning && !planWarning;
+      warning.textContent = translate(previewWarning || planWarning || periodWarning);
+      warning.hidden = !previewWarning && !planWarning && !periodWarning;
     }
 
     function announce(key) {
@@ -244,10 +246,16 @@
       }
     }
 
+    function readPeriod() {
+      const periods = window.BudgetPeriodPreview?.read();
+      managedPeriod = Boolean(periods?.periods?.some((period) => period.month === month && period.created));
+      periodWarning = periods?.error || "";
+    }
     const fingerprint = (candidate) => candidate ? JSON.stringify(candidate) : null;
+    readPeriod();
     readPlan();
     const initial = readPreview();
-    const defaultRecords = month === dashboard.sampleMonth && Array.isArray(dashboard.defaultRecords) ? dashboard.defaultRecords : [];
+    const defaultRecords = !managedPeriod && month === dashboard.sampleMonth && Array.isArray(dashboard.defaultRecords) ? dashboard.defaultRecords : [];
     const defaultState = validateMonth({ records: defaultRecords, noExpenseDates: dashboard.defaultNoExpenseDates || [] }, month);
     if (!defaultState) return;
     state = defaultState;
@@ -437,6 +445,7 @@
     }
 
     function render() {
+      const unsetPlan = managedPeriod && !storedPlan;
       const groupPlans = Object.fromEntries(GROUPS.map((group) => [group, 0]));
       const groupSpent = Object.fromEntries(GROUPS.map((group) => [group, 0]));
       for (const category of plan.categories) groupPlans[category.group] += category.amount;
@@ -447,43 +456,48 @@
         groupSpent[record.group] += record.amount;
         breakdown[Object.hasOwn(breakdown, record.categoryId) ? record.categoryId : "other"] += record.amount;
       }
-      const planned = GROUPS.reduce((sum, group) => sum + groupPlans[group], 0);
+      const planned = unsetPlan ? 0 : GROUPS.reduce((sum, group) => sum + groupPlans[group], 0);
       const remaining = planned - spent;
-      const values = { planned, spent, remaining, available: plan.available, unallocated: plan.available - planned };
-      for (const [key, value] of Object.entries(values)) text(`[data-db-value="${key}"]`, money(value));
+      const values = { planned: unsetPlan ? null : planned, spent, remaining: unsetPlan ? null : remaining,
+        available: unsetPlan ? null : plan.available, unallocated: unsetPlan ? null : plan.available - planned };
+      for (const [key, value] of Object.entries(values)) text(`[data-db-value="${key}"]`, value === null ? translate("period_not_set") : money(value));
       document.querySelectorAll('[data-db-value="remaining"]').forEach((node) => {
-        node.classList.toggle("is-negative", remaining < 0);
-        node.dataset.negative = String(remaining < 0);
+        node.classList.toggle("is-negative", !unsetPlan && remaining < 0);
+        node.dataset.negative = String(!unsetPlan && remaining < 0);
       });
-      if (byId("db-spent-share")) byId("db-spent-share").textContent = translate("dash_spent_help", { percent: percentages.format(spent / planned) });
-      if (byId("db-remaining-help")) byId("db-remaining-help").textContent = translate("dash_remaining_help");
+      if (byId("db-spent-share")) byId("db-spent-share").textContent = unsetPlan ? translate("period_unset_help") : translate("dash_spent_help", { percent: percentages.format(spent / planned) });
+      if (byId("db-remaining-help")) byId("db-remaining-help").textContent = translate(unsetPlan ? "period_unset_help" : "dash_remaining_help");
       for (const group of GROUPS) {
         const row = document.querySelector(`[data-db-group="${group}"]`);
         if (!row) continue;
-        const ratio = groupSpent[group] / groupPlans[group];
+        const ratio = unsetPlan ? null : groupSpent[group] / groupPlans[group];
         const spentNode = row.querySelector("[data-db-group-spent]");
         const planNode = row.querySelector("[data-db-group-plan]");
         const percent = row.querySelector("[data-db-group-percent]");
         const progress = row.querySelector("[data-db-progress]");
         if (spentNode) spentNode.textContent = numbers.format(groupSpent[group]);
-        if (planNode) planNode.textContent = numbers.format(groupPlans[group]);
-        if (percent) percent.textContent = percentages.format(ratio);
-        if (progress) progress.style.width = `${Math.min(100, ratio * 100)}%`;
-        row.classList.toggle("is-negative", ratio > 1);
+        if (planNode) planNode.textContent = unsetPlan ? "—" : numbers.format(groupPlans[group]);
+        if (percent) percent.textContent = unsetPlan ? "—" : percentages.format(ratio);
+        if (progress) progress.style.width = `${ratio === null ? 0 : Math.min(100, ratio * 100)}%`;
+        row.classList.toggle("is-negative", ratio !== null && ratio > 1);
       }
       renderChart(BREAKDOWN.map((category) => breakdown[category.id]), spent);
       const records = orderedRecords();
       renderRecords(byId("db-recent-list"), records.slice(0, 3));
       renderRecords(byId("db-history-list"), records);
       const updated = byId("db-updated");
-      if (updated) updated.textContent = `${hasLocalPreview ? translate("dash_local_updates") :
+      if (updated) updated.textContent = `${unsetPlan && !hasLocalPreview ? translate("period_overview_empty") : hasLocalPreview ? translate("dash_local_updates") :
         records.length ? translate("dash_updated", { date: formatDate(`${month}-11`) }) : translate("dash_no_records")} · ${translate("dash_example")}`;
       const savedPlan = byId("db-plan-source");
       if (savedPlan) {
         savedPlan.textContent = storedPlan ? translate("dash_saved_plan") : "";
         savedPlan.hidden = !storedPlan;
       }
-      text(".db-unallocated-amount small", translate("dash_available_help", { amount: money(plan.available) }));
+      text(".db-unallocated-amount small", unsetPlan ? translate("period_unset_help") : translate("dash_available_help", { amount: money(plan.available) }));
+      text("#db-budget-link-label", translate(unsetPlan ? "period_set_budget" : "dash_edit_budget"));
+      if (byId("db-period-ready")) byId("db-period-ready").hidden = !managedPeriod;
+      text("#db-period-ready-title", translate("period_ready", { month: new Intl.DateTimeFormat(locale, { month: "long", year: "numeric", timeZone: "UTC" }).format(new Date(`${month}-01T00:00:00Z`)) }));
+      text("#db-period-ready-help", translate(unsetPlan ? "period_ready_help" : "period_calendar_help"));
       const recordedToday = state.records.some((record) => record.date === snapshotDate);
       const checkedNoExpense = state.noExpenseDates.includes(snapshotDate);
       const checked = recordedToday || checkedNoExpense;
@@ -631,6 +645,11 @@
       announce("dash_no_expense_saved");
     });
     window.addEventListener("storage", (event) => {
+      if (event.key === window.BudgetPeriodPreview?.KEY || event.key === null) {
+        readPeriod();
+        if (!hasLocalPreview) state = managedPeriod ? { records: [], noExpenseDates: [] } : defaultState;
+        render();
+      }
       if (event.key === PLAN_KEY || event.key === null) {
         readPlan();
         refreshCategories();

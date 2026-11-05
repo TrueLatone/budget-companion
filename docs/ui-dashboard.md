@@ -1,5 +1,8 @@
 # Dashboard / Overview — bản giao diện
 
+Luồng tạo kỳ `/budget-periods` hiện nối vào Overview cùng tháng. Kỳ mới hiển thị
+ngân sách chưa thiết lập và không tự lấy khoản chi mẫu. Xem `docs/ui-periods.md`.
+
 Mở `http://127.0.0.1:5000/dashboard` khi ứng dụng Flask đang chạy, hoặc chọn
 **Overview** trong menu của My budget. **Edit budget** dẫn về kế hoạch cùng tháng.
 Trang chủ tiếp tục dẫn **Start your budget** vào My budget như trước.

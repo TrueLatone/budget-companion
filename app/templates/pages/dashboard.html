@@ -36,6 +36,11 @@
         <button class="ws-button ws-button-primary" type="button" data-db-add>{{ icon('plus', 'ws-icon') }} {{ t('dash_add_expense') }}</button>
       </div>
     </div>
+    <div class="ws-demo-banner" id="db-period-ready" hidden style="margin: 0 0 20px; align-items: center; flex-wrap: wrap;">
+      {{ icon('calendar', 'ws-icon') }}
+      <div style="flex:1;min-width:0"><strong id="db-period-ready-title"></strong><p id="db-period-ready-help" style="margin:3px 0 0"></p></div>
+      <a class="db-text-link" href="{{ url_for('budgets.periods', month=workspace_data.month) }}">{{ t('period_manage') }} {{ icon('arrow-right', 'ws-icon') }}</a>
+    </div>
     <p id="db-warning" class="ws-error db-warning" role="alert" hidden></p>
     <p id="db-feedback" class="ws-status db-feedback" role="status" hidden></p>
 
@@ -115,7 +120,7 @@
       <section class="ws-card db-progress-card" aria-labelledby="db-progress-title">
         <header class="db-card-heading">
           <div><h2 class="db-card-title" id="db-progress-title">{{ t('dash_progress_title') }}</h2><p class="db-caption">{{ t('dash_progress_help') }}</p></div>
-          <a class="db-text-link" data-db-budget-link href="{{ url_for('budgets.index', month=workspace_data.month) }}">{{ t('dash_edit_budget') }} {{ icon('arrow-right', 'ws-icon') }}</a>
+          <a class="db-text-link" data-db-budget-link href="{{ url_for('budgets.index', month=workspace_data.month) }}"><span id="db-budget-link-label">{{ t('dash_edit_budget') }}</span> {{ icon('arrow-right', 'ws-icon') }}</a>
         </header>
         <div class="db-progress-list">
           {% for group in view.groups %}

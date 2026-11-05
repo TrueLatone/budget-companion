@@ -13,8 +13,9 @@
   <header class="ws-topbar">
     <div class="ws-topbar-leading">
       <button class="ws-menu-toggle" type="button" data-sidebar-toggle aria-expanded="false" aria-controls="workspace-sidebar" aria-label="{{ t('ws_open_menu') }}">{{ icon('menu', 'ws-icon') }}</button>
-      <nav class="ws-breadcrumb" aria-label="{{ t('ws_overview') if active_page == 'dashboard' else t('ws_workspace') }}">
-        <span>{{ t('ws_overview') if active_page == 'dashboard' else t('ws_my_budget') }}</span><span aria-hidden="true">/</span><strong aria-current="page">{{ t('dash_snapshot') if active_page == 'dashboard' else t('ws_new_plan') }}</strong>
+      {% set section_label = t('period_nav') if active_page == 'periods' else (t('ws_overview') if active_page == 'dashboard' else t('ws_my_budget')) %}
+      <nav class="ws-breadcrumb" aria-label="{{ section_label }}">
+        <span>{{ section_label }}</span><span aria-hidden="true">/</span><strong aria-current="page">{{ t('period_manage') if active_page == 'periods' else (t('dash_snapshot') if active_page == 'dashboard' else t('ws_new_plan')) }}</strong>
       </nav>
     </div>
     <div class="ws-topbar-actions">
@@ -36,6 +37,7 @@
 {% block extra_scripts %}
   <script type="application/json" id="workspace-data">{{ workspace_data|tojson }}</script>
   <script type="application/json" id="workspace-copy">{{ workspace_copy|tojson }}</script>
+  <script src="{{ url_for('static', filename='js/periods.js') }}" defer></script>
   <script src="{{ url_for('static', filename='js/workspace.js') }}" defer></script>
   {% block workspace_page_scripts %}{% endblock %}
 {% endblock %}

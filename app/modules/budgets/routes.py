@@ -8,3 +8,8 @@ bp = Blueprint("budgets", __name__)
 @bp.get("/budget")
 def index():
     return render_template("pages/budget.html", **workspace_context())
+
+
+@bp.get("/budget-periods")
+def periods():
+    return render_template("pages/periods.html", **workspace_context(page="periods"))

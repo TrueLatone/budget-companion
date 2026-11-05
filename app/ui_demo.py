@@ -49,7 +49,7 @@ def workspace_context(page="budget"):
     year, month_number = map(int, month.split("-"))
     copy = {
         key: value for key, value in MESSAGES[locale].items()
-        if key.startswith(("ws_", "budget_", "group_", "cat_", "dash_"))
+        if key.startswith(("ws_", "budget_", "group_", "cat_", "dash_", "period_"))
     }
     plan = deepcopy(DEFAULT_PLAN)
     totals = {
@@ -73,6 +73,8 @@ def workspace_context(page="budget"):
             "page": page, "locale": locale, "month": month,
             "defaultPlan": plan,
             "budgetUrl": url_for("budgets.index"),
+            "periodsUrl": url_for("budgets.periods"),
+            "dashboardUrl": url_for("dashboard.index"),
         },
         "workspace_copy": copy,
         "month_label": month_label,

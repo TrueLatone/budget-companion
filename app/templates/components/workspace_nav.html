@@ -8,6 +8,7 @@
     <button class="ws-sidebar-close" type="button" data-sidebar-close aria-label="{{ t('ws_close_menu') }}">{{ icon('close', 'ws-icon') }}</button>
   </div>
   <nav class="ws-nav" aria-label="{{ t('ws_navigation') }}">
+    <a class="ws-nav-item{% if active_page == 'periods' %} is-active{% endif %}" href="{{ url_for('budgets.periods', month=workspace_data.month) }}"{% if active_page == 'periods' %} aria-current="page"{% endif %}>{{ icon('calendar', 'ws-icon') }}<span class="ws-nav-copy">{{ t('period_nav') }}</span></a>
     <a class="ws-nav-item{% if active_page == 'dashboard' %} is-active{% endif %}" href="{{ url_for('dashboard.index', month=workspace_data.month) }}"{% if active_page == 'dashboard' %} aria-current="page"{% endif %}>{{ icon('home', 'ws-icon') }}<span class="ws-nav-copy">{{ t('ws_overview') }}</span></a>
     <a class="ws-nav-item{% if active_page == 'budget' %} is-active{% endif %}" href="{{ url_for('budgets.index', month=workspace_data.month) }}"{% if active_page == 'budget' %} aria-current="page"{% endif %}>{{ icon('pie', 'ws-icon') }}<span class="ws-nav-copy">{{ t('ws_my_budget') }}</span></a>
     {% for name, label in [('receipt', 'ws_expenses'), ('calendar', 'ws_check_in'), ('bulb', 'ws_spending_tips')] %}
