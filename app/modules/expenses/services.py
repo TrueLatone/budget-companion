@@ -7,6 +7,7 @@ calendar code is selectively reused from KAN-8; legacy models are never loaded.
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import date
+import threading
 import uuid
 
 from sqlalchemy.exc import IntegrityError
@@ -21,8 +22,9 @@ from app.modules.expenses.presentation import (
     CONFIRMED_STATUSES, UI_VIEWS, STATUS_PENDING, STATUS_UNRECORDED,
     STATUS_NO_EXPENSE, STATUS_WITHIN_BUDGET, STATUS_OVER_BUDGET,
     ExpenseRecordAdapter, ExpenseTaskAdapter, Period, build_day_items,
-    build_month_calendar, build_month_items, build_navigation, build_year_months,
-    get_task_status, now_utc, resolve_period, summarize_day_items, today_vn,
+    build_due_items, build_month_calendar, build_month_items, build_navigation,
+    build_year_months, get_task_status, now_utc, resolve_period,
+    summarize_day_items, today_vn,
 )
 from app.modules.expenses.scheduling import build_task_schedule
 from app.modules.expenses.validators import (
@@ -40,6 +42,30 @@ class NotFoundError(LookupError):
 
 class ExpenseConflict(ValidationError):
     """A replay or saved schedule conflicts with current financial data."""
+
+
+_inflight_lock = threading.Lock()
+_inflight_keys: set[tuple] = set()
+
+
+@contextmanager
+def _single_flight(key):
+    """Reject a concurrent identical write, while allowing later legitimate repeats."""
+    with _inflight_lock:
+        if key in _inflight_keys:
+            raise ExpenseConflict(
+                "This action is already being processed. Wait for it to finish before submitting again."
+            )
+        _inflight_keys.add(key)
+    try:
+        yield
+    finally:
+        with _inflight_lock:
+            _inflight_keys.discard(key)
+
+
+def _payload_key(*values):
+    return tuple("" if value is None else str(value).strip() for value in values)
 
 
 def to_uuid(value):
@@ -149,25 +175,26 @@ def get_schedule_state(user_id, month_id):
     allocations = budgets.get_confirmed_allocations(user_id, month.id)
     if not allocations:
         return ScheduleState("NO_ALLOCATIONS", "The confirmed plan has no allocations to schedule. Review the saved Budget plan.", plan_id=confirmed.id)
-    expected = {
-        (allocation.id, item.assigned_date): (item.period_end, item.original_limit, item.payment_due_date)
-        for allocation in allocations
-        for item in build_task_schedule(allocation, month.tracking_start_date)
-    }
     # Allocation IDs have already been authorized through the confirmed Budget
-    # service. Inspect even malformed stored periods so filtering cannot make a
-    # conflicting schedule look like one that has never been created.
+    # service. Inspect stored rows so filtering cannot make a conflicting
+    # schedule look like one that has never been created. This is a read-only
+    # conservation check; Expense never rebuilds recurrence schedules.
     tasks = list(db.session.scalars(db.select(AssignedExpenseTask).where(
         AssignedExpenseTask.allocation_id.in_([allocation.id for allocation in allocations]),
     )))
-    actual = {(task.allocation_id, task.assigned_date):
-              (task.period_end, task.original_limit, task.payment_due_date) for task in tasks}
     if not tasks:
-        return ScheduleState("NOT_SCHEDULED", "Your plan is confirmed, but its spending schedule has not been created. Create spending schedule to fill the calendar.", True, confirmed.id)
-    if any(key not in expected or values != expected[key] for key, values in actual.items()):
-        return ScheduleState("CONFLICT", "Saved task dates or original limits differ from the confirmed plan. The schedule cannot be overwritten; review the saved plan.", plan_id=confirmed.id)
-    if actual.keys() != expected.keys():
-        return ScheduleState("INCOMPLETE", "Some scheduled tasks are missing. Create / verify spending schedule to add missing tasks and preserve existing check-ins.", True, confirmed.id)
+        return ScheduleState("NOT_SCHEDULED", "Your plan is confirmed, but no AssignedExpenseTask exists yet. Budget must create the spending schedule upstream; Expense only displays existing tasks.", plan_id=confirmed.id)
+    if any(task.assigned_date < month.tracking_start_date for task in tasks):
+        return ScheduleState("CONFLICT", "Saved task dates or original limits differ from the confirmed plan. Expense will not overwrite them; review the saved plan.", plan_id=confirmed.id)
+    totals = {}
+    for task in tasks:
+        totals[task.allocation_id] = totals.get(task.allocation_id, 0) + task.original_limit
+    for allocation in allocations:
+        total = totals.get(allocation.id, 0)
+        if total > allocation.allocated_amount:
+            return ScheduleState("CONFLICT", "Saved task dates or original limits differ from the confirmed plan. Expense will not overwrite them; review the saved plan.", plan_id=confirmed.id)
+        if total < allocation.allocated_amount:
+            return ScheduleState("INCOMPLETE", "Some scheduled tasks are missing. Budget must complete the schedule; Expense will not generate missing tasks.", plan_id=confirmed.id)
     return ScheduleState("READY", "Spending schedule ready. Select a calendar date for daily expenses and active weekly/monthly periods.", True, confirmed.id)
 
 
@@ -204,31 +231,19 @@ def get_task(user_id, task_id):
     return ExpenseTaskAdapter(_get_task(task_id, user_id))
 
 
-def _apply_schedule_filter(statement, schedule_tag):
-    if schedule_tag == "DAY_OF_MONTH":
-        return statement.where(BudgetExpense.allocation_frequency == "MONTHLY", BudgetExpense.due_day.is_not(None))
-    if schedule_tag == "MONTHLY":
-        return statement.where(BudgetExpense.allocation_frequency == "MONTHLY", BudgetExpense.due_day.is_(None))
-    return statement.where(BudgetExpense.allocation_frequency == schedule_tag)
-
-
-def list_tasks(user_id, start, end, *, schedule_tag=None):
+def list_tasks(user_id, start, end):
     statement = _task_statement(user_id).where(
         AssignedExpenseTask.assigned_date >= start, AssignedExpenseTask.assigned_date <= end,
     )
-    if schedule_tag:
-        statement = _apply_schedule_filter(statement, schedule_tag)
     return [ExpenseTaskAdapter(task) for task in db.session.scalars(statement.order_by(
         AssignedExpenseTask.assigned_date, BudgetExpense.priority, AssignedExpenseTask.id,
     ))]
 
 
-def list_due_tasks(user_id, start, end, *, schedule_tag=None):
+def list_due_tasks(user_id, start, end):
     statement = _task_statement(user_id).where(
         AssignedExpenseTask.payment_due_date >= start, AssignedExpenseTask.payment_due_date <= end,
     )
-    if schedule_tag:
-        statement = _apply_schedule_filter(statement, schedule_tag)
     return [ExpenseTaskAdapter(task) for task in db.session.scalars(statement.order_by(
         AssignedExpenseTask.payment_due_date, AssignedExpenseTask.id,
     ))]
@@ -243,81 +258,88 @@ def _valid_date(month, expense_date, task=None):
         raise ValidationError("The transaction date must be within the task's assigned period.")
 
 
-def _category(user_id, name, *, default_id=None):
-    name = str(name or "").strip()
-    if not name and default_id:
+def list_categories(user_id):
+    """Read-only list of categories this user may reference."""
+    return budgets.list_categories(to_uuid(user_id))
+
+
+def _category(user_id, value, *, default_id=None):
+    """Resolve an existing owned/built-in category. Expense never creates categories."""
+    owner = to_uuid(user_id)
+    text = str(value or "").strip()
+    if not text:
+        if default_id is None:
+            raise ValidationError("Choose an existing category.")
         category = db.session.get(ExpenseCategory, default_id)
-        if category and category.user_id in (None, to_uuid(user_id)):
-            return category
-        raise NotFoundError("Category not found.")
-    if not name or len(name) > 100:
-        raise ValidationError("Enter a category name of 1 to 100 characters.")
-    # Prefer an owned category; built-ins can be reused but are never modified.
-    categories = db.session.scalars(db.select(ExpenseCategory).where(
-        db.or_(ExpenseCategory.user_id == to_uuid(user_id), ExpenseCategory.user_id.is_(None)),
-        db.func.lower(db.func.trim(ExpenseCategory.category_name)) == name.lower(),
-    )).all()
-    if categories:
-        return next((item for item in categories if item.user_id == to_uuid(user_id)), categories[0])
-    category = ExpenseCategory(user_id=to_uuid(user_id), category_name=name)
-    db.session.add(category)
-    db.session.flush()
+    else:
+        try:
+            category = db.session.get(ExpenseCategory, uuid.UUID(text))
+        except (ValueError, TypeError, AttributeError):
+            category = db.session.scalar(db.select(ExpenseCategory).where(
+                db.or_(ExpenseCategory.user_id == owner, ExpenseCategory.user_id.is_(None)),
+                db.func.lower(db.func.trim(ExpenseCategory.category_name)) == text.lower(),
+            ))
+    if category is None or category.user_id not in (None, owner):
+        raise ValidationError("Choose an existing category.")
     return category
 
 
-def _token(value):
-    token = str(value or "").strip()
-    if not token or len(token) > 64:
-        raise ValidationError("A retry token of 1 to 64 characters is required.")
-    return token
-
-
-def _replay(month, key, payload):
-    existing = db.session.scalar(db.select(ExpenseRecord).where(
-        ExpenseRecord.budget_month_id == month.id, ExpenseRecord.idempotency_key == key,
-    ).execution_options(populate_existing=True))
-    if existing is None:
-        return None
-    if any(getattr(existing, field) != value for field, value in payload.items()):
-        raise ExpenseConflict("This retry token was already used for a different transaction.")
-    return existing
+def _recalculate_task_status(task):
+    """Persist only canonical task_status values after record changes."""
+    total = db.session.scalar(db.select(db.func.count(ExpenseRecord.id)).where(
+        ExpenseRecord.task_id == task.id, ExpenseRecord.record_type == "PLANNED",
+    ))
+    task.task_status = "RECORDED" if total else "PENDING"
+    return task.task_status
 
 
 def checkin_task(user_id, task_id, *, action, amount_raw=None, expense_date_raw=None,
-                 category=None, note=None, idempotency_key=None):
-    task = _get_task(task_id, user_id)
-    month_id = task.allocation.plan.budget_month_id
-    with _write_month(user_id, month_id) as month:
+                 category=None, note=None, title=None, on_created=None):
+    key = ("checkin", str(user_id), str(task_id)) + _payload_key(
+        action, amount_raw, expense_date_raw, category, note, title,
+    )
+    created_id = None
+    with _single_flight(key):
         task = _get_task(task_id, user_id)
-        if task.assigned_date > today_vn():
-            raise ValidationError("Future tasks cannot be checked in.")
-        if action == "no_expense":
-            if task.records:
-                raise ExpenseConflict("This task has actual transactions. Remove or correct them before confirming NO_EXPENSE.")
-            task.task_status = "NO_EXPENSE"
-        else:
-            if action not in {"planned", "actual"}:
-                raise ValidationError("Choose planned, actual or no_expense.")
-            amount = parse_amount(task.current_limit if action == "planned" else amount_raw)
-            expense_date = parse_optional_date(expense_date_raw) or task.assigned_date
-            _valid_date(month, expense_date, task)
-            key = _token(idempotency_key)
-            category_row = _category(user_id, category, default_id=task.allocation.budget_expense.category_id)
-            clean_note = str(note or "").strip() or None
-            if clean_note and len(clean_note) > 2000:
-                raise ValidationError("Notes must be at most 2000 characters.")
-            payload = dict(
-                task_id=task.id, record_type="PLANNED", amount=amount, expense_date=expense_date,
-                category_id=category_row.id, priority=task.allocation.budget_expense.priority,
-                title=task.allocation.budget_expense.expense_name, note=clean_note, budget_impact_scope=None,
-            )
-            record = _replay(month, key, payload)
-            if record is None:
-                if action == "planned" and task.records:
-                    raise ExpenseConflict("This task already has spending. Add a separate actual purchase or edit a transaction.")
-                record = ExpenseRecord(budget_month_id=month.id, idempotency_key=key, **payload)
+        month_id = task.allocation.plan.budget_month_id
+        with _write_month(user_id, month_id) as month:
+            task = _get_task(task_id, user_id)
+            if task.assigned_date > today_vn():
+                raise ValidationError("Future tasks cannot be checked in.")
+            if action == "no_expense":
+                if any(record.record_type == "PLANNED" for record in task.records):
+                    raise ExpenseConflict("This task has actual transactions. Remove or correct them before confirming NO_EXPENSE.")
+                task.task_status = "NO_EXPENSE"
+            else:
+                if action not in {"planned", "actual"}:
+                    raise ValidationError("Choose planned, actual or no_expense.")
+                if action == "planned":
+                    if any(record.record_type == "PLANNED" for record in task.records):
+                        raise ExpenseConflict("This task already has spending. Add a separate actual purchase or edit a transaction.")
+                    if task.current_limit <= 0:
+                        raise ValidationError("CurrentLimit is zero. Enter a positive actual amount or choose no expense.")
+                amount = parse_amount(task.current_limit if action == "planned" else amount_raw)
+                expense_date = parse_optional_date(expense_date_raw) or task.assigned_date
+                _valid_date(month, expense_date, task)
+                category_row = _category(user_id, category, default_id=task.allocation.budget_expense.category_id)
+                clean_note = str(note or "").strip() or None
+                if clean_note and len(clean_note) > 2000:
+                    raise ValidationError("Notes must be at most 2000 characters.")
+                clean_title = str(title or "").strip() or task.allocation.budget_expense.expense_name
+                if len(clean_title) > 120:
+                    raise ValidationError("Titles must be at most 120 characters.")
+                record = ExpenseRecord(
+                    budget_month_id=month.id, task_id=task.id, record_type="PLANNED",
+                    amount=amount, expense_date=expense_date, category_id=category_row.id,
+                    priority=None, title=clean_title,
+                    note=clean_note, budget_impact_scope=None,
+                )
                 db.session.add(record)
-            task.task_status = "RECORDED"
+                db.session.flush()
+                created_id = record.id
+                task.task_status = "RECORDED"
+    if created_id is not None and on_created is not None:
+        on_created(created_id)
     return ExpenseTaskAdapter(task)
 
 
@@ -352,7 +374,7 @@ def get_record(user_id, record_id):
     return ExpenseRecordAdapter(_get_record(record_id, user_id))
 
 
-def list_records(user_id, start, end, *, schedule_tag=None):
+def list_records(user_id, start, end):
     statement = db.select(ExpenseRecord).join(BudgetMonth).where(
         BudgetMonth.user_id == to_uuid(user_id), ExpenseRecord.expense_date >= start,
         ExpenseRecord.expense_date <= end, ExpenseRecord.record_type.in_(("PLANNED", "UNEXPECTED")),
@@ -360,50 +382,71 @@ def list_records(user_id, start, end, *, schedule_tag=None):
     records = []
     for record in db.session.scalars(statement.order_by(ExpenseRecord.expense_date, ExpenseRecord.id)):
         record = _get_record(record.id, user_id)
-        adapter = ExpenseRecordAdapter(record)
-        if not schedule_tag or (adapter.task and adapter.task.schedule_tag == schedule_tag):
-            records.append(adapter)
+        records.append(ExpenseRecordAdapter(record))
     return records
 
 
-def create_unexpected_record(user_id, form):
-    month_id = form.get("budget_month_id")
-    with _write_month(user_id, month_id) as month:
-        data = validate_record_form(form, require_title=True)
-        _valid_date(month, data["expense_date"])
-        priority = parse_choice(form.get("priority"), ("P0", "P1", "P2"), "Priority")
-        scope = str(form.get("budget_impact_scope") or "").strip().upper() or None
-        if scope is not None and scope not in {"DAILY", "WEEKLY", "MONTHLY"}:
-            raise ValidationError("Invalid budget impact scope.")
-        category = _category(user_id, data["category"])
-        key = _token(form.get("idempotency_key"))
-        payload = dict(
-            task_id=None, record_type="UNEXPECTED", amount=data["amount"],
-            expense_date=data["expense_date"], title=data["title"], note=data["note"],
-            category_id=category.id, priority=priority, budget_impact_scope=scope,
-        )
-        record = _replay(month, key, payload)
-        if record is None:
-            record = ExpenseRecord(budget_month_id=month.id, idempotency_key=key, **payload)
+def _parse_scope(raw):
+    scope = str(raw or "").strip().upper() or None
+    if scope is not None and scope not in {"DAILY", "WEEKLY", "MONTHLY"}:
+        raise ValidationError("Invalid budget impact scope.")
+    return scope
+
+
+def create_unexpected_record(user_id, form, *, on_created=None):
+    key = ("unexpected", str(user_id)) + _payload_key(
+        form.get("budget_month_id"), form.get("amount"), form.get("expense_date"),
+        form.get("title"), form.get("category"), form.get("priority"),
+        form.get("budget_impact_scope"), form.get("note"),
+    )
+    created_id = None
+    with _single_flight(key):
+        month_id = form.get("budget_month_id")
+        with _write_month(user_id, month_id) as month:
+            data = validate_record_form(form, require_title=True)
+            _valid_date(month, data["expense_date"])
+            priority = parse_choice(form.get("priority"), ("P0", "P1", "P2"), "Priority")
+            scope = _parse_scope(form.get("budget_impact_scope"))
+            category = _category(user_id, data["category"])
+            record = ExpenseRecord(
+                budget_month_id=month.id, task_id=None, record_type="UNEXPECTED",
+                amount=data["amount"], expense_date=data["expense_date"], title=data["title"],
+                note=data["note"], category_id=category.id, priority=priority,
+                budget_impact_scope=scope,
+            )
             db.session.add(record)
+            db.session.flush()
+            created_id = record.id
+    if on_created is not None:
+        on_created(created_id)
     return ExpenseRecordAdapter(record)
 
 
 def update_record(user_id, record_id, form):
-    record = _get_record(record_id, user_id)
-    with _write_month(user_id, record.budget_month_id) as month:
+    key = ("update", str(user_id), str(record_id)) + _payload_key(
+        form.get("amount"), form.get("expense_date"), form.get("title"),
+        form.get("category"), form.get("priority"), form.get("budget_impact_scope"),
+        form.get("note"),
+    )
+    with _single_flight(key):
         record = _get_record(record_id, user_id)
-        data = validate_record_form(form, require_title=record.record_type == "UNEXPECTED")
-        _valid_date(month, data["expense_date"], record.task)
-        category = _category(user_id, data["category"], default_id=record.category_id)
-        record.amount = data["amount"]
-        record.expense_date = data["expense_date"]
-        record.note = data["note"]
-        record.category_id = category.id
-        if record.record_type == "UNEXPECTED":
-            record.title = data["title"]
-        if record.task:
-            record.task.task_status = "RECORDED"
+        with _write_month(user_id, record.budget_month_id) as month:
+            record = _get_record(record_id, user_id)
+            data = validate_record_form(form, require_title=record.record_type == "UNEXPECTED")
+            _valid_date(month, data["expense_date"], record.task)
+            category = _category(user_id, data["category"], default_id=record.category_id)
+            record.amount = data["amount"]
+            record.expense_date = data["expense_date"]
+            record.note = data["note"]
+            record.category_id = category.id
+            if record.record_type == "UNEXPECTED":
+                record.title = data["title"]
+                record.priority = parse_choice(form.get("priority"), ("P0", "P1", "P2"), "Priority")
+                record.budget_impact_scope = _parse_scope(form.get("budget_impact_scope"))
+            elif data["title"]:
+                record.title = data["title"]
+            if record.task:
+                _recalculate_task_status(record.task)
     return ExpenseRecordAdapter(record)
 
 
@@ -411,15 +454,12 @@ def delete_record(user_id, record_id):
     record = _get_record(record_id, user_id)
     with _write_month(user_id, record.budget_month_id):
         record = _get_record(record_id, user_id)
-        task_id = record.task_id
+        task = record.task if record.task_id else None
         db.session.delete(record)
         db.session.flush()
-        if task_id:
-            task = _get_task(task_id, user_id)
-            remaining = db.session.scalar(db.select(db.func.count(ExpenseRecord.id)).where(
-                ExpenseRecord.task_id == task.id, ExpenseRecord.record_type == "PLANNED",
-            ))
-            task.task_status = "RECORDED" if remaining else "PENDING"
+        if task is not None:
+            db.session.expire(task, ["records"])
+            _recalculate_task_status(task)
 
 
 @dataclass
@@ -451,7 +491,7 @@ def refresh_unrecorded(user_id, *, now=None):
                for task in db.session.scalars(_task_statement(user_id)))
 
 
-def _complete_period(user_id, period, tasks, records, schedule_tag):
+def _complete_period(user_id, period, tasks, records):
     """A known balance requires complete schedules and matching date coverage."""
     if not tasks or any(get_task_status(task) not in CONFIRMED_STATUSES for task in tasks):
         return False
@@ -468,42 +508,42 @@ def _complete_period(user_id, period, tasks, records, schedule_tag):
     month_count = (period.end.year - period.start.year) * 12 + period.end.month - period.start.month + 1
     if len(months) != month_count:
         return False
-    expected = {}
     for month in months:
         allocations = budgets.get_confirmed_allocations(user_id, month.id)
         if not allocations:
             return False
-        for allocation in allocations:
-            expense = allocation.budget_expense
-            tag = "DAY_OF_MONTH" if expense.allocation_frequency == "MONTHLY" and expense.due_day else expense.allocation_frequency
-            if schedule_tag and tag != schedule_tag:
-                continue
-            for item in build_task_schedule(allocation, month.tracking_start_date):
-                if period.start <= item.assigned_date <= period.end:
-                    expected[(allocation.id, item.assigned_date)] = (item.period_end, item.original_limit, item.payment_due_date)
-    actual = {(task.raw_task.allocation_id, task.assigned_date):
-              (task.period_end, task.original_limit, task.payment_due_date) for task in tasks}
-    return actual == expected
+        month_tasks = [
+            task for task in tasks
+            if task.assigned_date.year == month.month_start.year
+            and task.assigned_date.month == month.month_start.month
+        ]
+        totals = {}
+        for task in month_tasks:
+            allocation_id = task.raw_task.allocation_id
+            totals[allocation_id] = totals.get(allocation_id, 0) + task.original_limit
+        if any(totals.get(allocation.id, 0) != allocation.allocated_amount for allocation in allocations):
+            return False
+    return True
 
 
-def build_summary(user_id, period, *, schedule_tag=None):
-    tasks = list_tasks(user_id, period.start, period.end, schedule_tag=schedule_tag)
-    due_tasks = list_due_tasks(user_id, period.start, period.end, schedule_tag=schedule_tag)
-    records = list_records(user_id, period.start, period.end, schedule_tag=schedule_tag)
+def build_summary(user_id, period):
+    tasks = list_tasks(user_id, period.start, period.end)
+    due_tasks = list_due_tasks(user_id, period.start, period.end)
+    records = list_records(user_id, period.start, period.end)
     counts = {name: sum(get_task_status(task) == status for task in tasks) for name, status in (
         ("pending", STATUS_PENDING), ("unrecorded", STATUS_UNRECORDED),
         ("no_expense", STATUS_NO_EXPENSE), ("within", STATUS_WITHIN_BUDGET), ("over", STATUS_OVER_BUDGET),
     )}
     plan_total = sum(task.current_limit for task in tasks) if tasks else None
     actual_total = sum(record.amount for record in records)  # Observed spending only.
-    complete = _complete_period(user_id, period, tasks, records, schedule_tag)
+    complete = _complete_period(user_id, period, tasks, records)
     month_complete = {}
     if period.view == "year":
         for number in range(1, 13):
             monthly = resolve_period("month", date(period.anchor.year, number, 1).isoformat())
             month_complete[number] = _complete_period(user_id, monthly,
                 [task for task in tasks if task.assigned_date.month == number],
-                [record for record in records if record.expense_date.month == number], schedule_tag)
+                [record for record in records if record.expense_date.month == number])
     return dict(
         period=period, tasks=tasks, due_tasks=due_tasks, records=records, plan_total=plan_total,
         actual_total=actual_total, difference=plan_total - actual_total if complete else None,

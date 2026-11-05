@@ -1,4 +1,4 @@
-"""Build 1 acceptance gate: isolated migrations, startup and authenticated HTTP flow."""
+﻿"""Build 1 acceptance gate: isolated migrations, startup and authenticated HTTP flow."""
 
 import ast
 from collections import Counter
@@ -195,13 +195,11 @@ def test_build1_registration_to_recommendation_survives_replay_and_restart(build
         plan_id = next(plan.id for plan in plans if plan.plan_type == "BALANCED")
     assert client.post(f"{root}/plans/{plan_id}/confirm", data={"csrf_token": csrf, "allocated_amount": "1"}).status_code == 302
     with application.app_context():
-        assert count(AssignedExpenseTask) == 0
+        assert count(AssignedExpenseTask) == 40
         assert db.session.get(BudgetPlan, plan_id).status == "CONFIRMED"
-    assert b"schedule has not been created" in client.get(f"/expenses?budget_month_id={month_id}&view=month").data
-    assert client.post(f"/expenses/months/{month_id}/schedule", data={"csrf_token": csrf}).status_code == 302
     calendar, context = page(application, client, f"/expenses?budget_month_id={month_id}&view=month")
     cells = {cell.day: cell for week in context["calendar"] for cell in week if cell}
-    assert len(cells) == 31 and all("Food" in cell.daily_names for cell in cells.values())
+    assert len(cells) == 31 and all("Food" in cell.task_names for cell in cells.values())
     with application.app_context():
         tasks = list(db.session.scalars(db.select(AssignedExpenseTask)))
         assert len(tasks) == 40
@@ -212,10 +210,8 @@ def test_build1_registration_to_recommendation_survives_replay_and_restart(build
         first_task = by_name_date[("Food", date(2026, 10, 1))]
         no_expense_task = by_name_date[("Food", date(2026, 10, 2))]
 
-    first_body = {"action": "actual", "amount": "123456", "expense_date": "2026-10-01", "idempotency_key": "build1-first-purchase"}
-    for _ in range(2):
-        assert client.post(f"/expenses/tasks/{first_task}/checkin", data=first_body | {"csrf_token": csrf}).status_code == 302
-    assert client.post(f"/expenses/tasks/{first_task}/checkin", data=first_body | {"amount": "123457", "csrf_token": csrf}).status_code == 409
+    first_body = {"action": "actual", "amount": "123456", "expense_date": "2026-10-01"}
+    assert client.post(f"/expenses/tasks/{first_task}/checkin", data=first_body | {"csrf_token": csrf}).status_code == 302
     for _ in range(2):
         assert client.post(f"/expenses/tasks/{no_expense_task}/checkin", data={"action": "no_expense", "csrf_token": csrf}).status_code == 302
     _, context = page(application, client, f"/dashboard?budget_month_id={month_id}")
@@ -232,11 +228,11 @@ def test_build1_registration_to_recommendation_survives_replay_and_restart(build
     for day in (5, 9, 13, 17, 21, 25, 31):
         task_id = by_name_date[("Food", date(2026, 10, day))]
         assert client.post(f"/expenses/tasks/{task_id}/checkin", data={"action": "actual", "amount": "1000",
-            "idempotency_key": f"build1-food-{day}", "csrf_token": csrf}).status_code == 302
+            "csrf_token": csrf}).status_code == 302
     for name, amount, expense_date in (("Rent", "1500000", "2026-10-31"), ("Transportation", "100000", "2026-10-01")):
         task_id = by_name_date[(name, date(2026, 10, 1))]
         assert client.post(f"/expenses/tasks/{task_id}/checkin", data={"action": "actual", "amount": amount, "expense_date": expense_date,
-            "idempotency_key": "build1-" + name.lower(), "csrf_token": csrf}).status_code == 302
+            "csrf_token": csrf}).status_code == 302
     with application.app_context():
         unresolved = list(db.session.scalars(db.select(AssignedExpenseTask.id).where(AssignedExpenseTask.task_status == "PENDING")))
     for task_id in unresolved:
@@ -275,7 +271,8 @@ def test_build1_registration_to_recommendation_survives_replay_and_restart(build
     assert client.post(f"{root}/plans/{plan_id}/confirm", data={"csrf_token": csrf}).status_code == 302
     assert client.post(root + "/plans/generate", data={"csrf_token": csrf}).status_code == 409
     values = dict(month_id=month_id, budget_month_id=month_id, expense_id=expense_id,
-                  plan_id=plan_id, task_id=first_task, record_id=record_id, recommendation_id=recommendation_id)
+                  plan_id=plan_id, task_id=first_task, record_id=record_id,
+                  recommendation_id=recommendation_id, pending_id="missing-pending-id")
     # Every registered mutating route is guarded by the existing global CSRF.
     for rule in application.url_map.iter_rules():
         if "POST" in rule.methods:
@@ -302,8 +299,7 @@ def test_build1_registration_to_recommendation_survives_replay_and_restart(build
     reopened_client = reopened.test_client()
     fresh_csrf = token(reopened_client.get("/login"))
     assert reopened_client.post("/login", data={"email": "build1-owner@example.com", "password": "build1-test-password", "csrf_token": fresh_csrf}).status_code == 302
-    fresh_csrf = token(reopened_client.get("/budget-periods/new"))
-    assert reopened_client.post(f"/expenses/tasks/{first_task}/checkin", data=first_body | {"csrf_token": fresh_csrf}).status_code == 302
+    assert reopened_client.get(f"/expenses?budget_month_id={month_id}&view=day&date=2026-10-01").status_code == 200
     for locale in ("en", "vi"):
         for path in ("/dashboard", "/budget", "/expenses", "/recommendations"):
             response = reopened_client.get(path + f"?budget_month_id={month_id}&lang={locale}")

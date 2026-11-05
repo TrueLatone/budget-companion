@@ -10,17 +10,10 @@
   </form>
   {% if schedule_state %}
     <p class="mt-3 mb-1" role="status" data-schedule-state="{{ schedule_state.code }}">{{ schedule_state.message }}</p>
-    <p class="small text-secondary">Tracking starts {{ selected_month.tracking_start_date }}. Weekly/monthly limits cover their whole period; bill due dates may be earlier than tracking.</p>
+    <p class="small text-secondary">Tracking starts {{ selected_month.tracking_start_date }}. Expense reads the existing AssignedExpenseTask records created by Budget; it does not generate or modify schedules.</p>
     {% if schedule_state.plan_id %}<a href="{{ url_for('budgets.plan', month_id=selected_month.id, plan_id=schedule_state.plan_id) }}">Review confirmed Budget plan</a>{% endif %}
   {% else %}
     <p class="mt-3 mb-1" role="status" data-schedule-state="NO_MONTH">No tasks for the selected month: no Budget Month exists for this date. Select an existing month or create a Budget Month first.</p>
     <a href="{{ url_for('budget_periods.create') }}">Create a Budget Month</a>
-  {% endif %}
-  {% if can_schedule %}
-    <form method="post" action="{{ url_for('expenses.schedule', month_id=selected_month.id) }}" class="mt-3">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <button class="btn btn-primary" type="submit">{{ 'Create spending schedule' if schedule_state.code == 'NOT_SCHEDULED' else 'Create / verify spending schedule' }}</button>
-    </form>
-    <p class="small text-secondary mt-2 mb-0">Monthly allocations are distributed across the tracking interval. Repeating scheduling preserves tasks and recorded spending. Bills due before tracking retain their due date and start as unpaid.</p>
   {% endif %}
 </div></section>

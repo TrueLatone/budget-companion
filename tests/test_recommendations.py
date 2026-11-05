@@ -1,4 +1,4 @@
-"""KAN-27 uses real canonical Budget/Expense services, never CSV/demo data."""
+﻿"""KAN-27 uses real canonical Budget/Expense services, never CSV/demo data."""
 
 from datetime import date, datetime
 from types import SimpleNamespace
@@ -52,6 +52,11 @@ def setup(app, client, monkeypatch):
         })
         budgets.save_expense(owner.id, month.id, dict(expense_name="Entertainment", priority="P2",
             category_name="Fun", allocation_frequency="MONTHLY"))
+        db.session.add_all([
+            ExpenseCategory(user_id=owner.id, category_name="Health"),
+            ExpenseCategory(user_id=owner.id, category_name="Repairs"),
+        ])
+        db.session.commit()
     with client.session_transaction() as session:
         session["user_id"] = str(data["user"])
     return data
@@ -72,8 +77,7 @@ def seed_real_history(data):
             amount = 1_500_000
         if amount:
             expenses.checkin_task(data["user"], task.id, action="actual", amount_raw=str(amount),
-                expense_date_raw="2026-10-31" if name == "Rent" else task.assigned_date.isoformat(),
-                idempotency_key=uuid4().hex)
+                expense_date_raw="2026-10-31" if name == "Rent" else task.assigned_date.isoformat())
         else:
             expenses.checkin_task(data["user"], task.id, action="no_expense")
     return plans[1].id
@@ -295,7 +299,7 @@ def test_short_month_and_midmonth_history_do_not_reduce_coverage_threshold(app, 
         category = budgets.list_categories(setup["user"])[0]
         for index in range(10):
             expenses.create_unexpected_record(setup["user"], dict(budget_month_id=str(period.id), title="Test purchase", category=category.category_name,
-                priority="P1", amount="1", expense_date="2026-09-15" if index < 9 else "2026-09-30", idempotency_key=uuid4().hex))
+                priority="P1", amount="1", expense_date="2026-09-15" if index < 9 else "2026-09-30"))
         result = services.get_completeness(setup["user"], "2026-09")
         assert result["coverage_days"] == 16 and not result["checks"]["minimum_coverage_days"]
         february = [record(expense_date=date(2026, 2, 1 if i < 9 else 28)) for i in range(10)]
@@ -326,7 +330,7 @@ def test_category_priority_groups_do_not_overwrite_p0_with_p1(app, setup):
             category_name="Housing", allocation_frequency="DAILY"), expense_id=food.id)
         seed_real_history(setup)
         expenses.create_unexpected_record(setup["user"], dict(budget_month_id=str(setup["month"]), title="Health", category="Health", priority="P1",
-            amount="20", expense_date="2026-10-10", idempotency_key=uuid4().hex))
+            amount="20", expense_date="2026-10-10"))
         result = services.analyze_spending(setup["user"], "2026-10")
         assert result["completeness"]["status"] == "SUFFICIENT"
         housing = [row for row in result["review"]["category_review"] if row["category_name"] == "Housing"]
@@ -484,7 +488,7 @@ def test_on_budget_history_does_not_invent_a_recommendation(app, setup):
         plan = budgets.generate_budget_plans(setup["user"], setup["month"])[0]
         budgets.confirm_plan(setup["user"], setup["month"], plan.id)
         for item in expenses.ensure_tasks_for_month(setup["user"], setup["month"]):
-            expenses.checkin_task(setup["user"], item.id, action="planned", idempotency_key=uuid4().hex)
+            expenses.checkin_task(setup["user"], item.id, action="planned")
         before = financial_snapshot()
         result = generate(setup)
         assert result["completeness"]["status"] == "SUFFICIENT"
@@ -545,7 +549,7 @@ def test_observed_unexpected_spending_without_schedule_keeps_planned_amount_unkn
         plan = budgets.generate_budget_plans(setup["user"], setup["month"])[0]
         budgets.confirm_plan(setup["user"], setup["month"], plan.id)
         expenses.create_unexpected_record(setup["user"], dict(budget_month_id=str(setup["month"]), title="Repair", category="Repairs",
-            priority="P1", amount="20", expense_date="2026-10-10", idempotency_key=uuid4().hex))
+            priority="P1", amount="20", expense_date="2026-10-10"))
         result = services.analyze_spending(setup["user"], "2026-10")
         assert result["completeness"]["schedule_state"] == "NOT_SCHEDULED"
         assert result["review"]["recorded_expense_total"] == 20

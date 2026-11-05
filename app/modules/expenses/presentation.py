@@ -59,15 +59,16 @@ def get_task_status(
     """
     raw_task: AssignedExpenseTask = getattr(task, "raw_task", task)  # type: ignore[assignment]
     records = [r for r in raw_task.records if r.record_type == RECORD_PLANNED]
-    if raw_task.task_status == STATUS_NO_EXPENSE:
-        return STATUS_UNRECORDED if records else STATUS_NO_EXPENSE
     if records:
         total = sum(r.amount for r in records)
         limit = raw_task.current_limit
         return STATUS_WITHIN_BUDGET if total <= limit else STATUS_OVER_BUDGET
-    if raw_task.task_status == "RECORDED":
-        return STATUS_UNRECORDED  # Missing transactions remain unknown.
+    if raw_task.task_status == STATUS_NO_EXPENSE:
+        return STATUS_NO_EXPENSE
 
+    # A persisted RECORDED status without transactions is inconsistent. Keep it
+    # pending until the approved deadline, then derive UNRECORDED.
+    #
     # Exclude dates before tracking_start_date
     if (
         raw_task.allocation
@@ -83,38 +84,6 @@ def get_task_status(
     if deadline < current:
         return STATUS_UNRECORDED
     return STATUS_PENDING
-
-
-class _PlanItemShim:
-    """Shim exposing title, schedule_tag, and priority from the shared schema."""
-
-    def __init__(self, task: AssignedExpenseTask):
-        self._task = task
-
-    @property
-    def title(self) -> str:
-        if self._task.allocation and self._task.allocation.budget_expense:
-            return self._task.allocation.budget_expense.expense_name
-        return ""
-
-    @property
-    def schedule_tag(self) -> str:
-        if self._task.allocation and self._task.allocation.budget_expense:
-            expense = self._task.allocation.budget_expense
-            if expense.allocation_frequency == "MONTHLY" and getattr(expense, "due_day", None):
-                return "DAY_OF_MONTH"
-            return expense.allocation_frequency or "DAILY"
-        return "DAILY"
-
-    @property
-    def priority(self) -> str:
-        if self._task.allocation and self._task.allocation.budget_expense:
-            return self._task.allocation.budget_expense.priority
-        return "P1"
-
-    @property
-    def is_active(self) -> bool:
-        return True
 
 
 class ExpenseCategoryAdapter:
@@ -212,10 +181,6 @@ class ExpenseRecordAdapter:
     @property
     def budget_impact_scope(self) -> str | None:
         return self._record.budget_impact_scope
-
-    @property
-    def idempotency_key(self) -> str | None:
-        return self._record.idempotency_key
 
     @property
     def actual_amount_source(self) -> str:
@@ -320,23 +285,26 @@ class ExpenseTaskAdapter:
         return ""
 
     @property
+    def budget_category_id(self) -> uuid.UUID | None:
+        if self._task.allocation and self._task.allocation.budget_expense:
+            return self._task.allocation.budget_expense.category_id
+        return None
+
+    @property
+    def budget_category_name(self) -> str:
+        if (
+            self._task.allocation
+            and self._task.allocation.budget_expense
+            and self._task.allocation.budget_expense.category
+        ):
+            return self._task.allocation.budget_expense.category.category_name
+        return ""
+
+    @property
     def priority(self) -> str:
         if self._task.allocation and self._task.allocation.budget_expense:
             return self._task.allocation.budget_expense.priority
         return "P1"
-
-    @property
-    def schedule_tag(self) -> str:
-        if self._task.allocation and self._task.allocation.budget_expense:
-            expense = self._task.allocation.budget_expense
-            if expense.allocation_frequency == "MONTHLY" and getattr(expense, "due_day", None):
-                return "DAY_OF_MONTH"
-            return expense.allocation_frequency or "DAILY"
-        return "DAILY"
-
-    @property
-    def plan_item(self) -> _PlanItemShim:
-        return _PlanItemShim(self._task)
 
     @property
     def checkin_deadline_at(self) -> datetime:
@@ -394,7 +362,7 @@ def resolve_period(view: str | None, raw_date: str | None) -> Period:
     view = (view or "month").lower()
     if view not in VIEWS:
         view = "month"
-    anchor = parse_optional_date(raw_date, "Ngày xem") or today_vn()
+    anchor = parse_optional_date(raw_date, "View date") or today_vn()
 
     if view == "day":
         start = end = anchor
@@ -406,12 +374,12 @@ def resolve_period(view: str | None, raw_date: str | None) -> Period:
     elif view == "year":
         start = date(anchor.year, 1, 1)
         end = date(anchor.year, 12, 31)
-        label = f"Năm {anchor.year}"
+        label = f"Year {anchor.year}"
     else:
         start = date(anchor.year, anchor.month, 1)
         last_day = calendar.monthrange(anchor.year, anchor.month)[1]
         end = date(anchor.year, anchor.month, last_day)
-        label = f"Tháng {anchor.month:02d}/{anchor.year}"
+        label = f"Month {anchor.month:02d}/{anchor.year}"
 
     return Period(
         view=view, anchor=anchor, start=start, end=end, label=label
@@ -427,9 +395,7 @@ class CalendarDay:
     pending_count: int
     unrecorded_count: int
     confirmed_count: int
-    daily_names: tuple[str, ...] = ()
-    period_starts: tuple[str, ...] = ()
-    continuing_count: int = 0
+    task_names: tuple[str, ...] = ()
     due_count: int = 0
     record_count: int = 0
     no_expense_count: int = 0
@@ -448,7 +414,6 @@ class DayItemTotals:
     due_only_count: int
     assigned_plan_total: int
     due_only_plan_total: int
-    continuing_count: int = 0
 
 
 def build_month_calendar(
@@ -457,24 +422,21 @@ def build_month_calendar(
     year: int,
     month: int,
 ) -> list[list[CalendarDay | None]]:
-    """Display starts, active periods, due dates and actuals independently.
+    """Place scheduled tasks only on ``AssignedDate``.
 
-    plan_total and task_count count assignments once, on their start date.
-    Repeated period/status indicators never repeat a financial allocation.
+    ``PeriodEnd`` never spreads a task across additional dates. Payment due
+    dates are displayed as a separate marker and never create task occurrences.
+    Actual spending is placed by ``ExpenseDate`` only.
     """
     tasks_by_day: dict[date, list[ExpenseTaskAdapter]] = defaultdict(list)
-    active_by_day: dict[date, list[ExpenseTaskAdapter]] = defaultdict(list)
     due_by_day: dict[date, list[ExpenseTaskAdapter]] = defaultdict(list)
     records_by_day: dict[date, list[ExpenseRecordAdapter]] = defaultdict(list)
     first = date(year, month, 1)
     last_day = calendar.monthrange(year, month)[1]
     last = date(year, month, last_day)
     for task in tasks:
-        if task.assigned_date.year == year and task.assigned_date.month == month:
+        if first <= task.assigned_date <= last:
             tasks_by_day[task.assigned_date].append(task)
-        begin, finish = max(first, task.assigned_date), min(last, task.period_end)
-        for offset in range(max(0, (finish - begin).days + 1)):
-            active_by_day[begin + timedelta(days=offset)].append(task)
         if task.payment_due_date and first <= task.payment_due_date <= last:
             due_by_day[task.payment_due_date].append(task)
     for record in records:
@@ -488,8 +450,7 @@ def build_month_calendar(
         day = date(year, month, day_number)
         day_tasks = tasks_by_day[day]
         day_records = records_by_day[day]
-        visible = {str(task.id): task for task in active_by_day[day] + due_by_day[day]}
-        statuses = [get_task_status(task) for task in visible.values()]
+        statuses = [get_task_status(task) for task in day_tasks]
         week.append(
             CalendarDay(
                 day=day,
@@ -499,12 +460,7 @@ def build_month_calendar(
                 pending_count=statuses.count(STATUS_PENDING),
                 unrecorded_count=statuses.count(STATUS_UNRECORDED),
                 confirmed_count=sum(status in CONFIRMED_STATUSES for status in statuses),
-                daily_names=tuple(task.title for task in day_tasks if task.schedule_tag == "DAILY"),
-                period_starts=tuple(
-                    f"{task.title}: {task.assigned_date.isoformat()} - {task.period_end.isoformat()}"
-                    for task in day_tasks if task.schedule_tag != "DAILY"
-                ),
-                continuing_count=sum(task.assigned_date < day for task in active_by_day[day]),
+                task_names=tuple(task.title for task in day_tasks),
                 due_count=len(due_by_day[day]),
                 record_count=len(day_records),
                 no_expense_count=statuses.count(STATUS_NO_EXPENSE),
@@ -520,91 +476,62 @@ def build_month_calendar(
     return weeks
 
 
-def build_day_items(
-    summary: dict[str, object], selected_date: date, *, covering_tasks=(),
-) -> list[TaskEntry]:
-    items: list[TaskEntry] = []
-    seen: set[str] = set()
+def _task_sort_key(entry: TaskEntry):
+    return (entry.task.priority, entry.task.title, entry.task.assigned_date)
 
-    for task in summary["tasks"]:  # type: ignore[union-attr]
-        items.append(
-            TaskEntry(
-                task=task,
-                assigned_in_period=True,
-                due_in_period=task.payment_due_date == selected_date,
-            )
+
+def build_day_items(summary: dict[str, object], selected_date: date) -> list[TaskEntry]:
+    """Return only tasks assigned to ``selected_date``; never PeriodEnd coverage."""
+    items = [
+        TaskEntry(
+            task=task,
+            assigned_in_period=True,
+            due_in_period=task.payment_due_date == selected_date,
         )
-        seen.add(str(task.id))
-
-    for task in summary["due_tasks"]:  # type: ignore[union-attr]
-        if str(task.id) not in seen:
-            items.append(
-                TaskEntry(
-                    task=task,
-                    assigned_in_period=False,
-                    due_in_period=True,
-                )
-            )
-            seen.add(str(task.id))
-
-    # A continuing period is discoverable, but its full weekly/monthly limit
-    # is not a new assignment to this day and does not enter the day total.
-    for task in covering_tasks:
-        if str(task.id) not in seen and task.assigned_date <= selected_date <= task.period_end:
-            items.append(TaskEntry(task=task, assigned_in_period=False,
-                                   due_in_period=task.payment_due_date == selected_date))
-            seen.add(str(task.id))
-
-    def sort_key(entry: TaskEntry):
-        due_only = 1 if (not entry.assigned_in_period and entry.due_in_period) else 0
-        return (due_only, entry.task.priority, entry.task.title)
-
-    return sorted(items, key=sort_key)
-
-
-def summarize_day_items(items: list[TaskEntry]) -> DayItemTotals:
-    assigned = [entry for entry in items if entry.assigned_in_period]
-    due_only = [
-        entry
-        for entry in items
-        if not entry.assigned_in_period and entry.due_in_period
+        for task in summary["tasks"]  # type: ignore[union-attr]
+        if task.assigned_date == selected_date
     ]
+    return sorted(items, key=_task_sort_key)
+
+
+def build_due_items(
+    summary: dict[str, object], selected_date: date | None = None
+) -> list[TaskEntry]:
+    """Return payment-due tasks separately from calendar-assigned tasks."""
+    assigned_ids = {str(task.id) for task in summary["tasks"]}  # type: ignore[union-attr]
+    items = [
+        TaskEntry(task=task, assigned_in_period=False, due_in_period=True)
+        for task in summary["due_tasks"]  # type: ignore[union-attr]
+        if str(task.id) not in assigned_ids
+        and (selected_date is None or task.payment_due_date == selected_date)
+    ]
+    return sorted(items, key=_task_sort_key)
+
+
+def summarize_day_items(
+    items: list[TaskEntry], due_items: list[TaskEntry] = ()
+) -> DayItemTotals:
+    assigned = [entry for entry in items if entry.assigned_in_period]
+    due_only = list(due_items)
     return DayItemTotals(
         assigned_count=len(assigned),
         due_only_count=len(due_only),
         assigned_plan_total=sum(entry.task.current_limit for entry in assigned),
         due_only_plan_total=sum(entry.task.current_limit for entry in due_only),
-        continuing_count=sum(not entry.assigned_in_period and not entry.due_in_period for entry in items),
     )
 
 
 def build_month_items(summary: dict[str, object]) -> list[TaskEntry]:
-    """Return all assigned tasks once, including daily Food, plus due-only bills."""
-    items: list[TaskEntry] = []
-    seen: set[str] = set()
-
-    for task in summary["tasks"]:  # type: ignore[union-attr]
-        items.append(
-            TaskEntry(
-                task=task,
-                assigned_in_period=True,
-                due_in_period=task.payment_due_date is not None,
-            )
+    """Return every assigned task in the month exactly once."""
+    items = [
+        TaskEntry(
+            task=task,
+            assigned_in_period=True,
+            due_in_period=task.payment_due_date is not None,
         )
-        seen.add(str(task.id))
-
-    for task in summary["due_tasks"]:  # type: ignore[union-attr]
-        if str(task.id) not in seen:
-            items.append(
-                TaskEntry(
-                    task=task,
-                    assigned_in_period=False,
-                    due_in_period=True,
-                )
-            )
-            seen.add(str(task.id))
-
-    return sorted(items, key=lambda entry: (entry.task.priority, entry.task.title, entry.task.assigned_date))
+        for task in summary["tasks"]  # type: ignore[union-attr]
+    ]
+    return sorted(items, key=lambda entry: (entry.task.assigned_date, entry.task.priority, entry.task.title))
 
 
 @dataclass(frozen=True)
@@ -618,7 +545,6 @@ class MonthCard:
     actual_total: int
     difference: int | None
     task_count: int
-    daily_count: int
     confirmed: int
     unconfirmed: int
     highlights: list[ExpenseTaskAdapter]
@@ -670,10 +596,8 @@ def build_navigation(period: Period) -> dict[str, date]:
 def build_year_months(
     summary: dict[str, object],
     year: int,
-    *,
-    schedule_tag: str | None = None,
 ) -> list[MonthCard]:
-    """Group a filtered year summary into month cards without re-querying."""
+    """Group scheduled plan by AssignedDate and actuals by ExpenseDate."""
     tasks_by_month: dict[int, list[ExpenseTaskAdapter]] = defaultdict(list)
     records_by_month: dict[int, list[ExpenseRecordAdapter]] = defaultdict(list)
 
@@ -686,45 +610,30 @@ def build_year_months(
 
     cards: list[MonthCard] = []
     for month in range(1, 13):
-        month_tasks = tasks_by_month[month]
+        month_tasks = sorted(
+            tasks_by_month[month], key=lambda task: (task.assigned_date, task.priority, task.title)
+        )
         month_records = records_by_month[month]
         plan_total = sum(task.current_limit for task in month_tasks)
         actual_total = sum(record.amount for record in month_records)
-        daily_count = sum(
-            1
-            for task in month_tasks
-            if task.plan_item and task.plan_item.schedule_tag == "DAILY"
-        )
         confirmed = sum(
             1
             for task in month_tasks
             if get_task_status(task) in CONFIRMED_STATUSES
         )
 
-        if schedule_tag == "DAILY":
-            highlights: list[ExpenseTaskAdapter] = []
-        elif schedule_tag:
-            highlights = list(month_tasks)
-        else:
-            highlights = [
-                task
-                for task in month_tasks
-                if not (task.plan_item and task.plan_item.schedule_tag == "DAILY")
-            ]
-
         cards.append(
             MonthCard(
                 month=month,
-                label=f"Tháng {month}",
+                label=f"Month {month}",
                 start=date(year, month, 1),
                 plan_total=plan_total if month_tasks else None,
                 actual_total=actual_total,
                 difference=(plan_total - actual_total) if summary.get("month_complete", {}).get(month, False) else None,
                 task_count=len(month_tasks),
-                daily_count=daily_count,
                 confirmed=confirmed,
                 unconfirmed=len(month_tasks) - confirmed,
-                highlights=highlights,
+                highlights=month_tasks,
             )
         )
     return cards

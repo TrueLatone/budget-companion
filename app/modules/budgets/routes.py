@@ -133,7 +133,15 @@ def plan(month_id, plan_id):
 def confirm(month_id, plan_id):
     _require_action()
     services.confirm_plan(g.current_user.id, month_id, plan_id)
-    flash("Budget plan confirmed. Create or verify its spending schedule below to display planned expenses.", "success")
+    from app.modules.expenses import services as expense_services
+    from app.modules.expenses.validators import ValidationError as ExpenseValidationError
+
+    try:
+        expense_services.ensure_tasks_for_month(g.current_user.id, month_id)
+    except ExpenseValidationError as exc:
+        flash(f"Budget plan confirmed, but its spending schedule could not be created: {exc}", "warning")
+    else:
+        flash("Budget plan confirmed. Spending schedule created.", "success")
     return redirect(url_for("expenses.index", budget_month_id=month_id, view="month"))
 
 

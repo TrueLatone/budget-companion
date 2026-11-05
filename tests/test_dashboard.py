@@ -1,4 +1,4 @@
-"""KAN-25 connects Thien's workspace to real Budget/Expense/Recommendation data."""
+﻿"""KAN-25 connects Thien's workspace to real Budget/Expense/Recommendation data."""
 
 from datetime import date, datetime
 from html.parser import HTMLParser
@@ -11,7 +11,7 @@ from flask import template_rendered
 from werkzeug.security import generate_password_hash
 
 from app.extensions import db
-from app.models import User, BudgetMonth, BudgetPlan, ExpenseRecord
+from app.models import User, BudgetMonth, BudgetPlan, ExpenseCategory, ExpenseRecord
 from app.modules.budget_periods.services import create_budget_month, update_available_vnd
 from app.modules.budgets import services as budgets
 from app.modules.budgets.suggestions import SUGGESTED_EXPENSES
@@ -42,6 +42,8 @@ def setup(app, client, monkeypatch):
             s.key: {"estimated_amount": s.example_amount} for s in SUGGESTED_EXPENSES
         })
         budgets.save_expense(owner.id, month.id, dict(expense_name="Entertainment", category_name="Fun", priority="P2", allocation_frequency="MONTHLY"))
+        db.session.add(ExpenseCategory(user_id=other.id, category_name="Private category"))
+        db.session.commit()
         plans = budgets.generate_budget_plans(owner.id, month.id)
         data = dict(user=owner.id, other=other.id, month=month.id, later=later.id, foreign=foreign.id, plan=plans[1].id)
     with client.session_transaction() as session:
@@ -56,7 +58,7 @@ def schedule(data):
 
 
 def actual(data, task, amount="100"):
-    return expenses.checkin_task(data["user"], task.id, action="actual", amount_raw=amount, idempotency_key=uuid4().hex)
+    return expenses.checkin_task(data["user"], task.id, action="actual", amount_raw=amount)
 
 
 def page(app, client, url):
@@ -87,15 +89,12 @@ def test_dashboard_no_confirmation_never_uses_drafts_or_sample_finances(app, cli
 def test_confirm_schedule_and_calendar_connect_to_dashboard(app, client, setup):
     assert client.post(f"/budget/{setup['month']}/plans/{setup['plan']}/confirm").status_code == 302
     response, context = page(app, client, "/dashboard")
-    assert context["view"]["schedule_state"].code == "NOT_SCHEDULED"
+    assert context["view"]["schedule_state"].code == "READY"
     assert context["view"]["planned"] == 4_360_000
     assert context["view"]["savings"] == 640_000 and context["view"]["remaining"] is None
-    assert client.post(f"/expenses/months/{setup['month']}/schedule").status_code == 302
-    _, context = page(app, client, "/dashboard")
     assert context["view"]["task_count"] == 24 and context["view"]["missing"] == 24
-    assert context["view"]["schedule_state"].code == "READY"
     calendar = client.get(f"/expenses?budget_month_id={setup['month']}&view=month")
-    assert b"Food" in calendar.data and b"active periods" in calendar.data
+    assert b"Food" in calendar.data and b"AssignedDate" in calendar.data
 
 
 def test_checkins_unexpected_and_funds_additions_update_real_dashboard_correctly(app, client, setup):
@@ -103,10 +102,10 @@ def test_checkins_unexpected_and_funds_additions_update_real_dashboard_correctly
         tasks = schedule(setup)
         food = next(task for task in tasks if task.allocation.budget_expense.expense_name == "Food")
         task_id = food.id
-    assert client.post(f"/expenses/tasks/{task_id}/checkin", data={"action": "actual", "amount": "100", "idempotency_key": uuid4().hex}).status_code == 302
+    assert client.post(f"/expenses/tasks/{task_id}/checkin", data={"action": "actual", "amount": "100"}).status_code == 302
     with app.app_context():
-        expenses.create_unexpected_record(setup["user"], dict(budget_month_id=str(setup["month"]), title="Real repair", category="Repairs",
-            priority="P2", amount="23", expense_date="2026-10-20", idempotency_key=uuid4().hex))
+        expenses.create_unexpected_record(setup["user"], dict(budget_month_id=str(setup["month"]), title="Real repair", category="Food",
+            priority="P2", amount="23", expense_date="2026-10-20"))
         db.session.add(ExpenseRecord(budget_month_id=setup["month"], amount=1_000_000, record_type="FUNDS_ADDED", expense_date=date(2026, 10, 20)))
         db.session.commit()
         before = snapshot()
@@ -166,10 +165,10 @@ def test_dashboard_missing_tasks_and_unknown_checkins_never_produce_zero_remaini
 
 def test_recent_transactions_are_owned_sorted_and_escaped(app, client, setup):
     with app.app_context():
-        expenses.create_unexpected_record(setup["user"], dict(budget_month_id=str(setup["month"]), title="<script>bad()</script>", category="Repairs",
-            priority="P1", amount="7", expense_date="2026-10-20", idempotency_key=uuid4().hex))
+        expenses.create_unexpected_record(setup["user"], dict(budget_month_id=str(setup["month"]), title="<script>bad()</script>", category="Food",
+            priority="P1", amount="7", expense_date="2026-10-20"))
         expenses.create_unexpected_record(setup["other"], dict(budget_month_id=str(setup["foreign"]), title="Private transaction", category="Private category",
-            priority="P2", amount="99999", expense_date="2026-10-21", idempotency_key=uuid4().hex))
+            priority="P2", amount="99999", expense_date="2026-10-21"))
         before = snapshot()
     response, context = page(app, client, "/dashboard")
     assert context["view"]["spent"] == 7
@@ -277,7 +276,7 @@ def test_workspace_login_csrf_budget_confirmation_schedule_and_dashboard_refresh
     assert client.post(f"/expenses/months/{setup['month']}/schedule", data={"csrf_token": token}).status_code == 302
     with app.app_context():
         food_id = next(t.id for t in expenses.list_tasks(setup["user"], date(2026, 10, 1), date(2026, 10, 31)) if t.title == "Food")
-    assert client.post(f"/expenses/tasks/{food_id}/checkin", data={"action": "actual", "amount": "321", "idempotency_key": uuid4().hex, "csrf_token": token}).status_code == 302
+    assert client.post(f"/expenses/tasks/{food_id}/checkin", data={"action": "actual", "amount": "321", "csrf_token": token}).status_code == 302
     _, context = page(app, client, f"/dashboard?budget_month_id={setup['month']}")
     assert context["view"]["spent"] == 321
     assert client.get(f"/recommendations?budget_month_id={setup['month']}").status_code == 200

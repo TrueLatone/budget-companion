@@ -8,7 +8,7 @@ def test_year_period_and_navigation_boundaries(app):
     period = services.resolve_period("year", "2026-10-21")
     assert period.start == date(2026, 1, 1)
     assert period.end == date(2026, 12, 31)
-    assert period.label == "Năm 2026"
+    assert period.label == "Year 2026"
 
     navigation = services.build_navigation(period)
     assert navigation["prev"].year == 2025

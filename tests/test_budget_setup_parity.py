@@ -1,4 +1,4 @@
-"""KAN-11 core behavior on the integrated KAN-21/KAN-23 database contracts."""
+﻿"""KAN-11 core behavior on the integrated KAN-21/KAN-23 database contracts."""
 
 from datetime import date
 from html.parser import HTMLParser
@@ -270,7 +270,7 @@ def test_confirmed_plan_and_spending_remain_unchanged(app, client, setup, action
         services.confirm_plan(setup["user"], setup["month"], plan_id)
         tasks = expenses.ensure_tasks_for_month(setup["user"], setup["month"])
         food = next(task for task in tasks if task.allocation.budget_expense.expense_name == "Food")
-        expenses.checkin_task(setup["user"], food.id, action="actual", amount_raw="123", idempotency_key=uuid4().hex)
+        expenses.checkin_task(setup["user"], food.id, action="actual", amount_raw="123")
         expense_id = food.allocation.budget_expense_id
         before = snapshot()
     paths = {

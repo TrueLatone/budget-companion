@@ -86,6 +86,15 @@ a.bc-calendar-day:focus-visible {
 .bc-day-table td:nth-child(2) { min-width: 9rem; }
 .bc-task-card .card-body { border-radius: var(--bs-border-radius); }
 .bc-month-muted { opacity: 0.72; }
+.bc-focus-pulse {
+  animation: bc-focus-pulse 2s ease-out 1;
+  outline: 2px solid var(--bs-primary);
+  outline-offset: 2px;
+}
+@keyframes bc-focus-pulse {
+  0% { box-shadow: 0 0 0 0 rgba(13, 110, 253, 0.45); }
+  100% { box-shadow: 0 0 0 0.9rem rgba(13, 110, 253, 0); }
+}
 
 @media (max-width: 575.98px) {
   .bc-calendar { gap: 0.22rem; }
