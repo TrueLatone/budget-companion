@@ -54,8 +54,8 @@ def index():
 @login_required
 def analyze():
     result = services.generate_recommendations(g.current_user, request.form.get("month"), request.form.get("as_of"))
-    flash("Insufficient data: baseline guidance only." if result["status"] == "SKIPPED_INSUFFICIENT_DATA"
-          else "Analysis saved. Financial adjustments remain disabled.", "info")
+    flash("Đã cập nhật gợi ý từ dữ liệu hiện có." if result["status"] == "SKIPPED_INSUFFICIENT_DATA"
+          else "Đã cập nhật phân tích. Ngân sách và khoản chi không bị thay đổi.", "info")
     # A future month defaults to today's cutoff before tracking starts. Preserve
     # that baseline result through GET defaults rather than submitting a cutoff
     # outside the selected month back into the explicit-date validator.
@@ -100,8 +100,17 @@ def explain(recommendation_id):
 @bp.post("/<uuid:recommendation_id>/decision")
 @_json_login_required
 def decide(recommendation_id):
-    payload = _payload()
-    return jsonify(services.decide_recommendation(g.current_user.id, recommendation_id, payload.get("decision"), payload.get("as_of")))
+    if request.is_json:
+        payload = _payload()
+        return jsonify(services.decide_recommendation(
+            g.current_user.id, recommendation_id, payload.get("decision"), payload.get("as_of")
+        ))
+    services.decide_recommendation(
+        g.current_user.id, recommendation_id, request.form.get("decision"), request.form.get("as_of")
+    )
+    flash("Đã lưu quyết định của bạn. Ngân sách và hạn mức chi không bị thay đổi.", "info")
+    detail = services.get_recommendation(g.current_user.id, recommendation_id)
+    return redirect(url_for("recommendations.index", budget_month_id=detail["budget_month_id"]))
 
 
 @bp.get("/monthly-review")
@@ -119,6 +128,6 @@ def monthly_feedback():
 
 @bp.errorhandler(services.RecommendationServiceError)
 def invalid_recommendation(error):
-    if request.endpoint in {"recommendations.index", "recommendations.analyze", "recommendations.dismiss"}:
+    if request.endpoint in {"recommendations.index", "recommendations.analyze", "recommendations.dismiss", "recommendations.decide"} and not request.is_json:
         return render_template("recommendations/error.html", message=str(error)), error.status_code
     return jsonify(error=str(error)), error.status_code
