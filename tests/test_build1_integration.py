@@ -250,7 +250,30 @@ def test_build1_registration_to_recommendation_survives_replay_and_restart(build
     recommendation_id = next(iter(recommendation_ids))
     again = client.post("/recommendations/generate", json={"month": "2026-10"}, headers={"X-CSRFToken": csrf})
     assert again.status_code == 200 and {row["id"] for row in again.json["recommendations"]} == recommendation_ids
-    assert client.post(f"/recommendations/{recommendation_id}/decision", json={"decision": "ACCEPT"}, headers={"X-CSRFToken": csrf}).status_code == 409
+    with application.app_context():
+        before_accept = snapshot()
+    accepted = client.post(
+        f"/recommendations/{recommendation_id}/decision",
+        json={"decision": "ACCEPT"},
+        headers={"X-CSRFToken": csrf},
+    )
+    assert accepted.status_code == 200
+    assert accepted.json == {
+        "status": "ACCEPTED",
+        "recommendation_id": recommendation_id,
+        "adjustments_enabled": False,
+        "financial_adjustment_applied": False,
+    }
+    with application.app_context():
+        after_accept = snapshot()
+        assert db.session.get(Recommendation, UUID(recommendation_id)).status == "ACCEPTED"
+        assert {
+            name: rows for name, rows in after_accept.items()
+            if name != Recommendation.__tablename__
+        } == {
+            name: rows for name, rows in before_accept.items()
+            if name != Recommendation.__tablename__
+        }
     _, context = page(application, client, f"/dashboard?budget_month_id={month_id}")
     assert context["view"]["spent"] == 1_730_456
     assert context["view"]["remaining"] == 2_629_544 and context["view"]["data_complete"]

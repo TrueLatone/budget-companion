@@ -1,51 +1,155 @@
 {% extends 'workspace_base.html' %}
-{% block title %}Spending analysis · Budget Companion{% endblock %}
+{% block title %}Gợi ý chi tiêu · Budget Companion{% endblock %}
 {% block workspace_content %}
-<h1>Spending analysis</h1>
+<h1>Gợi ý chi tiêu</h1>
 {% for message in get_flashed_messages() %}<p class="alert alert-info" role="status">{{ message }}</p>{% endfor %}
-<p>Read-only guidance from your saved Budget and Expense data. Automatic adjustments are disabled.</p>
+<p>Gợi ý được tạo từ ngân sách và các khoản chi bạn đã ghi nhận. Khi dữ liệu còn ít, gợi ý chỉ mang tính tham khảo và có thể thay đổi khi bạn cập nhật thêm. Hệ thống không tự thay đổi ngân sách hay khoản chi.</p>
 <form method="get" action="{{ url_for('recommendations.index') }}" class="mb-3">
-  <label for="analysis-month">Budget Month</label>
+  <label for="analysis-month">Tháng ngân sách</label>
   <select id="analysis-month" name="month" required>{% for period in months %}<option value="{{ period.month_start.strftime('%Y-%m') }}" {% if month and month.id == period.id %}selected{% endif %}>{{ month_name(period.month_start) }}</option>{% endfor %}</select>
-  <button class="btn btn-secondary" type="submit">Open month</button>
+  <button class="btn btn-secondary" type="submit">Xem tháng</button>
 </form>
 {% if result %}
-<p><a href="{{ url_for('budgets.month', month_id=month.id) }}">Budget setup / confirmed plan</a> · <a href="{{ url_for('expenses.index', budget_month_id=month.id, view='month') }}">Expense calendar / check-in</a></p>
+<p><a href="{{ url_for('budgets.month', month_id=month.id) }}">Thiết lập ngân sách</a> · <a href="{{ url_for('expenses.index', budget_month_id=month.id, view='month') }}">Lịch chi tiêu</a></p>
 <form method="post" action="{{ url_for('recommendations.analyze') }}" class="mb-4">
   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
   <input type="hidden" name="month" value="{{ result.month }}">
-  <label for="analysis-cutoff">Analyze through (Vietnam date)</label>
+  <label for="analysis-cutoff">Phân tích đến ngày</label>
   <input id="analysis-cutoff" type="date" name="as_of" min="{{ month.month_start }}" max="{{ today }}" value="{{ result.as_of }}" {% if not result.completeness.checks.tracking_started %}disabled{% endif %}>
-  <button class="btn btn-primary" type="submit" {% if not result.completeness.checks.tracking_started %}disabled{% endif %}>Analyze and save guidance</button>
+  <button class="btn btn-primary" type="submit" {% if not result.completeness.checks.tracking_started %}disabled{% endif %}>Cập nhật gợi ý</button>
 </form>
-<h2>Recorded facts</h2>
-<p>Observed recorded spending through {{ result.as_of }}: <strong>{{ money(result.review.recorded_expense_total) }} VND</strong>. FUNDS_ADDED is excluded. This observed sum does not confirm missing spending as zero.</p>
-<p>Confirmed monthly allocations: {{ 'Unknown' if result.review.confirmed_allocation_total is none else money(result.review.confirmed_allocation_total) }} VND.
-  Remaining versus scheduled plan: {{ 'Unknown — monthly check-ins or coverage are incomplete' if result.review.remaining_vs_plan is none else money(result.review.remaining_vs_plan) ~ ' VND' }}.</p>
-<h2>F18 data completeness: {{ result.completeness.status }}</h2>
-<ul>
-  <li>{{ result.completeness.complete_transaction_count }} complete actual transactions (minimum 10)</li>
-  <li>{{ result.completeness.category_count }} categories with actual transactions (minimum 3)</li>
-  <li>{{ result.completeness.coverage_days }} calendar days from first to last actual transaction (minimum 30)</li>
-  <li>{{ (result.completeness.completeness_rate * 100)|round(2) }}% completeness (minimum 80%)</li>
-  <li>{{ result.completeness.unrecorded_task_count }} overdue missing check-ins; {{ result.completeness.inconsistent_task_count }} inconsistent check-ins; {{ result.completeness.no_expense_task_count }} explicit NO_EXPENSE tasks</li>
-</ul>
-<p class="small">Thresholds are unchanged. NO_EXPENSE is an explicit check-in, not a transaction or evidence of 30 days of purchases. Ongoing/future PENDING periods are not overdue. Short months and mid-month tracking may not reach 30 days of transaction coverage. Cutoffs filter transactions; check-ins reflect their current saved state, not an audit of historical status changes.</p>
-{% if result.completeness.status == 'INSUFFICIENT' %}
-<section aria-label="Baseline guidance"><h2>Baseline guidance — insufficient data</h2>
-  <ul>{% for reason in result.completeness.insufficient_reasons %}<li>{{ reason }}</li>{% endfor %}</ul>
-  <p>No personalized recommendations were generated. These general steps are not inferred transactions or spending predictions.</p>
-  <ul>{% for guidance in result.baseline_guidance %}<li>{{ guidance }}</li>{% endfor %}</ul>
+{% if result.review.data_complete %}
+<section aria-label="Tổng kết tháng">
+  <h2>Tổng kết tháng</h2>
+  <p>Tổng chi đã ghi nhận đến {{ result.as_of }}: <strong>{{ money(result.review.recorded_expense_total) }} đồng</strong>.</p>
+  <p>Ngân sách đã xác nhận: {{ money(result.review.confirmed_allocation_total) }} đồng · Còn lại theo kế hoạch: {{ money(result.review.remaining_vs_plan) }} đồng.</p>
 </section>
 {% else %}
-<section aria-label="Data-backed guidance"><h2>Data-backed observations</h2>
-  <p>Comparisons use completed scheduled periods only. A weekly/monthly limit is counted once, never multiplied by its covered dates. Categories are separated by priority; P0 bills are protected.</p>
-  {% for finding in result.findings %}<article class="card mb-3"><div class="card-body"><p>{{ finding.reason }}</p><p>{{ finding.expected_impact }}</p></div></article>{% else %}<p>No category crossed the review thresholds (at least 110% or at most 80% of completed-period limits). No action is suggested.</p>{% endfor %}
-  {% if result.recommendations %}<h3>Saved guidance for this data snapshot</h3>{% endif %}
-  {% for item in result.recommendations %}<article class="card mb-3"><div class="card-body"><p>{{ item.reason }}</p><p>Status: {{ item.status }} · Read-only</p>
-    {% if item.status == 'PENDING' %}<form method="post" action="{{ url_for('recommendations.dismiss', recommendation_id=item.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn btn-outline-secondary" type="submit">Dismiss guidance</button></form>{% endif %}
-  </div></article>{% endfor %}
+<p class="text-muted">Tổng kết tháng sẽ hiển thị khi các kỳ chi tiêu trong tháng đã kết thúc và được xác nhận.</p>
+{% endif %}
+<section aria-label="Gợi ý chi tiêu" class="mb-4">
+  <h2>Gợi ý dành cho bạn</h2>
+  {% set suggestions = result.suggestions|default([], true) %}
+  {% if suggestions %}
+    {% for suggestion in suggestions %}
+      <article class="card mb-3">
+        <div class="card-body">
+          {% if suggestion.personalized %}
+            <span class="badge bg-success">GỢI Ý CÁ NHÂN HÓA</span>
+          {% elif suggestion.kind == 'EARLY_SIGNAL' %}
+            <span class="badge bg-warning text-dark">GỢI Ý SƠ BỘ</span>
+          {% elif suggestion.kind == 'NO_ADJUSTMENT' %}
+            <span class="badge bg-secondary">CHƯA CẦN ĐIỀU CHỈNH</span>
+          {% elif suggestion.code in ['CREATE_CONFIRMED_PLAN', 'CONFIRM_DRAFT_PLAN'] %}
+            <span class="badge bg-info text-dark">GỢI Ý THIẾT LẬP</span>
+          {% else %}
+            <span class="badge bg-info text-dark">GỢI Ý CHUNG</span>
+          {% endif %}
+          <h3 class="h5 mt-2">{{ suggestion.title }}</h3>
+          <p>{{ suggestion.message }}</p>
+          {% if suggestion.adjustment %}
+            <p><strong>Đề xuất điều chỉnh phân bổ tháng:</strong>
+              {{ money(suggestion.adjustment.current_monthly_amount) }} →
+              {{ money(suggestion.adjustment.suggested_monthly_amount) }} đồng.
+              {% if suggestion.adjustment.change_amount > 0 %}
+                Tăng {{ money(suggestion.adjustment.change_amount) }} đồng.
+              {% elif suggestion.adjustment.change_amount < 0 %}
+                Giảm {{ money(-suggestion.adjustment.change_amount) }} đồng.
+              {% else %}
+                Không đổi do ràng buộc hiện tại.
+              {% endif %}
+            </p>
+            {% if suggestion.adjustment.constraint_applied == 'P1_MINIMUM' %}
+              <p class="small">Mức đề xuất được giữ trên mức tối thiểu P1 đã đặt.</p>
+            {% elif suggestion.adjustment.constraint_applied == 'NO_AVAILABLE_SAVINGS' %}
+              <p class="small">Không có khoản tiết kiệm trong kế hoạch để tăng phân bổ.</p>
+            {% endif %}
+          {% endif %}
+          {% if suggestion.evidence %}
+            <details class="small mb-2">
+              <summary>Các khoản chi làm căn cứ ({{ suggestion.evidence|length }})</summary>
+              <ul>{% for record in suggestion.evidence %}
+                <li>{{ record.expense_date }} · {{ record.title }} · {{ money(record.amount) }} đồng</li>
+              {% endfor %}</ul>
+            </details>
+          {% endif %}
+          {% if suggestion.code == 'REVIEW_DRAFT_PLAN' %}
+            <h4 class="h6 mt-3">Để nhận thêm gợi ý dựa trên chi tiêu</h4>
+            <ol>
+              <li>Mở một phương án ở phần Ngân sách của tôi, kiểm tra số tiền theo chi phí thực tế rồi xác nhận.</li>
+              <li>Mở Lịch chi tiêu và tạo lịch từ phương án đã xác nhận.</li>
+              <li>Ghi các khoản chi thực tế; khi một kỳ kết thúc, xác nhận các khoản đã chi hoặc xác nhận không phát sinh nếu đúng.</li>
+            </ol>
+            <p class="small">Không cần đợi hết tháng: sau một kỳ đã kết thúc và được xác nhận, gợi ý sớm có thể xuất hiện nếu chi tiêu vượt 110% hoặc thấp hơn 80% mức dự kiến của kỳ đó. Nếu chi tiêu nằm giữa hai mức này, hệ thống chưa có tín hiệu để đề xuất điều chỉnh.</p>
+            <p class="small">Để có phân tích cá nhân hóa đầy đủ hơn, cần ít nhất 10 khoản chi hợp lệ ở 3 danh mục, dữ liệu trải dài ít nhất 30 ngày, các kỳ đã qua được xác nhận và dữ liệu đạt độ đầy đủ cần thiết.</p>
+            <a class="btn btn-outline-primary btn-sm" href="{{ url_for('expenses.index', budget_month_id=month.id, view='month') }}">Mở lịch chi tiêu</a>
+          {% endif %}
+          {% if suggestion.code in ['CREATE_CONFIRMED_PLAN', 'CONFIRM_DRAFT_PLAN', 'REVIEW_DRAFT_PLAN'] %}
+            <a class="btn btn-primary btn-sm" href="{{ url_for('budgets.month', month_id=month.id) }}">Mở thiết lập ngân sách</a>
+          {% endif %}
+          {% if suggestion.code in ['COMPLETE_EXPENSE_SCHEDULE', 'RESOLVE_UNRECORDED_TASKS', 'RESOLVE_INCONSISTENT_CHECKINS', 'COMPLETE_TRANSACTION_DETAILS', 'BUILD_CONFIRMED_SPENDING_HISTORY', 'WAIT_FOR_PERIOD_CLOSE', 'NO_EARLY_SIGNAL', 'CURRENT_DAY_STATUS'] %}
+            <a class="btn btn-outline-primary btn-sm" href="{{ url_for('expenses.index', budget_month_id=month.id, view='month') }}">Mở lịch chi tiêu</a>
+          {% endif %}
+          {% if suggestion.basis %}<p class="small text-muted mb-1"><strong>Căn cứ:</strong> {{ suggestion.basis }}</p>{% endif %}
+          {% if suggestion.expected_impact %}<p class="small mb-0">{{ suggestion.expected_impact }}</p>{% endif %}
+        </div>
+      </article>
+    {% endfor %}
+  {% elif result.completeness.status == 'INSUFFICIENT' and result.baseline_guidance %}
+    <article class="card mb-3"><div class="card-body">
+      <span class="badge bg-info text-dark">GỢI Ý CHUNG</span>
+      <h3 class="h5 mt-2">Bạn có thể bắt đầu từ đây</h3>
+      <ul>{% for guidance in result.baseline_guidance %}<li>{{ guidance }}</li>{% endfor %}</ul>
+    </div></article>
+  {% else %}
+    <p>Chưa có đủ dữ liệu để đưa ra gợi ý. Hãy ghi nhận các khoản chi thực tế rồi cập nhật lại.</p>
+  {% endif %}
+</section>
+{% if result.recommendations %}
+<section aria-label="Gợi ý đã lưu">
+  <h2>Gợi ý đã lưu</h2>
+  {% for item in result.recommendations %}
+    <article class="card mb-3"><div class="card-body">
+      <span class="badge bg-secondary">{{ {'PENDING': 'Chờ quyết định', 'ACCEPTED': 'Đã chấp nhận', 'REJECTED': 'Đã từ chối'}.get(item.status, item.status) }}</span>
+      <p class="mt-2">{{ item.reason }}</p>
+      {% if item.proposed_changes.adjustment %}
+        <p><strong>Đề xuất điều chỉnh phân bổ tháng:</strong>
+          {{ money(item.proposed_changes.adjustment.current_monthly_amount) }} →
+          {{ money(item.proposed_changes.adjustment.suggested_monthly_amount) }} đồng.
+          {% if item.proposed_changes.adjustment.change_amount > 0 %}
+            Tăng {{ money(item.proposed_changes.adjustment.change_amount) }} đồng.
+          {% elif item.proposed_changes.adjustment.change_amount < 0 %}
+            Giảm {{ money(-item.proposed_changes.adjustment.change_amount) }} đồng.
+          {% else %}Không đổi do ràng buộc hiện tại.{% endif %}
+        </p>
+      {% endif %}
+      {% if item.proposed_changes.basis %}<p class="small text-muted"><strong>Căn cứ:</strong> {{ item.proposed_changes.basis }}</p>{% endif %}
+      {% if item.proposed_changes.evidence %}
+        <details class="small mb-2">
+          <summary>Các khoản chi làm căn cứ ({{ item.proposed_changes.evidence|length }})</summary>
+          <ul>{% for record in item.proposed_changes.evidence %}
+            <li>{{ record.expense_date }} · {{ record.title }} · {{ money(record.amount) }} đồng</li>
+          {% endfor %}</ul>
+        </details>
+      {% endif %}
+      <p class="small text-muted">{{ item.expected_impact }}</p>
+      {% if item.status == 'PENDING' %}
+        <form method="post" action="{{ url_for('recommendations.decide', recommendation_id=item.id) }}" class="d-flex gap-2">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button class="btn btn-primary" type="submit" name="decision" value="ACCEPT">Chấp nhận đề xuất</button>
+          <button class="btn btn-outline-secondary" type="submit" name="decision" value="REJECT">Từ chối</button>
+        </form>
+        <form method="post" action="{{ url_for('recommendations.dismiss', recommendation_id=item.id) }}" class="mt-2">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button class="btn btn-link btn-sm" type="submit">Ẩn gợi ý</button>
+        </form>
+      {% endif %}
+    </div></article>
+  {% endfor %}
 </section>
 {% endif %}
-{% else %}<p>Create a Budget Month and record your real spending to begin.</p><a href="{{ url_for('budget_periods.create') }}">Create Budget Month</a>{% endif %}
+{% else %}
+<p>Tạo tháng ngân sách và ghi lại các khoản chi để bắt đầu nhận gợi ý.</p>
+<a href="{{ url_for('budget_periods.create') }}">Tạo tháng ngân sách</a>
+{% endif %}
 {% endblock %}
