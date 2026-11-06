@@ -1,0 +1,54 @@
+{% extends 'pages/budget.html' %}
+{% block extra_styles %}{{ super() }}<link rel="stylesheet" href="{{ url_for('static', filename='css/budget-vi.css') }}">{% endblock %}
+{% block budget_editor %}
+<div class="bv-head"><div><p class="bv-eyebrow">NGÂN SÁCH THÁNG</p><h2 class="bv-title">Chi phí dự kiến</h2><p class="bv-muted">Nhập khoản chi của bạn rồi tạo ba phương án ngân sách để so sánh.</p></div></div>
+{% for category, message in get_flashed_messages(with_categories=true) %}<div class="bv-alert {{ 'bv-alert-error' if category in ('error','danger') else 'bv-alert-success' if category == 'success' else '' }}" role="status">{{ message }}</div>{% endfor %}
+{% if month %}
+<div class="bv-month-line"><span>{{ month_name(month.month_start) }}</span><strong>{{ money(month.available_vnd) }} ₫</strong></div>
+{% if locked %}
+<div class="bv-alert" role="status">Kế hoạch tháng này đã được xác nhận. Bạn có thể xem chi tiết và lịch chi tiêu nhưng không thể sửa phân bổ đã chốt.</div>
+{% if expenses %}
+<section class="bv-existing" aria-label="Các khoản chi đã lưu">
+  <div class="bv-section-title"><h3>Khoản chi đã lưu</h3><span>{{ expenses|length }} khoản</span></div>
+  <div class="bv-expense-list">
+  {% for item in expenses %}
+    <div class="bv-expense-line"><div class="bv-expense-label"><strong>{{ {'Rent':'Tiền thuê trọ','Electricity':'Tiền điện','Water':'Tiền nước','Internet':'Internet','Food':'Ăn uống','Transportation':'Đi lại'}.get(item.expense_name, item.expense_name) }}</strong><small>{{ {'P0':'Bắt buộc','P1':'Thiết yếu','P2':'Linh hoạt'}[item.priority] }} · {{ {'DAILY':'Hằng ngày','WEEKLY':'Hằng tuần','MONTHLY':'Hằng tháng'}[item.allocation_frequency] }}</small></div>
+      <div class="bv-expense-right"><span>{{ money(item.estimated_amount) ~ ' ₫' if item.estimated_amount is not none else 'Chưa nhập ước tính' }}</span>
+      {% if not locked %}<a href="{{ url_for('budgets.edit_expense', month_id=month.id, expense_id=item.id) }}">Sửa</a>{% endif %}</div>
+    </div>
+  {% endfor %}
+  </div>
+</section>
+{% endif %}
+
+{% else %}
+{% if form_error %}<div class="bv-alert bv-alert-error" role="alert" id="budget-form-error" tabindex="-1"><strong>Chưa thể tạo kế hoạch.</strong><p>{{ form_error }}</p></div>{% endif %}
+{% include 'budgets/_suggestions.html' %}
+{% endif %}
+{% else %}
+<div class="bv-empty"><p>Bạn chưa có ngân sách tháng nào.</p><a class="ws-button ws-button-primary" href="{{ url_for('budget_periods.create') }}">Tạo ngân sách tháng</a></div>
+{% endif %}
+{% endblock %}
+{% block budget_comparison %}
+{% if month and plans %}
+<section id="compare" class="ws-card bv-compare" aria-label="So sánh kế hoạch">
+  <div class="bv-section-title"><div><h2>{{ 'Các phương án ngân sách' if plans|length > 3 else 'Ba phương án ngân sách' }}</h2><p class="bv-muted">Chọn kế hoạch phù hợp nhất. Bạn có thể điều chỉnh khoản chi trước khi xác nhận.</p></div></div>
+  {% if choices_identical %}
+  <p class="bv-muted bv-identical-note">Ba phương án đang có số tiền giống nhau vì các mức tối thiểu cần được giữ và không còn khoản linh hoạt để phân chia. Đây không phải ba đề xuất khác biệt; bạn có thể điều chỉnh mức tối thiểu trước khi tạo lại.</p>
+  {% endif %}
+  <div class="bv-plans">
+  {% for plan in plans %}
+  {% set amounts = breakdowns[plan.id] %}
+  <article class="bv-plan-card {% if plan.status == 'CONFIRMED' %}bv-selected{% endif %}">
+    <span class="bv-plan-eyebrow">{{ 'ĐÃ XÁC NHẬN' if plan.status == 'CONFIRMED' else 'PHƯƠNG ÁN ' ~ loop.index }}</span>
+    <h3>{{ {'SAVING':'Ưu tiên tiết kiệm','BALANCED':'Cân bằng','LIFESTYLE':'Linh hoạt','MANUAL':'Kế hoạch của tôi'}.get(plan.plan_type, plan.plan_type) }}</h3><p class="bv-plan-description">{{ {'SAVING':'Dành nhiều tiền hơn cho tiết kiệm.','BALANCED':'Cân đối nhu cầu thiết yếu và chi tiêu linh hoạt.','LIFESTYLE':'Ưu tiên sự linh hoạt trong sinh hoạt.','MANUAL':'Phương án bạn đã tự điều chỉnh.'}.get(plan.plan_type, '') }}{% if ai_explanations.get(plan.plan_type) %}<br><span class="bv-ai-explanation">{{ ai_explanations[plan.plan_type] }}</span>{% endif %}</p>
+    <p class="bv-plan-amount">{{ money(amounts['Savings']) }} ₫</p><p class="bv-muted">Dành cho tiết kiệm</p>
+    <div class="bv-plan-rows"><div><span>Chi phí bắt buộc</span><strong>{{ money(amounts['P0']) }} ₫</strong></div><div><span>Chi phí thiết yếu</span><strong>{{ money(amounts['P1']) }} ₫</strong></div><div><span>Chi phí linh hoạt</span><strong>{{ money(amounts['P2']) }} ₫</strong></div></div>
+    <a class="ws-button {% if plan.status == 'CONFIRMED' %}ws-button-primary{% endif %} bv-plan-button" href="{{ url_for('budgets.plan', month_id=month.id, plan_id=plan.id) }}">{{ 'Xem kế hoạch đã chốt' if plan.status == 'CONFIRMED' else 'Xem và chọn kế hoạch' }}</a>
+  </article>
+  {% endfor %}
+  </div>
+</section>
+{% endif %}
+{% endblock %}
+{% block workspace_scripts %}{{ super() }}<script src="{{ url_for('static', filename='js/budget-ai.js') }}" defer></script><script src="{{ url_for('static', filename='js/budget-vi.js') }}" defer></script>{% endblock %}

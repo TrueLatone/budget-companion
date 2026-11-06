@@ -1,0 +1,12 @@
+{% extends 'base.html' %}
+{% from 'components/icons.html' import icon %}
+{% block title %}Quản lý ngân sách tháng · Budget Companion{% endblock %}
+{% block body_class %}bc-app{% endblock %}
+{% block main_class %}bc-app-main{% endblock %}
+{% block content %}
+<section class="bc-page-header"><div><p class="bc-kicker">NGÂN SÁCH THÁNG</p><h1 class="bc-page-title">Ngân sách của bạn</h1><p class="bc-page-description">Chọn tháng để tạo kế hoạch và theo dõi chi tiêu.</p></div><a class="bc-button bc-button-primary" href="{{ url_for('budget_periods.create') }}">{{ icon('plus') }} Tạo ngân sách tháng</a></section>
+{% with messages = get_flashed_messages(with_categories=true) %}{% for category,message in messages %}<div class="bc-alert is-{{ category }}" role="status">{{ message }}</div>{% endfor %}{% endwith %}
+<section class="bc-panel bc-budget-panel">{% if budget_months %}<div class="bc-table-wrap"><table class="bc-table"><thead><tr><th>Tháng</th><th>Nguồn tiền</th><th class="bc-text-end">Thao tác</th></tr></thead><tbody>
+{% for period in budget_months %}<tr><td><strong>{{ month_name(period.month_start) }}</strong>{% if active_budget_month_id == period.id|string %}<span class="bc-status-badge">Đang chọn</span>{% endif %}</td><td>{{ money(period.available_vnd) }} ₫</td><td><div class="bc-table-actions"><a class="bc-button bc-button-primary bc-button-compact" href="{{ url_for('budgets.month', month_id=period.id) }}">Lập kế hoạch</a><a class="bc-button bc-button-light bc-button-compact" href="{{ url_for('budget_periods.edit', budget_month_id=period.id) }}">Sửa nguồn tiền</a>{% if active_budget_month_id != period.id|string %}<form method="post" action="{{ url_for('budget_periods.select', budget_month_id=period.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button type="submit" class="bc-button bc-button-soft bc-button-compact">Chọn tháng</button></form>{% endif %}</div></td></tr>{% endfor %}
+</tbody></table></div>{% else %}<div class="bc-empty-state"><h2 class="bc-card-title">Bạn chưa có ngân sách tháng nào</h2><p class="bc-card-description">Tạo tháng đầu tiên để bắt đầu lập kế hoạch chi tiêu.</p><a class="bc-button bc-button-primary" href="{{ url_for('budget_periods.create') }}">Tạo ngân sách tháng</a></div>{% endif %}</section>
+{% endblock %}

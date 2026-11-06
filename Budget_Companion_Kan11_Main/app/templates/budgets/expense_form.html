@@ -1,0 +1,21 @@
+{% extends 'workspace_base.html' %}
+{% block title %}{{ 'Sửa khoản chi' if expense else 'Thêm khoản chi' }} · Budget Companion{% endblock %}
+{% block extra_styles %}{{ super() }}<link rel="stylesheet" href="{{ url_for('static', filename='css/budget-vi.css') }}">{% endblock %}
+{% block workspace_content %}
+<div class="bv-page-shell bv-narrow"><a class="bv-back" href="{{ url_for('budgets.month', month_id=month.id) }}">← Quay về lập ngân sách</a>
+<section class="ws-card bv-form-card"><p class="bv-eyebrow">KHOẢN CHI THÁNG {{ month.month_start.strftime('%m/%Y') }}</p><h1 class="ws-page-title">{{ 'Sửa khoản chi' if expense else 'Thêm khoản chi' }}</h1><p class="bv-muted">Danh mục được tự tạo theo tên khoản chi; không cần nhập thêm.</p>
+{% if form_error %}<div class="bv-alert bv-alert-error" role="alert">{{ form_error }}</div>{% endif %}
+<form method="post" class="bv-form">{{ form.hidden_tag() }}<input type="hidden" name="category_id" value="">
+<div class="bv-fields">
+<label class="bv-field"><span>Tên khoản chi</span>{{ form.expense_name(class_='form-control', required=true, maxlength=120) }}</label>
+<label class="bv-field"><span>Mức độ cần thiết</span><select name="priority" class="form-select"><option value="P0" {% if form.priority.data == 'P0' %}selected{% endif %}>Bắt buộc</option><option value="P1" {% if form.priority.data == 'P1' %}selected{% endif %}>Thiết yếu</option><option value="P2" {% if form.priority.data == 'P2' %}selected{% endif %}>Linh hoạt</option></select></label>
+<label class="bv-field"><span>Ước tính tháng (₫)</span>{{ form.estimated_amount(class_='form-control', inputmode='numeric', placeholder='Nhập số tiền dự kiến') }}</label>
+<label class="bv-field"><span>Mức tối thiểu (chỉ với khoản thiết yếu)</span>{{ form.minimum_amount(class_='form-control', inputmode='numeric', placeholder='Không bắt buộc') }}</label>
+<label class="bv-field"><span>Chu kỳ phân bổ</span><select name="allocation_frequency" class="form-select"><option value="DAILY" {% if form.allocation_frequency.data == 'DAILY' %}selected{% endif %}>Hằng ngày</option><option value="WEEKLY" {% if form.allocation_frequency.data == 'WEEKLY' %}selected{% endif %}>Hằng tuần</option><option value="MONTHLY" {% if form.allocation_frequency.data == 'MONTHLY' %}selected{% endif %}>Hằng tháng</option></select></label>
+<label class="bv-field"><span>Ngày đến hạn (nếu có)</span>{{ form.due_day(class_='form-control', inputmode='numeric', placeholder='1–31; chỉ áp dụng hằng tháng') }}</label>
+</div><label class="bv-check">{{ form.is_recurring() }} Đánh dấu khoản chi định kỳ</label>
+<div class="bp-ai-inline" data-budget-ai-widget data-url="{{ url_for('budgets.priority_suggestion', month_id=month.id) }}" data-invalid="Hãy nhập tên khoản chi trước." data-wait="Đang xem xét…" data-unavailable="Chưa thể lấy gợi ý AI."><button type="button" class="bv-text-button" data-budget-ai-suggest>Gợi ý mức cần thiết bằng AI</button><button type="button" class="bv-text-button" data-budget-ai-apply hidden>Dùng gợi ý này</button><p data-budget-ai-result class="bv-ai-result" role="status"></p></div>
+<button class="ws-button ws-button-primary" type="submit">Lưu khoản chi</button>
+</form></section></div>
+{% endblock %}
+{% block workspace_scripts %}{{ super() }}<script src="{{ url_for('static', filename='js/budget-ai.js') }}" defer></script>{% endblock %}

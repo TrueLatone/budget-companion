@@ -1,0 +1,31 @@
+{% extends 'workspace_base.html' %}
+{% block title %}Điều chỉnh kế hoạch · Budget Companion{% endblock %}
+{% block extra_styles %}{{ super() }}<link rel="stylesheet" href="{{ url_for('static', filename='css/budget-customize.css') }}"><link rel="stylesheet" href="{{ url_for('static', filename='css/budget-vi.css') }}">{% endblock %}
+{% block workspace_content %}
+<div class="bv-page-shell"><a class="bv-back" href="{{ url_for('budgets.plan', month_id=month.id, plan_id=plan.id) }}">← Quay về kế hoạch</a>
+<div class="bv-page-heading"><div><p class="bv-eyebrow">ĐIỀU CHỈNH NGÂN SÁCH</p><h1 class="ws-page-title">Kế hoạch của bạn</h1><p class="bv-muted">Thay đổi các khoản sinh hoạt để phù hợp với nhu cầu. Chi phí bắt buộc vẫn giữ nguyên.</p></div></div>
+<div class="bp-layout">
+<section class="ws-card bv-plan-detail">
+{% if validation_error %}<div class="bv-alert bv-alert-error" role="alert" tabindex="-1" id="budget-form-error">{{ validation_error }}</div>{% endif %}
+<form id="bp-customize-form" method="post" data-funds="{{ month.available_vnd }}" novalidate>
+  {{ action_form.hidden_tag() }}
+  <input type="hidden" name="plan_snapshot" value="{{ plan_snapshot }}">
+  {% for alloc in plan.allocations|sort(attribute='budget_expense.expense_name') %}{% set item = alloc.budget_expense %}
+  <div class="bv-edit-line"><div><strong>{{ {'Rent':'Tiền thuê trọ','Electricity':'Tiền điện','Water':'Tiền nước','Internet':'Internet','Food':'Ăn uống','Transportation':'Đi lại'}.get(item.expense_name, item.expense_name) }}</strong><p class="bv-muted">{{ {'P0':'Bắt buộc · Giữ nguyên','P1':'Thiết yếu','P2':'Linh hoạt'}[item.priority] }}{% if item.priority == 'P1' and item.minimum_amount %} · Tối thiểu {{ money(item.minimum_amount) }} ₫{% endif %}</p></div>
+    {% if item.priority == 'P0' %}<strong class="bv-money">{{ money(alloc.allocated_amount) }} ₫</strong><input type="hidden" data-budget-fixed value="{{ alloc.allocated_amount }}">
+    {% else %}{% set name = 'allocation_' ~ item.id %}
+    <label class="bv-money-field"><span class="visually-hidden">Phân bổ cho {{ {'Rent':'Tiền thuê trọ','Electricity':'Tiền điện','Water':'Tiền nước','Internet':'Internet','Food':'Ăn uống','Transportation':'Đi lại'}.get(item.expense_name, item.expense_name) }}</span><input type="text" inputmode="numeric" pattern="[0-9]+" data-budget-editable data-minimum="{{ item.minimum_amount or 1 }}" name="{{ name }}" value="{{ submitted_values.get(name, alloc.allocated_amount) }}" required aria-describedby="error-{{ item.id }}"><span>₫</span></label>
+    <small class="bp-inline-error" id="error-{{ item.id }}" data-budget-error hidden></small>
+    {% endif %}
+  </div>
+  {% endfor %}
+  <div class="bv-edit-line bv-edit-savings"><div><strong>Tiết kiệm dự kiến</strong><p class="bv-muted">Tự thay đổi khi bạn chỉnh khoản chi</p></div><strong class="bv-money" data-budget-savings-display>{{ money(plan.planned_savings) }} ₫</strong></div>
+  <div class="bp-actions"><button type="submit" class="ws-button ws-button-primary">Lưu điều chỉnh</button></div>
+</form>
+</section>
+<aside class="ws-card bv-aside"><h2 class="ws-card-title">Kiểm tra ngân sách</h2><div class="bv-summary-key"><span>Nguồn tiền</span><strong>{{ money(month.available_vnd) }} ₫</strong></div><div class="bv-summary-key"><span>Tổng các khoản chi</span><strong data-budget-total>—</strong></div><div class="bv-summary-key"><span>Chênh lệch</span><strong data-budget-difference>—</strong></div>
+<p role="status" aria-live="polite" class="bp-feedback" data-budget-feedback data-success="Ngân sách đã cân đối" data-over="Đang vượt số tiền có thể sử dụng" data-under="Tiền tiết kiệm được cập nhật tự động" data-invalid="Nhập số tiền hợp lệ và bảo đảm mức tối thiểu."></p>
+<p class="bv-small-note">Tổng khoản chi và tiết kiệm phải bằng nguồn tiền. Mỗi khoản được chọn phải lớn hơn 0.</p>
+</aside></div></div>
+{% endblock %}
+{% block workspace_scripts %}{{ super() }}<script src="{{ url_for('static', filename='js/budget-customize.js') }}" defer></script>{% endblock %}

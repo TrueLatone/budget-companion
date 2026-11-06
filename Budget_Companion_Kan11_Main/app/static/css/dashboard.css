@@ -1,0 +1,274 @@
+/* Monthly overview: the same quiet white and lavender workspace as My budget. */
+.db-dashboard {
+  --db-rent: #5c54d9;
+  --db-utilities: #b6a9ed;
+  --db-food: #ec9a86;
+  --db-other: #8ec9b3;
+  --db-muted: #7b83a2;
+  --db-line: #e9edf5;
+  min-width: 0;
+}
+.db-dashboard .ws-page-heading { align-items: center; }
+.db-dashboard .ws-page-title { font-size: clamp(29px, 2.7vw, 40px); }
+.db-dashboard .ws-page-subtitle { font-size: 13px; }
+.db-dashboard .ws-heading-actions { padding-top: 0; }
+.db-dashboard .ws-heading-actions > .ws-button { min-width: 146px; }
+.db-dashboard :is(.ws-button, .db-text-link):focus-visible { outline: 3px solid #7770e7; outline-offset: 3px; }
+.db-dashboard :is(h2, h3, p) { overflow-wrap: anywhere; }
+.db-dashboard [data-db-value], .db-dashboard [data-db-group-spent],
+.db-dashboard [data-db-group-plan], .db-dashboard [data-db-group-percent],
+.db-dashboard [data-db-breakdown], .db-dashboard [data-db-percent] { font-variant-numeric: tabular-nums; }
+.db-metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 15px; margin: 0 0 16px; }
+.db-metric { display: flex; min-height: 146px; align-items: flex-start; gap: 17px; padding: 23px 22px; }
+.db-metric:last-child { border-color: #e2def8; background: linear-gradient(125deg, #faf9ff, #f5f3ff); }
+.db-metric-icon { display: inline-flex; width: 48px; height: 48px; flex: 0 0 auto; align-items: center; justify-content: center; border-radius: 50%; background: #f2efff; color: var(--bc-purple); }
+.db-metric-icon .ws-icon, .db-metric-icon .bc-icon { width: 28px; height: 28px; }
+.db-metric-copy { min-width: 0; flex: 1; padding-top: 1px; }
+.db-metric-copy h2 { margin: 0 0 7px; color: #24243e; font-family: var(--bc-font-heading); font-size: 18px; font-weight: 500; letter-spacing: -.4px; line-height: 1.45; }
+.db-metric-value { display: block; margin: 0; color: #20213d; font-size: clamp(25px, 2.35vw, 36px); font-weight: 600; letter-spacing: -1.25px; line-height: 1.35; overflow-wrap: anywhere; }
+.db-metric-help { margin: 5px 0 0; color: var(--db-muted); font-size: 11px; line-height: 1.65; }
+.db-grid { display: grid; grid-template-columns: minmax(0, 1.12fr) minmax(0, 1fr); align-items: stretch; gap: 15px; }
+.db-grid > .ws-card { min-width: 0; padding: 21px 23px; }
+.db-card-heading { display: flex; min-width: 0; align-items: center; justify-content: space-between; gap: 14px; margin-bottom: 2px; }
+.db-card-title { min-width: 0; margin: 0; color: #24243d; font-family: var(--bc-font-heading); font-size: 21px; font-weight: 500; letter-spacing: -.55px; line-height: 1.45; }
+.db-caption { margin: 0; color: var(--db-muted); font-size: 12px; line-height: 1.7; }
+.db-text-link { display: inline-flex; min-height: 30px; flex: 0 0 auto; align-items: center; justify-content: center; gap: 7px; padding: 3px 0; border: 0; border-radius: 3px; background: transparent; color: #574bd7; font-size: 11px; line-height: 1.6; text-align: center; text-decoration: none; }
+.db-text-link:hover { color: var(--bc-purple-dark); text-decoration: underline; }
+.db-text-link .ws-icon, .db-text-link .bc-icon { width: 15px; height: 15px; }
+.db-chart-card, .db-progress-card { min-height: 325px; }
+.db-breakdown { display: grid; min-width: 0; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); align-items: center; gap: 6px; margin-top: 10px; }
+.db-chart { position: relative; min-width: 0; }
+#db-donut { display: block; width: 100%; height: auto; overflow: visible; font-family: var(--bc-font-ui); }
+#db-chart-total { fill: #24243d; font-size: 17px; font-weight: 600; letter-spacing: -.55px; font-variant-numeric: tabular-nums; }
+.db-chart-center-caption, .db-chart-caption { fill: var(--db-muted); font-size: 11px; }
+#db-chart-labels text, .db-chart-percent { font-size: 16px; font-weight: 600; letter-spacing: -.3px; font-variant-numeric: tabular-nums; }
+/* Labels keep each segment's hue, with a darker tone for reading on white. */
+#db-chart-labels text[fill="#95c9b8"] { fill: #477d68; }
+#db-chart-labels text[fill="#b9b1ed"] { fill: #7664b6; }
+#db-chart-labels text[fill="#e8a18e"] { fill: #b46955; }
+#db-chart-labels :is(polyline, path, line), .db-chart-connector { fill: none; stroke-width: 1.35; stroke-linecap: round; stroke-linejoin: round; }
+.db-chart-empty { position: absolute; inset: auto 5% 0; display: flex; align-items: center; justify-content: center; margin: 0; color: var(--db-muted); font-size: 11px; line-height: 1.7; text-align: center; }
+.db-legend { min-width: 0; }
+.db-legend-row { --db-color: var(--db-other); display: grid; min-width: 0; min-height: 53px; grid-template-columns: 24px minmax(0, 1fr) auto; align-items: center; gap: 9px; padding: 9px 0; }
+.db-legend-row + .db-legend-row { border-top: 1px solid var(--db-line); }
+.db-legend-row[data-db-category="rent"] { --db-color: var(--db-rent); }
+.db-legend-row[data-db-category="utilities"] { --db-color: var(--db-utilities); }
+.db-legend-row[data-db-category="food"] { --db-color: var(--db-food); }
+.db-legend-row[data-db-category="other"] { --db-color: var(--db-other); }
+.db-legend-icon { display: inline-flex; align-items: center; justify-content: center; color: #7c85a2; }
+.db-legend-icon .ws-icon, .db-legend-icon .bc-icon { width: 24px; height: 24px; }
+.db-legend-copy { display: flex; min-width: 0; align-items: center; gap: 7px; color: #616c8b; font-size: 10px; line-height: 1.65; }
+.db-legend-copy > :last-child { min-width: 0; overflow-wrap: anywhere; }
+.db-dot { display: inline-block; width: 11px; height: 11px; flex: 0 0 auto; border-radius: 50%; background: var(--db-color); }
+.db-legend-value { display: flex; min-width: 0; flex-direction: column; align-items: flex-end; gap: 1px; color: #252a47; text-align: right; }
+.db-legend-value strong { font-size: 11px; font-weight: 500; line-height: 1.55; overflow-wrap: anywhere; }
+.db-legend-value small { color: #8088a1; font-size: 9px; line-height: 1.5; }
+.db-progress-card { display: flex; flex-direction: column; }
+.db-progress-row { --db-progress-color: var(--ws-p0); min-width: 0; margin-top: 18px; }
+.db-progress-row[data-db-group="p1"] { --db-progress-color: var(--ws-p1); }
+.db-progress-row[data-db-group="p2"] { --db-progress-color: var(--ws-p2); }
+.db-progress-heading { display: flex; min-width: 0; align-items: center; gap: 11px; margin-bottom: 6px; }
+.db-progress-icon { display: inline-flex; width: 27px; flex: 0 0 auto; align-items: center; justify-content: center; color: #6e7599; }
+.db-progress-icon .ws-icon, .db-progress-icon .bc-icon { width: 27px; height: 27px; }
+.db-progress-row[data-db-group="p1"] .db-progress-icon, .db-progress-row[data-db-group="p2"] .db-progress-icon { color: var(--bc-purple); }
+.db-progress-copy { display: flex; min-width: 0; flex: 1; flex-wrap: wrap; align-items: center; gap: 7px; color: #313752; font-size: 11px; line-height: 1.5; }
+.db-progress-copy .ws-priority-tag, .db-progress-copy .ws-group-code { min-width: 29px; min-height: 20px; padding: 1px 7px; font-size: 9px; }
+.db-progress-values { min-width: 0; margin-left: auto; color: #8289a2; font-size: 10px; line-height: 1.6; text-align: right; }
+.db-progress-values [data-db-group-spent] { color: #2a2d49; font-weight: 500; }
+.db-progress-line { display: flex; min-width: 0; align-items: center; gap: 10px; padding-left: 38px; }
+.db-progress-track { display: block; min-width: 0; height: 12px; flex: 1; overflow: hidden; border-radius: 5px; background: #eceef5; }
+.db-progress-track > span { display: block; width: 0; max-width: 100%; height: 100%; border-radius: inherit; background: var(--db-progress-color); transition: width .2s ease; }
+[data-db-group-percent] { min-width: 34px; color: #8089a5; font-size: 10px; line-height: 1.5; text-align: right; }
+.db-progress-footer { display: flex; min-width: 0; align-items: flex-start; gap: 11px; margin-top: auto; padding-top: 16px; border-top: 1px solid var(--db-line); }
+.db-progress-row:last-of-type { margin-bottom: 20px; }
+.db-unallocated-icon { display: inline-flex; width: 27px; flex: 0 0 auto; align-items: center; justify-content: center; padding-top: 2px; color: #7a80a2; }
+.db-unallocated-icon .ws-icon, .db-unallocated-icon .bc-icon { width: 25px; height: 25px; }
+.db-unallocated-copy { min-width: 0; flex: 1; color: #7782a1; font-size: 11px; line-height: 1.7; }
+.db-unallocated-amount { min-width: 0; color: #2b2d4a; font-size: 12px; font-weight: 500; line-height: 1.6; text-align: right; }
+.db-unallocated-amount strong { display: block; font-weight: 500; overflow-wrap: anywhere; }
+.db-unallocated-amount .db-caption, .db-unallocated-amount small { display: block; color: var(--db-muted); font-size: 9px; font-weight: 400; line-height: 1.7; }
+#db-plan-source { margin-top: 10px; font-size: 10px; }
+.db-expenses-card, .db-checkin-card { min-height: 220px; }
+.db-expenses-card .db-card-heading { margin-bottom: 4px; }
+#db-recent-list, #db-history-list { min-width: 0; margin: 0; padding: 0; list-style: none; }
+.db-expense-row { display: flex; min-width: 0; min-height: 57px; align-items: center; gap: 14px; padding: 10px 1px; border-top: 1px solid var(--db-line); }
+.db-expense-icon { display: inline-flex; width: 28px; flex: 0 0 auto; align-items: center; justify-content: center; color: #7c83a3; }
+.db-expense-icon .ws-icon, .db-expense-icon .bc-icon { width: 25px; height: 25px; }
+.db-expense-copy { min-width: 0; flex: 1; }
+.db-expense-copy strong { display: block; color: #333652; font-size: 11px; font-weight: 500; line-height: 1.6; overflow-wrap: anywhere; }
+.db-expense-copy small { display: block; margin-top: 1px; color: #828aa5; font-size: 10px; line-height: 1.6; overflow-wrap: anywhere; }
+.db-expense-amount { min-width: 0; max-width: 40%; margin-left: auto; color: #30344f; font-size: 12px; font-weight: 500; font-variant-numeric: tabular-nums; line-height: 1.6; text-align: right; overflow-wrap: anywhere; }
+.db-recent-empty, .db-empty { margin: 20px 0 0; color: var(--db-muted); font-size: 12px; line-height: 1.8; }
+.db-checkin-card { display: flex; flex-direction: column; }
+.db-checkin-top { display: flex; min-width: 0; flex-wrap: wrap; align-items: center; gap: 9px; }
+.db-checkin-top .db-card-title { margin-right: 2px; }
+#db-checkin-date { color: #858da7; font-size: 10px; line-height: 1.5; }
+.db-checkin-badge { display: inline-flex; align-items: center; justify-content: center; padding: 3px 9px; border-radius: 20px; background: #fff1df; color: #b56f2d; font-size: 9px; line-height: 1.6; }
+.db-checkin-badge.is-complete, .db-checkin-badge[data-state="recorded"], .db-checkin-badge[data-state="no-expense"] { background: #eaf7f0; color: #3e7f62; }
+.db-checkin-body { display: flex; min-width: 0; min-height: 113px; align-items: center; justify-content: space-between; gap: 12px; padding-top: 12px; }
+.db-checkin-copy { min-width: 0; flex: 1; }
+#db-checkin-question { margin: 0 0 5px; color: #2b2b48; font-family: var(--bc-font-heading); font-size: 22px; font-weight: 500; letter-spacing: -.55px; line-height: 1.4; }
+#db-checkin-help { margin: 0; color: #8088a4; font-size: 11px; line-height: 1.7; }
+.db-checkin-illustration { position: relative; display: flex; width: 107px; height: 88px; flex: 0 0 auto; align-items: center; justify-content: center; color: #b8adf1; }
+.db-checkin-illustration > .ws-icon, .db-checkin-illustration > .bc-icon { width: 74px; height: 74px; stroke-width: 1.2; }
+.db-checkin-illustration::before { position: absolute; z-index: 0; inset: 15px 11px 9px 6px; border-radius: 15px; background: #f3f0ff; content: ""; }
+.db-checkin-illustration > .ws-icon, .db-checkin-illustration > .bc-icon { position: relative; z-index: 1; }
+.db-checkin-illustration > span { position: absolute; z-index: 2; right: 0; bottom: 0; display: inline-flex; width: 39px; height: 39px; align-items: center; justify-content: center; border: 3px solid #fff; border-radius: 50%; background: linear-gradient(135deg, #b0a7f5, #7971df); color: #fff; }
+.db-checkin-illustration > span .ws-icon, .db-checkin-illustration > span .bc-icon { width: 22px; height: 22px; }
+.db-checkin-actions { display: grid; min-width: 0; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: auto; padding-top: 10px; }
+.db-checkin-actions .ws-button { min-width: 0; min-height: 43px; padding-inline: 11px; border-color: #a29af0; color: #5b51d4; font-size: 11px; }
+.db-checkin-actions .ws-button-primary { border-color: var(--bc-purple); color: #fff; }
+.db-checkin-actions .ws-button:disabled { border-color: #d8d5ed; color: #fff; }
+.db-dashboard .is-negative, .db-dashboard [data-negative="true"] { color: #b65a50; }
+.db-feedback, #db-feedback, #db-warning { margin: 0 0 16px; padding: 11px 14px; border: 1px solid #d1e6dc; border-radius: 9px; background: #f1f9f5; color: #3f7960; font-size: 11px; line-height: 1.7; overflow-wrap: anywhere; }
+#db-warning { border-color: #ecdcb9; background: #fff9ec; color: #8a713d; }
+.db-history-dialog { width: min(620px, calc(100vw - 32px)); }
+.db-history-dialog .db-expense-row { min-height: 66px; }
+.db-history-dialog .db-expense-copy strong { font-size: 12px; }
+.db-dialog-note { margin: -9px 0 18px; color: #8a91a6; font-size: 11px; line-height: 1.75; }
+.db-dialog-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.db-dialog-fields .ws-field { margin-bottom: 0; }
+
+@media (min-width: 1700px) {
+  .db-metrics, .db-grid { gap: 20px; }
+  .db-metrics { margin-bottom: 20px; }
+  .db-metric { min-height: 160px; padding: 26px; gap: 20px; }
+  .db-metric-value { font-size: 38px; }
+  .db-grid > .ws-card { padding: 25px 27px; }
+  .db-card-title { font-size: 23px; }
+  .db-chart-card, .db-progress-card { min-height: 355px; }
+  .db-legend-copy, .db-legend-value strong, .db-progress-copy, .db-progress-values { font-size: 12px; }
+  .db-progress-row { margin-top: 21px; }
+  .db-expense-row { min-height: 63px; }
+  .db-expense-copy strong { font-size: 12px; }
+}
+@media (max-width: 1399px) {
+  .db-metric { gap: 12px; padding-inline: 18px; }
+  .db-metric-icon { width: 40px; height: 40px; }
+  .db-metric-icon .ws-icon, .db-metric-icon .bc-icon { width: 24px; height: 24px; }
+  .db-metric-copy h2 { font-size: 17px; }
+  .db-metric-value { font-size: 29px; letter-spacing: -.9px; }
+  .db-grid > .ws-card { padding: 20px; }
+  .db-breakdown { gap: 3px; }
+  .db-legend-row { grid-template-columns: 20px minmax(0, 1fr) auto; gap: 6px; }
+  .db-legend-icon .ws-icon, .db-legend-icon .bc-icon { width: 21px; height: 21px; }
+  .db-legend-copy { gap: 5px; font-size: 9px; }
+  .db-legend-value strong { font-size: 10px; }
+  .db-dot { width: 9px; height: 9px; }
+  .db-progress-heading { flex-wrap: wrap; gap: 5px 9px; }
+  .db-progress-values { font-size: 9px; }
+  .db-progress-copy { font-size: 10px; }
+  #db-checkin-question { font-size: 20px; }
+  .db-checkin-illustration { width: 86px; }
+}
+@media (max-width: 1199px) {
+  .db-dashboard .ws-page-heading { align-items: flex-start; }
+  .db-dashboard .ws-page-title { font-size: 33px; }
+  .db-metric { min-height: 148px; gap: 10px; padding: 19px 17px; }
+  .db-metric-icon { width: 33px; height: 33px; }
+  .db-metric-icon .ws-icon, .db-metric-icon .bc-icon { width: 21px; height: 21px; }
+  .db-metric-copy h2 { font-size: 15px; }
+  .db-metric-value { font-size: 25px; letter-spacing: -.7px; }
+  .db-metric-help { font-size: 10px; }
+  .db-grid { grid-template-columns: minmax(0, 1fr); gap: 17px; }
+  .db-grid > .ws-card { padding: 23px; }
+  .db-card-title { font-size: 23px; }
+  .db-breakdown { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 25px; }
+  .db-chart { width: min(100%, 355px); margin-inline: auto; }
+  .db-legend-row { grid-template-columns: 27px minmax(0, 1fr) auto; gap: 11px; }
+  .db-legend-icon .ws-icon, .db-legend-icon .bc-icon { width: 26px; height: 26px; }
+  .db-legend-copy { gap: 8px; font-size: 12px; }
+  .db-legend-value strong { font-size: 12px; }
+  .db-legend-value small { font-size: 10px; }
+  .db-dot { width: 12px; height: 12px; }
+  .db-progress-card { min-height: 335px; }
+  .db-progress-heading { gap: 11px; }
+  .db-progress-copy { font-size: 12px; }
+  .db-progress-values { font-size: 12px; }
+  .db-progress-row { margin-top: 20px; }
+  .db-progress-footer { margin-top: 20px; }
+  .db-progress-row:last-of-type { margin-bottom: 0; }
+  .db-expenses-card, .db-checkin-card { min-height: 245px; }
+  .db-expense-row { min-height: 62px; }
+  .db-expense-copy strong, .db-expense-amount { font-size: 13px; }
+  .db-expense-copy small { font-size: 11px; }
+  .db-checkin-body { min-height: 122px; }
+  .db-checkin-illustration { width: 120px; height: 95px; }
+  #db-checkin-question { font-size: 25px; }
+  .db-checkin-actions .ws-button { font-size: 12px; }
+}
+@media (max-width: 767px) {
+  .db-metric { min-height: 136px; flex-direction: column; gap: 9px; padding: 17px; }
+  .db-metric-icon { width: 31px; height: 31px; }
+  .db-metric-copy { padding-top: 0; }
+  .db-metric-copy h2 { margin-bottom: 5px; font-size: 15px; }
+  .db-metric-value { font-size: 23px; }
+  .db-metric-help { font-size: 9px; }
+  .db-breakdown { gap: 13px; }
+  .db-legend-copy, .db-legend-value strong { font-size: 10px; }
+  .db-legend-row { grid-template-columns: 23px minmax(0, 1fr) auto; gap: 8px; }
+  .db-legend-icon .ws-icon, .db-legend-icon .bc-icon { width: 23px; height: 23px; }
+}
+@media (max-width: 599px) {
+  .db-dashboard .ws-page-title { font-size: 29px; line-height: 1.35; }
+  .db-dashboard .ws-page-subtitle { font-size: 11px; line-height: 1.8; }
+  .db-dashboard .ws-heading-actions { flex-wrap: wrap; gap: 9px; }
+  .db-dashboard .ws-month-picker { flex: 1 1 160px; }
+  .db-dashboard .ws-month-picker input { width: 100%; }
+  .db-dashboard .ws-heading-actions > .ws-button { min-width: 0; flex: 1 1 120px; min-height: 41px; gap: 7px; padding: 9px 12px; font-size: 11px; }
+  .db-metrics { grid-template-columns: minmax(0, 1fr); gap: 10px; margin-bottom: 14px; }
+  .db-metric { min-height: 0; flex-direction: row; align-items: center; gap: 15px; padding: 17px 19px; }
+  .db-metric-icon { width: 42px; height: 42px; }
+  .db-metric-icon .ws-icon, .db-metric-icon .bc-icon { width: 25px; height: 25px; }
+  .db-metric-copy h2 { margin-bottom: 3px; font-size: 17px; }
+  .db-metric-value { font-size: 29px; letter-spacing: -.8px; }
+  .db-metric-help { margin-top: 2px; font-size: 10px; }
+  .db-grid { gap: 14px; }
+  .db-grid > .ws-card { padding: 19px 17px; }
+  .db-card-title { font-size: 21px; letter-spacing: -.5px; }
+  .db-card-heading { gap: 10px; }
+  .db-caption { font-size: 11px; }
+  .db-text-link { gap: 4px; font-size: 10px; }
+  .db-chart-card, .db-progress-card { min-height: 0; }
+  .db-breakdown { grid-template-columns: minmax(0, 1fr); gap: 2px; margin-top: 6px; }
+  .db-chart { width: min(100%, 340px); }
+  .db-legend-row { min-height: 51px; grid-template-columns: 24px minmax(0, 1fr) auto; gap: 11px; padding: 9px 1px; }
+  .db-legend-copy { gap: 8px; font-size: 11px; }
+  .db-legend-value strong { font-size: 12px; }
+  .db-legend-value small { font-size: 10px; }
+  .db-legend-icon .ws-icon, .db-legend-icon .bc-icon { width: 24px; height: 24px; }
+  .db-progress-heading { align-items: flex-start; gap: 4px 10px; }
+  .db-progress-copy { flex: 1; padding-top: 3px; font-size: 11px; }
+  .db-progress-values { width: calc(100% - 37px); margin-left: 37px; font-size: 11px; text-align: left; }
+  .db-progress-line { gap: 8px; padding-left: 37px; }
+  .db-progress-track { height: 11px; }
+  [data-db-group-percent] { min-width: 32px; font-size: 10px; }
+  .db-progress-row { margin-top: 20px; }
+  .db-progress-footer { flex-wrap: wrap; gap: 8px 11px; margin-top: 22px; padding-top: 17px; }
+  .db-unallocated-copy { padding-top: 3px; font-size: 11px; }
+  .db-unallocated-amount { width: calc(100% - 38px); margin-left: 38px; font-size: 14px; text-align: left; }
+  .db-unallocated-amount .db-caption, .db-unallocated-amount small { margin-top: 2px; font-size: 10px; }
+  .db-expenses-card, .db-checkin-card { min-height: 0; }
+  .db-expense-row { min-height: 64px; gap: 10px; padding-block: 11px; }
+  .db-expense-icon { width: 25px; }
+  .db-expense-copy strong { font-size: 11px; }
+  .db-expense-copy small { font-size: 10px; }
+  .db-expense-amount { max-width: 39%; font-size: 11px; }
+  .db-checkin-top { column-gap: 8px; row-gap: 6px; }
+  .db-checkin-top .db-card-title { flex-basis: 100%; }
+  #db-checkin-date { font-size: 10px; }
+  .db-checkin-badge { font-size: 9px; }
+  .db-checkin-body { min-height: 120px; gap: 5px; padding-top: 15px; }
+  #db-checkin-question { margin-bottom: 6px; font-size: 22px; }
+  #db-checkin-help { font-size: 10px; line-height: 1.85; }
+  .db-checkin-illustration { width: 74px; height: 77px; }
+  .db-checkin-illustration > .ws-icon, .db-checkin-illustration > .bc-icon { width: 63px; height: 63px; }
+  .db-checkin-illustration > span { width: 32px; height: 32px; border-width: 2px; }
+  .db-checkin-illustration > span .ws-icon, .db-checkin-illustration > span .bc-icon { width: 19px; height: 19px; }
+  .db-checkin-actions { grid-template-columns: minmax(0, 1fr); gap: 9px; padding-top: 17px; }
+  .db-checkin-actions .ws-button { min-height: 43px; font-size: 12px; }
+  .db-dialog-fields { grid-template-columns: minmax(0, 1fr); gap: 0; }
+  .db-dialog-fields .ws-field { margin-bottom: 17px; }
+  .db-history-dialog .db-expense-copy strong { font-size: 11px; }
+  .db-feedback, #db-feedback, #db-warning { padding: 11px 12px; font-size: 10px; }
+}

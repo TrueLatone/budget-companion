@@ -1,0 +1,41 @@
+/* Budget Planning F06 only; uses the shared Workspace palette and card system. */
+.bp-kicker { margin: 0 0 8px; color: var(--bc-purple, #5b55d9); font-size: 11px; font-weight: 650; letter-spacing: .1em; }
+.bp-layout { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(260px, 1fr); align-items: start; gap: 18px; }
+.bp-layout .ws-card { min-width: 0; }
+.bp-info-line, .bp-summary-line { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 0 0 13px; }
+.bp-help, .bp-small { color: #77809a; font-size: 12px; line-height: 1.7; }
+.bp-info-line strong { color: #5b55d9; }
+.bp-table-scroll { overflow-x: auto; }
+.bp-budget-table { width: 100%; border-collapse: collapse; min-width: 510px; }
+.bp-budget-table th { background: #f7f8fc; color: #5f6885; text-transform: uppercase; letter-spacing: .025em; font-size: 11px; }
+.bp-budget-table :is(th,td) { padding: 13px 11px; border-bottom: 1px solid #eaedf5; vertical-align: middle; }
+.bp-budget-table td { font-size: 13px; color: #28304b; }
+.bp-budget-table td:first-child strong, .bp-small { display: block; }
+.bp-priority { display: inline-flex; border-radius: 7px; background: #f0edfe; color: #554cc7; padding: 4px 9px; font-size: 11px; font-weight: 700; }
+.bp-fixed-amount { color: #5f6684; white-space: nowrap; }
+.bp-number-field { display: flex; align-items: center; min-height: 42px; min-width: 145px; border: 1px solid #dce1ed; border-radius: 9px; overflow: hidden; background: #fff; }
+.bp-number-field:focus-within { border-color: #7770e7; box-shadow: 0 0 0 3px #f0edfe; }
+.bp-number-field input { width: 100%; min-width: 80px; padding: 9px 10px; border: none; outline: none; font-variant-numeric: tabular-nums; font-size: 14px; }
+.bp-number-field span { padding: 0 9px; color: #8a91a5; font-size: 10px; }
+.bp-savings-row { display: flex; justify-content: space-between; align-items: center; gap: 20px; padding: 18px 10px 0; }
+.bp-savings-row label { font-weight: 650; }
+.bp-savings-row .bp-number-field { width: min(100%, 245px); }
+.bp-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 9px; padding-top: 19px; }
+.bp-summary-line { border-bottom: 1px solid #eceef5; padding-bottom: 11px; font-size: 13px; }
+.bp-summary-line strong { font-variant-numeric: tabular-nums; text-align: right; }
+.bp-feedback { margin: 15px 0 8px; padding: 10px 12px; border-radius: 9px; color: #335e55; background: #eff8f2; font-size: 12px; }
+.bp-feedback-error, .bp-feedback[data-state="error"] { color: #a23f36; background: #fff0ee; }
+.bp-feedback[data-state="warn"] { color: #8a5b24; background: #fff8e9; }
+.bp-ai-inline { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; padding: 10px 0; }
+.bp-ai-inline [data-budget-ai-result] { width: 100%; color: #5d6680; font-size: 12px; }
+.bp-ai-inline [data-budget-ai-apply] { margin-left: auto; }
+.bp-ai-card { padding: 12px 14px; border: 1px solid #e9e5fb; border-radius: 11px; margin: 12px 0; background: #f9f8ff; }
+.bp-ai-card label { display: flex; align-items: start; gap: 8px; cursor: pointer; font-size: 13px; }
+.bp-ai-card p { font-size: 11px; line-height: 1.6; margin: 4px 0 0; color: #787d99; }
+@media (max-width: 960px) { .bp-layout { grid-template-columns: 1fr; } }
+@media (max-width: 600px) { .bp-savings-row { align-items: stretch; flex-direction: column; } .bp-savings-row .bp-number-field { width: 100%; } .bp-actions .ws-button { width: 100%; } }
+
+/* Explain invalid P1 minimums in the affected row, without extra cards. */
+.bp-inline-error { color:#b94338; font-size:12px; flex-basis:100%; text-align:right; }
+.bv-edit-line:has(.bp-inline-error) { flex-wrap:wrap; }
+.bv-money-field input[aria-invalid="true"] { outline:2px solid #b94338; outline-offset:-2px; }

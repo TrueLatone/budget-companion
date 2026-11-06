@@ -1,0 +1,30 @@
+{% extends 'base.html' %}
+{% from 'components/icons.html' import icon %}
+{% block title %}{{ t('account_page_title') }}{% endblock %}
+{% block body_class %}bc-app{% endblock %}
+{% block main_class %}bc-app-main{% endblock %}
+{% block content %}
+  <section class="bc-page-header">
+    <div>
+      <p class="bc-kicker">{{ t('account_kicker') }}</p>
+      <h1 class="bc-page-title">{{ t('account_title') }}</h1>
+      <p class="bc-page-description">{{ t('account_description') }}</p>
+    </div>
+  </section>
+  <section class="bc-panel bc-account-card" aria-label="{{ t('account_details') }}">
+    <div class="bc-account-identity">
+      <span class="bc-page-icon is-small">{{ icon('sprout') }}</span>
+      <div>
+        <span class="bc-detail-label">{{ t('account_signed_in_as') }}</span>
+        <strong>{{ g.current_user.email }}</strong>
+      </div>
+    </div>
+    <div class="bc-action-row">
+      <a class="bc-button bc-button-primary" href="{{ url_for('budget_periods.index') }}">{{ t('manage_budget_months') }}</a>
+      <form method="post" action="{{ url_for('accounts.logout') }}">
+        {{ logout_form.hidden_tag() }}
+        {{ logout_form.submit(class='bc-button bc-button-light') }}
+      </form>
+    </div>
+  </section>
+{% endblock %}

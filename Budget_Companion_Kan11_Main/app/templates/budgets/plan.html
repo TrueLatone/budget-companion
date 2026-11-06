@@ -1,0 +1,39 @@
+{% extends 'workspace_base.html' %}
+{% block title %}Chi tiết kế hoạch · Budget Companion{% endblock %}
+{% block extra_styles %}{{ super() }}<link rel="stylesheet" href="{{ url_for('static', filename='css/budget-vi.css') }}">{% endblock %}
+{% block workspace_content %}
+<div class="bv-page-shell">
+  {% for category, message in get_flashed_messages(with_categories=true) %}
+    <div class="bv-alert {{ 'bv-alert-error' if category in ('danger', 'error') else 'bv-alert-success' }}" role="status">{{ message }}</div>
+  {% endfor %}
+  <a class="bv-back" href="{{ url_for('budgets.month', month_id=month.id, _anchor='compare') }}">← Quay về các kế hoạch</a>
+  <div class="bv-page-heading"><div><p class="bv-eyebrow">KẾ HOẠCH THÁNG {{ month.month_start.strftime('%m/%Y') }}</p><h1 class="ws-page-title">{{ {'SAVING':'Ưu tiên tiết kiệm','BALANCED':'Cân bằng','LIFESTYLE':'Linh hoạt','MANUAL':'Kế hoạch của tôi'}.get(plan.plan_type, plan.plan_type) }}</h1><p class="bv-muted">{{ 'Kế hoạch đã xác nhận' if plan.status == 'CONFIRMED' else 'Xem kỹ các khoản trước khi xác nhận.' }}</p></div></div>
+  {% if error_message %}<div class="bv-alert bv-alert-error" role="alert">{{ error_message }}</div>{% endif %}
+  <div class="bv-detail-grid"><section class="ws-card bv-plan-detail"><div class="bv-section-title"><h2>Phân bổ chi phí</h2></div>
+  {% for a in plan.allocations|sort(attribute='budget_expense.expense_name') %}
+  <div class="bv-expense-line"><div class="bv-expense-label"><strong>{{ {'Rent':'Tiền thuê trọ','Electricity':'Tiền điện','Water':'Tiền nước','Internet':'Internet','Food':'Ăn uống','Transportation':'Đi lại'}.get(a.budget_expense.expense_name, a.budget_expense.expense_name) }}</strong><small>{{ {'P0':'Bắt buộc','P1':'Thiết yếu','P2':'Linh hoạt'}[a.budget_expense.priority] }} · {{ {'DAILY':'Hằng ngày','WEEKLY':'Hằng tuần','MONTHLY':'Hằng tháng'}[a.budget_expense.allocation_frequency] }}</small></div><strong class="bv-money">{{ money(a.allocated_amount) }} ₫</strong></div>
+  {% endfor %}
+  <div class="bv-expense-line bv-final-line"><span>Tiết kiệm dự kiến</span><strong>{{ money(plan.planned_savings) }} ₫</strong></div>
+  <div class="bv-expense-line bv-final-line"><span>Tổng cộng</span><strong>{{ money((plan.allocations|sum(attribute='allocated_amount')) + plan.planned_savings) }} ₫</strong></div>
+  </section><aside class="ws-card bv-aside"><h2 class="ws-card-title">Xác nhận kế hoạch</h2><p class="bv-muted">Nguồn tiền tháng này</p><strong class="bv-total-large">{{ money(month.available_vnd) }} ₫</strong>
+  {% if plan.status == 'GENERATED' %}<p class="bv-muted">Bạn có thể điều chỉnh các khoản thiết yếu, linh hoạt và số tiền tiết kiệm. Các khoản bắt buộc luôn được giữ nguyên.</p>
+    <a class="ws-button bv-wide" href="{{ url_for('budgets.customize', month_id=month.id, plan_id=plan.id) }}">Điều chỉnh kế hoạch</a>
+    <form method="post" action="{{ url_for('budgets.confirm', month_id=month.id, plan_id=plan.id) }}" class="bv-confirm-form">{{ action_form.hidden_tag() }}{% if plan.plan_type == 'MANUAL' %}<input type="hidden" name="confirm_snapshot" value="{{ confirm_snapshot or '' }}">{% endif %}<button type="submit" class="ws-button ws-button-primary bv-wide">Xác nhận kế hoạch này</button></form>
+    <p class="bv-small-note">Sau khi xác nhận, kế hoạch được khóa. Bạn sẽ tạo lịch chi tiêu từ phân bổ đã chốt ở bước tiếp theo.</p>
+  {% else %}
+    {% if schedule_state and schedule_state.code in ('NOT_SCHEDULED', 'INCOMPLETE') and schedule_state.can_schedule %}
+    <p class="bv-muted">Kế hoạch đã lưu. Tạo lịch để xem các khoản chi từ ngày {{ month.tracking_start_date.strftime('%d/%m') }}.</p>
+    <form method="post" action="{{ url_for('expenses.schedule', month_id=month.id) }}" class="bv-confirm-form">
+      {{ action_form.hidden_tag() }}
+      <button class="ws-button ws-button-primary bv-wide" type="submit">{{ 'Tạo lịch chi tiêu' if schedule_state.code == 'NOT_SCHEDULED' else 'Hoàn tất lịch chi tiêu' }}</button>
+    </form>
+    {% elif schedule_state and schedule_state.code == 'READY' %}
+    <a class="ws-button ws-button-primary bv-wide" href="{{ url_for('expenses.index', budget_month_id=month.id, view='day', date=month.tracking_start_date.isoformat()) }}">Xem lịch chi tiêu</a>
+    {% elif schedule_state %}
+    <p class="bv-muted" role="alert">Lịch chưa thể tạo do dữ liệu không khớp. Hãy kiểm tra lại kế hoạch đã lưu.</p>
+    {% endif %}
+    <a class="ws-button bv-wide" href="{{ url_for('budgets.schedule', month_id=month.id) }}">Xem phân bổ ngày / tuần / tháng</a>
+  {% endif %}
+  </aside></div>
+</div>
+{% endblock %}

@@ -1,0 +1,51 @@
+{% extends 'workspace_base.html' %}
+{% block title %}Spending analysis · Budget Companion{% endblock %}
+{% block workspace_content %}
+<h1>Spending analysis</h1>
+{% for message in get_flashed_messages() %}<p class="alert alert-info" role="status">{{ message }}</p>{% endfor %}
+<p>Read-only guidance from your saved Budget and Expense data. Automatic adjustments are disabled.</p>
+<form method="get" action="{{ url_for('recommendations.index') }}" class="mb-3">
+  <label for="analysis-month">Budget Month</label>
+  <select id="analysis-month" name="month" required>{% for period in months %}<option value="{{ period.month_start.strftime('%Y-%m') }}" {% if month and month.id == period.id %}selected{% endif %}>{{ month_name(period.month_start) }}</option>{% endfor %}</select>
+  <button class="btn btn-secondary" type="submit">Open month</button>
+</form>
+{% if result %}
+<p><a href="{{ url_for('budgets.month', month_id=month.id) }}">Budget setup / confirmed plan</a> · <a href="{{ url_for('expenses.index', budget_month_id=month.id, view='month') }}">Expense calendar / check-in</a></p>
+<form method="post" action="{{ url_for('recommendations.analyze') }}" class="mb-4">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <input type="hidden" name="month" value="{{ result.month }}">
+  <label for="analysis-cutoff">Analyze through (Vietnam date)</label>
+  <input id="analysis-cutoff" type="date" name="as_of" min="{{ month.month_start }}" max="{{ today }}" value="{{ result.as_of }}" {% if not result.completeness.checks.tracking_started %}disabled{% endif %}>
+  <button class="btn btn-primary" type="submit" {% if not result.completeness.checks.tracking_started %}disabled{% endif %}>Analyze and save guidance</button>
+</form>
+<h2>Recorded facts</h2>
+<p>Observed recorded spending through {{ result.as_of }}: <strong>{{ money(result.review.recorded_expense_total) }} VND</strong>. FUNDS_ADDED is excluded. This observed sum does not confirm missing spending as zero.</p>
+<p>Confirmed monthly allocations: {{ 'Unknown' if result.review.confirmed_allocation_total is none else money(result.review.confirmed_allocation_total) }} VND.
+  Remaining versus scheduled plan: {{ 'Unknown — monthly check-ins or coverage are incomplete' if result.review.remaining_vs_plan is none else money(result.review.remaining_vs_plan) ~ ' VND' }}.</p>
+<h2>F18 data completeness: {{ result.completeness.status }}</h2>
+<ul>
+  <li>{{ result.completeness.complete_transaction_count }} complete actual transactions (minimum 10)</li>
+  <li>{{ result.completeness.category_count }} categories with actual transactions (minimum 3)</li>
+  <li>{{ result.completeness.coverage_days }} calendar days from first to last actual transaction (minimum 30)</li>
+  <li>{{ (result.completeness.completeness_rate * 100)|round(2) }}% completeness (minimum 80%)</li>
+  <li>{{ result.completeness.unrecorded_task_count }} overdue missing check-ins; {{ result.completeness.inconsistent_task_count }} inconsistent check-ins; {{ result.completeness.no_expense_task_count }} explicit NO_EXPENSE tasks</li>
+</ul>
+<p class="small">Thresholds are unchanged. NO_EXPENSE is an explicit check-in, not a transaction or evidence of 30 days of purchases. Ongoing/future PENDING periods are not overdue. Short months and mid-month tracking may not reach 30 days of transaction coverage. Cutoffs filter transactions; check-ins reflect their current saved state, not an audit of historical status changes.</p>
+{% if result.completeness.status == 'INSUFFICIENT' %}
+<section aria-label="Baseline guidance"><h2>Baseline guidance — insufficient data</h2>
+  <ul>{% for reason in result.completeness.insufficient_reasons %}<li>{{ reason }}</li>{% endfor %}</ul>
+  <p>No personalized recommendations were generated. These general steps are not inferred transactions or spending predictions.</p>
+  <ul>{% for guidance in result.baseline_guidance %}<li>{{ guidance }}</li>{% endfor %}</ul>
+</section>
+{% else %}
+<section aria-label="Data-backed guidance"><h2>Data-backed observations</h2>
+  <p>Comparisons use completed scheduled periods only. A weekly/monthly limit is counted once, never multiplied by its covered dates. Categories are separated by priority; P0 bills are protected.</p>
+  {% for finding in result.findings %}<article class="card mb-3"><div class="card-body"><p>{{ finding.reason }}</p><p>{{ finding.expected_impact }}</p></div></article>{% else %}<p>No category crossed the review thresholds (at least 110% or at most 80% of completed-period limits). No action is suggested.</p>{% endfor %}
+  {% if result.recommendations %}<h3>Saved guidance for this data snapshot</h3>{% endif %}
+  {% for item in result.recommendations %}<article class="card mb-3"><div class="card-body"><p>{{ item.reason }}</p><p>Status: {{ item.status }} · Read-only</p>
+    {% if item.status == 'PENDING' %}<form method="post" action="{{ url_for('recommendations.dismiss', recommendation_id=item.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn btn-outline-secondary" type="submit">Dismiss guidance</button></form>{% endif %}
+  </div></article>{% endfor %}
+</section>
+{% endif %}
+{% else %}<p>Create a Budget Month and record your real spending to begin.</p><a href="{{ url_for('budget_periods.create') }}">Create Budget Month</a>{% endif %}
+{% endblock %}

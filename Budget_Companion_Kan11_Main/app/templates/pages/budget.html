@@ -1,0 +1,13 @@
+{% extends 'workspace_base.html' %}
+{% from 'components/icons.html' import icon %}
+{% block title %}Lập ngân sách · Budget Companion{% endblock %}
+{% block workspace_content %}
+<div class="ws-page-heading"><div><h1 class="ws-page-title">Lập ngân sách cho tháng của bạn</h1><p class="ws-page-subtitle">Nhập chi phí, xem các phương án và chọn một kế hoạch phù hợp.</p></div><div class="ws-heading-actions"><a class="ws-button" href="{{ url_for('budget_periods.create') }}">{{ icon('plus', 'ws-icon') }} Tạo tháng mới</a></div></div>
+<div class="ws-budget-layout"><section class="ws-budget-editor ws-card">{% block budget_editor %}{% endblock %}</section><aside class="ws-budget-summary"><section class="ws-card ws-summary-card"><h2 class="ws-card-title">Ngân sách tháng</h2>
+{% if month %}<p class="ws-summary-available">{{ workspace_money(month.available_vnd) }}</p><p class="ws-summary-help">Số tiền hiện có</p><a href="{{ url_for('budget_periods.edit', budget_month_id=month.id) }}">Sửa nguồn tiền</a>{% endif %}
+{% if summary_plan %}<p class="mt-3">{{ {'SAVING':'Ưu tiên tiết kiệm','BALANCED':'Cân bằng','LIFESTYLE':'Linh hoạt','MANUAL':'Kế hoạch của tôi'}.get(summary_plan.plan_type, summary_plan.plan_type) }} · {{ 'Đã xác nhận' if summary_plan.status == 'CONFIRMED' else 'Chưa xác nhận' }}</p><dl class="ws-summary-breakdown">
+{% for label,amount in breakdowns[summary_plan.id].items() %}<div class="ws-summary-row"><dt class="ws-summary-label"><i class="ws-summary-dot" data-group="{{ label|lower }}"></i>{{ {'P0':'Bắt buộc','P1':'Thiết yếu','P2':'Linh hoạt','Savings':'Tiết kiệm'}.get(label,label) }}</dt><dd>{{ workspace_money(amount) }}</dd></div>{% endfor %}</dl>
+<a class="ws-button ws-button-primary w-100" href="{{ url_for('budgets.plan', month_id=month.id, plan_id=summary_plan.id) }}">Xem kế hoạch</a>{% else %}<p class="ws-summary-help mt-3">Chưa có kế hoạch. Nhập các khoản chi để tạo ba phương án.</p>{% endif %}
+</section></aside></div>
+{% block budget_comparison %}{% endblock %}
+{% endblock %}

@@ -1,0 +1,33 @@
+{% extends 'workspace_base.html' %}
+{% block title %}Lịch phân bổ ngân sách{% endblock %}
+{% block extra_styles %}{{ super() }}<link rel="stylesheet" href="{{ url_for('static', filename='css/budget-vi.css') }}">{% endblock %}
+{% set names = {'Rent':'Tiền thuê trọ','Electricity':'Tiền điện','Water':'Tiền nước','Internet':'Internet','Food':'Ăn uống','Transportation':'Đi lại'} %}
+{% block workspace_content %}
+<div class="bv-page-shell bv-schedule-page">
+  <a class="bv-back" href="{{ url_for('budgets.plan', month_id=month.id, plan_id=plan.id) }}">← Quay về kế hoạch</a>
+  <div class="bv-page-heading"><div><p class="bv-eyebrow">PHÂN BỔ NGÂN SÁCH</p><h1 class="ws-page-title">Lịch chi tiêu tháng {{ month.month_start.strftime('%m/%Y') }}</h1><p class="bv-muted">Xem số tiền dự kiến theo ngày, tuần hoặc tháng. Bạn có thể ghi nhận chi tiêu ở mục Lịch & ghi nhận.</p></div></div>
+  <nav class="bv-view-tabs" aria-label="Xem phân bổ theo kỳ">
+    {% for mode,label in [('day','Hằng ngày'),('week','Hằng tuần'),('month','Hằng tháng')] %}<a class="bv-view-tab{{ ' active' if mode == view else '' }}" {% if mode == view %}aria-current="page"{% endif %} href="{{ url_for('budgets.schedule', month_id=month.id, view=mode, date=anchor.isoformat()) }}">{{ label }}</a>{% endfor %}
+  </nav>
+  {% if state.code != 'READY' %}
+    <section class="ws-card bv-form-card"><h2 class="ws-card-title">Lịch chưa sẵn sàng</h2><p class="bv-muted">Kế hoạch đã được xác nhận nhưng lịch chi tiêu chưa được tạo đầy đủ. Bạn có thể tạo hoặc kiểm tra lịch mà không thay đổi kế hoạch.</p>{% if state.can_schedule and state.code in ('NOT_SCHEDULED', 'INCOMPLETE') %}<form method="post" action="{{ url_for('expenses.schedule', month_id=month.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button type="submit" class="ws-button ws-button-primary">Tạo lịch chi tiêu</button></form>{% else %}<a class="ws-button" href="{{ url_for('expenses.index', budget_month_id=month.id, view='month') }}">Xem tình trạng lịch</a>{% endif %}</section>
+  {% else %}
+  <section class="ws-card bv-form-card">
+    <div class="bv-schedule-bar"><div><h2 class="ws-card-title">{% if view == 'month' %}Cả tháng{% elif view == 'week' %}Tuần {{ start.strftime('%d/%m') }} – {{ end.strftime('%d/%m/%Y') }}{% else %}Ngày {{ anchor.strftime('%d/%m/%Y') }}{% endif %}</h2><p class="bv-muted">{{ 'Tổng kế hoạch tháng' if view == 'month' else 'Tổng hạn mức phân bổ bắt đầu trong kỳ' }}</p></div><strong class="bv-schedule-total">{{ money(month_total if view == 'month' else total) }} ₫</strong></div>
+    {% if view != 'month' %}<div class="bv-schedule-nav">{% if prev_day %}<a class="ws-button" href="{{ url_for('budgets.schedule', month_id=month.id, view=view, date=prev_day.isoformat()) }}">← Kỳ trước</a>{% endif %}<form method="get"><input type="hidden" name="view" value="{{ view }}"><label for="budget-date" class="visually-hidden">Chọn ngày</label><input id="budget-date" class="form-control" name="date" type="date" min="{{ month.tracking_start_date.isoformat() }}" max="{{ last.isoformat() }}" value="{{ anchor.isoformat() }}"><button class="ws-button" type="submit">Xem</button></form>{% if next_day %}<a class="ws-button" href="{{ url_for('budgets.schedule', month_id=month.id, view=view, date=next_day.isoformat()) }}">Kỳ sau →</a>{% endif %}</div>{% endif %}
+    {% if view == 'month' %}
+      {% for a in allocations|sort(attribute='budget_expense.expense_name') %}
+        <div class="bv-expense-line"><div class="bv-expense-label"><strong>{{ names.get(a.budget_expense.expense_name,a.budget_expense.expense_name) }}</strong><small>{{ {'DAILY':'Hằng ngày','WEEKLY':'Hằng tuần','MONTHLY':'Hằng tháng'}[a.budget_expense.allocation_frequency] }}</small></div><strong class="bv-money">{{ money(a.allocated_amount) }} ₫</strong></div>
+      {% endfor %}
+    {% else %}
+      {% for item in assigned %}
+        <div class="bv-schedule-item"><div class="bv-expense-line"><div class="bv-expense-label"><strong>{{ names.get(item.title,item.title) }}</strong><small>{{ item.assigned_date.strftime('%d/%m') }}{% if item.period_end != item.assigned_date %} – {{ item.period_end.strftime('%d/%m') }}{% endif %} · {{ {'P0':'Bắt buộc','P1':'Thiết yếu','P2':'Linh hoạt'}[item.priority] }}</small></div><strong class="bv-money">{{ money(item.original_limit) }} ₫</strong></div>
+        {% if item.id in initial_meals %}<div class="bv-meal-note">Gợi ý tiền ăn: {% for meal,money_value in initial_meals[item.id].items() %}{{ {'Breakfast':'Sáng','Lunch':'Trưa','Dinner':'Tối'}[meal] }} {{ money(money_value) }} ₫{{ ' · ' if not loop.last else '' }}{% endfor %}</div>{% endif %}</div>
+      {% else %}<p class="bv-muted bv-empty-hint">Kỳ này không có khoản mới được phân bổ.</p>{% endfor %}
+      {% if continuing %}<details class="bv-continuing"><summary>Khoản đang áp dụng hoặc đến hạn (không cộng vào tổng trên)</summary>{% for item in continuing %}<div class="bv-expense-line"><span>{{ names.get(item.title,item.title) }}</span><strong>{{ money(item.original_limit) }} ₫</strong></div>{% endfor %}</details>{% endif %}
+    {% endif %}
+  </section>
+  {% endif %}
+  <div class="bv-schedule-footer"><a class="ws-button ws-button-primary" href="{{ url_for('expenses.index', budget_month_id=month.id, view='day' if view == 'day' else 'month', date=anchor.isoformat()) }}">Mở lịch và ghi nhận chi tiêu</a></div>
+</div>
+{% endblock %}

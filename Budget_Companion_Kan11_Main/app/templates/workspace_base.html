@@ -1,0 +1,43 @@
+{% extends 'base.html' %}
+{% from 'components/icons.html' import icon %}
+{% set workspace_month = month if month is defined else selected_month if selected_month is defined else workspace_fallback_month() %}
+{% set workspace_urls = workspace_links(workspace_month) %}
+{% set active_page = request.blueprint %}
+{% set workspace_titles = {'dashboard': 'ws_overview', 'budgets': 'ws_my_budget', 'expenses': 'ws_expenses', 'recommendations': 'ws_spending_tips'} %}
+{% block body_class %}bc-workspace{% endblock %}
+{% block extra_styles %}
+<link href="{{ url_for('static', filename='css/workspace.css') }}" rel="stylesheet">
+{% endblock %}
+{% block navigation %}
+{% include 'components/workspace_nav.html' %}
+<button class="ws-sidebar-overlay" type="button" data-sidebar-close aria-label="{{ t('ws_close_menu') }}" tabindex="-1" hidden></button>
+{% endblock %}
+{% block main_class %}ws-main{% endblock %}
+{% block content %}
+<header class="ws-topbar">
+  <div class="ws-topbar-leading">
+    <button class="ws-menu-toggle" type="button" data-sidebar-toggle aria-expanded="false" aria-controls="workspace-sidebar" aria-label="{{ t('ws_open_menu') }}">{{ icon('menu', 'ws-icon') }}</button>
+    <nav class="ws-breadcrumb" aria-label="{{ t('ws_workspace') }}"><span>{{ t('ws_workspace') }}</span><span aria-hidden="true">/</span><strong aria-current="page">{{ t(workspace_titles.get(active_page, 'ws_workspace')) }}</strong></nav>
+  </div>
+  <div class="ws-topbar-actions">
+    <a class="ws-home-link" href="{{ url_for('core.home') }}">{{ icon('home', 'ws-icon') }}<span>{{ t('ws_home') }}</span></a>
+    <div class="ws-language-switcher" role="group" aria-label="{{ t('ws_language') }}">{% for code in ('en', 'vi') %}<a class="ws-language-option{% if ui_locale == code %} is-active{% endif %}" href="{{ language_url(code) }}" hreflang="{{ code }}" lang="{{ code }}"{% if ui_locale == code %} aria-current="true"{% endif %}>{{ code|upper }}</a>{% endfor %}</div>
+    <a class="ws-avatar" href="{{ url_for('accounts.index') }}" aria-label="{{ t('account_nav') }}">{{ g.current_user.email[0]|upper }}</a>
+  </div>
+</header>
+<div class="ws-content">
+  {% if workspace_month %}<form method="get" action="{{ workspace_urls[active_page].split('?')[0] if active_page in workspace_urls else url_for('dashboard.index') }}" class="ws-month-switcher mb-3">
+    <label for="workspace-month">{{ t('ws_month') }}</label>
+    <select id="workspace-month" name="budget_month_id" class="form-select w-auto" required>
+      {% set workspace_periods = months if months is defined else budget_months if budget_months is defined else workspace_owned_months() %}
+      {% for period in workspace_periods %}<option value="{{ period.id }}" {% if period.id == workspace_month.id %}selected{% endif %}>{{ month_name(period.month_start) }}</option>{% endfor %}
+    </select>
+    {% if active_page == 'expenses' %}<input type="hidden" name="view" value="month">{% endif %}
+    <button class="ws-button" type="submit">{{ t('live_open_month') }}</button>
+    <a href="{{ url_for('budget_periods.index') }}">{{ t('manage_budget_months') }}</a>
+  </form>{% endif %}
+  {% block workspace_content %}{% endblock %}
+</div>
+<noscript><style>@media(max-width:1023px){.bc-workspace .ws-sidebar{position:static;width:100%;height:auto;transform:none!important}.ws-menu-toggle,.ws-sidebar-close{display:none!important}}</style></noscript>
+{% endblock %}
+{% block scripts %}<script src="{{ url_for('static', filename='js/workspace.js') }}" defer></script>{% block workspace_scripts %}{% endblock %}{% endblock %}

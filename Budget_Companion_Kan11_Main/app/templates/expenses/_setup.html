@@ -1,0 +1,24 @@
+{# Đây là giao diện bàn giao KAN-11 -> KAN-23; không sửa route/scheduler. #}
+{% if schedule_state and selected_month %}
+<section class="bc-schedule-handoff mb-3" data-schedule-state="{{ schedule_state.code }}">
+  <div class="bc-schedule-handoff-text">
+    <span>Tháng {{ selected_month.month_start.strftime('%m/%Y') }}{% if selected_month.tracking_start_date %} · Theo dõi từ {{ selected_month.tracking_start_date|date_vn }}{% endif %}</span>
+    {% if schedule_state.code not in ('READY',) %}
+    <span class="bc-handoff-warning">{{ {'NOT_SCHEDULED':'Lịch chi tiêu chưa được tạo.', 'INCOMPLETE':'Lịch chưa đầy đủ.', 'CONFLICT':'Lịch có dữ liệu không khớp.', 'NO_PLAN':'Bạn chưa tạo kế hoạch.', 'UNCONFIRMED':'Bạn chưa xác nhận kế hoạch.', 'NO_EXPENSES':'Bạn chưa có khoản chi nào.'}.get(schedule_state.code,'Chưa có lịch chi tiêu cho tháng này.') }}</span>
+    {% endif %}
+  </div>
+  <div class="bc-schedule-handoff-actions">
+    {% if schedule_state.plan_id %}
+    <a href="{{ url_for('budgets.plan', month_id=selected_month.id, plan_id=schedule_state.plan_id) }}">Xem kế hoạch</a>
+    {% else %}<a href="{{ url_for('budgets.month', month_id=selected_month.id) }}">Lập kế hoạch</a>{% endif %}
+    {% if can_schedule and schedule_state.code in ('NOT_SCHEDULED', 'INCOMPLETE') %}
+    <form method="post" action="{{ url_for('expenses.schedule', month_id=selected_month.id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button class="btn btn-sm btn-primary" type="submit">{{ 'Tạo lịch chi tiêu' if schedule_state.code == 'NOT_SCHEDULED' else 'Hoàn tất lịch' }}</button>
+    </form>
+    {% endif %}
+  </div>
+</section>
+{% elif not selected_month %}
+<section class="bc-schedule-handoff mb-3" data-schedule-state="NO_MONTH"><span>Chưa có ngân sách cho tháng đang xem.</span><a href="{{ url_for('budget_periods.create') }}">Tạo ngân sách tháng</a></section>
+{% endif %}

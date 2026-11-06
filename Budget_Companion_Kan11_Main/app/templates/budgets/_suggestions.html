@@ -1,0 +1,92 @@
+{% if not locked %}
+<form method="post" action="{{ url_for('budgets.generate', month_id=month.id) }}" class="bv-form" id="bv-generate-form" novalidate>
+  {{ action_form.hidden_tag() }}
+  {% set sections = [('P0', 'Chi phí bắt buộc', 'Nhập mức chi dự kiến cho tiền thuê trọ, điện và nước.'), ('P1', 'Chi phí sinh hoạt', 'Chọn những khoản bạn thường sử dụng trong tháng.')] %}
+  {% for group, title, help in sections %}
+  <section class="bv-suggestion-group"><div class="bv-section-title"><div><h3>{{ title }}</h3><p class="bv-muted">{{ help }}</p></div></div>
+  {% for item in suggestions if item.priority == group %}{% set exists = item.name.casefold() in existing_names %}
+  {% if not exists %}
+  {% set required_expense = item.key in ('rent', 'electricity', 'water') %}
+  <div class="bv-suggest-item" data-suggestion="{{ item.key }}">
+    <div class="bv-suggest-heading"><div><strong>{{ {'rent':'Tiền thuê trọ','electricity':'Tiền điện','water':'Tiền nước','internet':'Internet','food':'Ăn uống','transportation':'Đi lại'}.get(item.key, item.name) }}</strong><small>{{ {'rent':'Hằng tháng','electricity':'Hằng tháng','water':'Hằng tháng','internet':'Hằng tháng','food':'Hằng ngày','transportation':'Hằng tuần'}.get(item.key, '') }}</small></div>
+      {% if required_expense %}<span class="bv-tag">Bắt buộc</span><input type="hidden" name="suggestion" value="{{ item.key }}">
+      {% else %}<label class="bv-toggle"><input type="checkbox" name="suggestion" value="{{ item.key }}" {% if submitted_values %}{% if item.key in selected_keys %}checked{% endif %}{% elif item.selected %}checked{% endif %}> <span>Thêm</span></label>{% endif %}
+    </div>
+    <div class="bv-input-row">
+      <label class="bv-field"><span>Ước tính tháng (₫)</span><input name="{{ item.key }}_estimated_amount" type="text" inputmode="numeric" pattern="[0-9]*" placeholder="Nhập số tiền" value="{{ submitted_values.get(item.key ~ '_estimated_amount', '') }}" {% if required_expense %}required{% endif %}></label>
+      <input type="hidden" name="{{ item.key }}_allocation_frequency" value="{{ item.frequency }}">
+      {% if group == 'P1' %}<label class="bv-field"><span>Tối thiểu (tùy chọn)</span><input name="{{ item.key }}_minimum_amount" type="text" inputmode="numeric" pattern="[0-9]*" placeholder="Không bắt buộc" value="{{ submitted_values.get(item.key ~ '_minimum_amount', '') }}"></label>{% endif %}
+      {% if group == 'P0' %}<label class="bv-field"><span>Ngày đóng (tùy chọn)</span><input name="{{ item.key }}_due_day" type="number" min="1" max="31" placeholder="Ngày 1–31" value="{{ submitted_values.get(item.key ~ '_due_day', '') }}"></label>{% endif %}
+    </div>
+    {% if suggestion_errors.get(item.key) %}<p class="bv-field-error" role="alert">{{ suggestion_errors[item.key] }}</p>{% endif %}
+  </div>
+  {% endif %}
+  {% endfor %}
+  </section>
+  {% endfor %}
+  <section class="bv-custom" id="add-expense" aria-labelledby="bv-add-title">
+    <div class="bv-section-title"><div><h3 id="bv-add-title">Các khoản chi khác</h3><p class="bv-muted">Thêm khoản chi ngay tại đây, không cần lưu riêng.</p></div></div>
+    <div id="bv-custom-rows" aria-live="polite">
+      {% for row in custom_drafts %}
+      <div class="bv-custom-row" data-custom-id="{{ row.id }}">
+        <input type="hidden" name="custom_id" value="{{ row.id }}">
+        <div class="bv-custom-head"><strong>Khoản chi bổ sung</strong><button type="button" class="bv-text-button" data-remove-custom>Xóa khoản</button></div>
+        <div class="bv-fields">
+          <label class="bv-field"><span>Tên khoản chi</span><input type="text" maxlength="100" name="custom_{{ row.id }}_expense_name" required value="{{ row.expense_name }}" placeholder="Ví dụ: Học tập"></label>
+          <label class="bv-field"><span>Mức độ cần thiết</span><select name="custom_{{ row.id }}_priority"><option value="P1" {{ 'selected' if row.priority == 'P1' else '' }}>Thiết yếu</option><option value="P2" {{ 'selected' if row.priority == 'P2' else '' }}>Linh hoạt</option><option value="P0" {{ 'selected' if row.priority == 'P0' else '' }}>Bắt buộc</option></select></label>
+          <label class="bv-field"><span>Ước tính tháng (₫)</span><input type="text" inputmode="numeric" pattern="[0-9]*" name="custom_{{ row.id }}_estimated_amount" value="{{ row.estimated_amount }}" placeholder="Nếu biết"></label>
+          <label class="bv-field" data-custom-minimum><span>Mức tối thiểu (nếu thiết yếu)</span><input type="text" inputmode="numeric" pattern="[0-9]*" name="custom_{{ row.id }}_minimum_amount" value="{{ row.minimum_amount }}" placeholder="Tùy chọn"></label>
+          <label class="bv-field"><span>Chu kỳ phân bổ</span><select name="custom_{{ row.id }}_allocation_frequency"><option value="MONTHLY" {{ 'selected' if row.allocation_frequency == 'MONTHLY' else '' }}>Hằng tháng</option><option value="WEEKLY" {{ 'selected' if row.allocation_frequency == 'WEEKLY' else '' }}>Hằng tuần</option><option value="DAILY" {{ 'selected' if row.allocation_frequency == 'DAILY' else '' }}>Hằng ngày</option></select></label>
+          <label class="bv-field" data-custom-due><span>Ngày đến hạn (nếu có)</span><input type="number" min="1" max="31" name="custom_{{ row.id }}_due_day" value="{{ row.due_day }}" placeholder="1–31"></label>
+        </div>
+        <label class="bv-check"><input type="checkbox" name="custom_{{ row.id }}_is_recurring" {{ 'checked' if row.is_recurring else '' }}> Khoản chi định kỳ</label>
+        <details class="bv-ai-option"><summary>Gợi ý mức cần thiết (tùy chọn)</summary>
+          <div data-budget-ai-widget data-url="{{ url_for('budgets.priority_suggestion', month_id=month.id) }}" data-invalid="Hãy nhập tên khoản chi trước." data-wait="Đang xem xét…" data-unavailable="Chưa có gợi ý. Bạn có thể tự chọn mức cần thiết.">
+            <button type="button" class="bv-text-button" data-budget-ai-suggest>Nhận gợi ý</button>
+            <button type="button" class="bv-text-button" data-budget-ai-apply hidden>Áp dụng</button>
+            <p data-budget-ai-result class="bv-ai-result" role="status"></p>
+          </div>
+        </details>
+      </div>
+      {% endfor %}
+    </div>
+    <button type="button" id="bv-add-custom" class="ws-button bv-add-button">+ Thêm khoản chi khác</button>
+  </section>
+  {% if expenses %}
+  <details class="bv-saved-details"><summary>{{ expenses|length }} khoản chi đã lưu <span class="bv-muted">(xem / sửa)</span></summary>
+    <div class="bv-expense-list">
+    {% for item in expenses %}
+      <div class="bv-expense-line"><div class="bv-expense-label"><strong>{{ {'Rent':'Tiền thuê trọ','Electricity':'Tiền điện','Water':'Tiền nước','Internet':'Internet','Food':'Ăn uống','Transportation':'Đi lại'}.get(item.expense_name, item.expense_name) }}</strong><small>{{ {'P0':'Bắt buộc','P1':'Thiết yếu','P2':'Linh hoạt'}[item.priority] }}</small></div>
+        <div class="bv-expense-right"><span>{{ money(item.estimated_amount) ~ ' ₫' if item.estimated_amount is not none else 'Chưa nhập ước tính' }}</span><a href="{{ url_for('budgets.edit_expense', month_id=month.id, expense_id=item.id) }}">Sửa</a></div>
+      </div>
+    {% endfor %}
+    </div>
+  </details>
+  {% endif %}
+  <details class="bv-ai-option"><summary>Tùy chọn: dùng AI hỗ trợ phân bổ</summary><label class="bv-check"><input type="checkbox" name="budget_ai_weights" value="1" {% if submitted_values.get('budget_ai_weights') == '1' %}checked{% endif %}> Gợi ý mức phân bổ bằng Gemini (nếu có cấu hình)</label><p class="bv-muted">Không gửi số tiền hoặc giao dịch. Nếu không có AI, hệ thống vẫn tạo kế hoạch theo quy tắc sẵn có.</p></details>
+  <details class="bv-example-details"><summary>Cần ví dụ số tiền?</summary><p class="bv-muted">Chỉ để minh họa, không phải mức chi tiêu khuyến nghị. Bạn vẫn cần kiểm tra và bấm tạo kế hoạch.</p><button type="button" class="bv-text-button" id="bv-sample-button">Điền số tiền ví dụ</button></details>
+  <button class="ws-button ws-button-primary bv-main-action" type="submit">Tạo 3 kế hoạch</button>
+</form>
+<template id="bv-custom-template">
+  <div class="bv-custom-row" data-custom-id="__INDEX__">
+    <input type="hidden" name="custom_id" value="__INDEX__">
+    <div class="bv-custom-head"><strong>Khoản chi bổ sung</strong><button type="button" class="bv-text-button" data-remove-custom>Xóa khoản</button></div>
+    <div class="bv-fields">
+      <label class="bv-field"><span>Tên khoản chi</span><input type="text" name="custom___INDEX___expense_name" required maxlength="100" placeholder="Ví dụ: Học tập"></label>
+      <label class="bv-field"><span>Mức độ cần thiết</span><select name="custom___INDEX___priority"><option value="P1">Thiết yếu</option><option value="P2" selected>Linh hoạt</option><option value="P0">Bắt buộc</option></select></label>
+      <label class="bv-field"><span>Ước tính tháng (₫)</span><input type="text" inputmode="numeric" pattern="[0-9]*" name="custom___INDEX___estimated_amount" placeholder="Nếu biết"></label>
+      <label class="bv-field" data-custom-minimum><span>Mức tối thiểu (nếu thiết yếu)</span><input type="text" inputmode="numeric" pattern="[0-9]*" name="custom___INDEX___minimum_amount" placeholder="Tùy chọn"></label>
+      <label class="bv-field"><span>Chu kỳ phân bổ</span><select name="custom___INDEX___allocation_frequency"><option value="MONTHLY">Hằng tháng</option><option value="WEEKLY">Hằng tuần</option><option value="DAILY">Hằng ngày</option></select></label>
+      <label class="bv-field" data-custom-due><span>Ngày đến hạn (nếu có)</span><input type="number" min="1" max="31" name="custom___INDEX___due_day" placeholder="1–31"></label>
+    </div>
+    <label class="bv-check"><input type="checkbox" name="custom___INDEX___is_recurring"> Khoản chi định kỳ</label>
+        <details class="bv-ai-option"><summary>Gợi ý mức cần thiết (tùy chọn)</summary>
+          <div data-budget-ai-widget data-url="{{ url_for('budgets.priority_suggestion', month_id=month.id) }}" data-invalid="Hãy nhập tên khoản chi trước." data-wait="Đang xem xét…" data-unavailable="Chưa có gợi ý. Bạn có thể tự chọn mức cần thiết.">
+            <button type="button" class="bv-text-button" data-budget-ai-suggest>Nhận gợi ý</button>
+            <button type="button" class="bv-text-button" data-budget-ai-apply hidden>Áp dụng</button>
+            <p data-budget-ai-result class="bv-ai-result" role="status"></p>
+          </div>
+        </details>
+  </div>
+</template>
+{% endif %}

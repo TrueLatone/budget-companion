@@ -1,0 +1,145 @@
+/* Expense Planning navigation: compact month calendar and day drill-down. */
+.bc-mode-tabs .nav-link {
+  border-radius: 999px 999px 0 0;
+  font-weight: 500;
+}
+.bc-mode-tabs .nav-link.active {
+  font-weight: 600;
+}
+.bc-calendar {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 0.35rem;
+}
+.bc-calendar-weekday {
+  align-self: end;
+  color: var(--bs-secondary-color);
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  padding: 0.15rem 0;
+  text-align: center;
+  text-transform: uppercase;
+}
+.bc-calendar-day {
+  align-items: center;
+  border: 1px solid var(--bs-border-color-translucent);
+  border-radius: 0.9rem;
+  color: inherit;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-height: 3.1rem;
+  padding: 0.2rem;
+  position: relative;
+  text-decoration: none;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+a.bc-calendar-day:hover,
+a.bc-calendar-day:focus-visible {
+  background: var(--bs-primary-bg-subtle);
+  border-color: var(--bs-primary-border-subtle);
+}
+.bc-calendar-day.is-selected {
+  background: var(--bs-primary);
+  border-color: var(--bs-primary);
+  color: #fff;
+}
+.bc-calendar-day.is-empty {
+  border-color: transparent;
+  visibility: hidden;
+}
+.bc-day-number {
+  font-size: 0.9rem;
+  font-weight: 600;
+  line-height: 1.1;
+}
+.bc-calendar-label {
+  display: block;
+  font-size: 0.62rem;
+  line-height: 1.3;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  text-align: center;
+}
+.bc-day-dots {
+  display: flex;
+  gap: 2px;
+  height: 6px;
+  margin-top: 3px;
+}
+.bc-dot {
+  border-radius: 50%;
+  display: inline-block;
+  height: 6px;
+  width: 6px;
+}
+.bc-dot-plan { background: var(--bs-primary); }
+.bc-dot-pending { background: var(--bs-warning); }
+.bc-dot-overdue { background: var(--bs-danger); }
+.bc-dot-done { background: var(--bs-success); }
+.bc-calendar-day.is-selected .bc-dot-plan { background: #fff; }
+
+.bc-due-form { max-width: 19rem; }
+.bc-due-form input { min-width: 0; }
+.bc-day-table td:first-child { min-width: 14rem; }
+.bc-day-table td:nth-child(2) { min-width: 9rem; }
+.bc-task-card .card-body { border-radius: var(--bs-border-radius); }
+.bc-month-muted { opacity: 0.72; }
+
+@media (max-width: 575.98px) {
+  .bc-calendar { gap: 0.22rem; }
+  .bc-calendar-day { border-radius: 0.65rem; min-height: 2.65rem; }
+  .bc-day-number { font-size: 0.8rem; }
+  .bc-calendar-weekday { font-size: 0.62rem; }
+
+}
+
+/* UI gọn cho lịch: chỉ một điểm nhấn tím, đỏ dành cho quá hạn/vượt mức. */
+.bc-workspace .bc-schedule-handoff {display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap;padding:.75rem 1rem;border:1px solid #e5e7ef;border-radius:12px;background:#fff;color:#5b647b;font-size:.87rem}
+.bc-schedule-handoff-text,.bc-schedule-handoff-actions {display:flex;align-items:center;gap:.8rem;flex-wrap:wrap}
+.bc-schedule-handoff-actions a {text-decoration:none;font-weight:600;color:#5552bf}
+.bc-schedule-handoff form {margin:0}
+.bc-handoff-warning {color:#a54832}
+.bc-calendar-simple {gap:.4rem}
+.bc-calendar-simple .bc-calendar-day {min-height:3.45rem;gap:7px;border:1px solid #ececf3;border-radius:12px;background:#fff;padding:7px 2px}
+.bc-calendar-simple .bc-calendar-day:not(.is-selected):hover {background:#f6f6ff;border-color:#c8c7f7}
+.bc-calendar-simple .bc-calendar-day.is-selected {background:#5b55d9;border-color:#5b55d9;color:#fff}
+.bc-calendar-simple .bc-calendar-day.is-before-tracking {background:#fafbfe;color:#a1a7b7;border-color:#f2f3f8;cursor:default}
+.bc-calendar-simple .bc-day-mark,.bc-calendar-key .bc-day-mark {display:inline-block;flex:none;width:5px;height:5px;border-radius:50%;background:#8687b6}
+.bc-calendar-simple .bc-day-mark.is-complete,.bc-calendar-key .bc-day-mark.is-complete {background:#588d78}
+.bc-calendar-simple .bc-day-mark.is-overdue,.bc-calendar-key .bc-day-mark.is-overdue {background:#c0665e}
+.bc-calendar-simple .is-selected .bc-day-mark {background:#fff}
+.bc-calendar-key {display:flex;gap:13px;flex-wrap:wrap;margin-top:12px;font-size:.76rem;color:#687286}
+.bc-calendar-key span {display:inline-flex;align-items:center;gap:5px}
+.bc-summary-strip {display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.bc-summary-stat {border:1px solid #ececf3;border-radius:13px;background:#fff;padding:18px 20px;display:flex;flex-direction:column;gap:6px}
+.bc-summary-stat>span {font-size:.81rem;color:#66718a}
+.bc-summary-stat>strong {font-size:clamp(1.12rem,1.8vw,1.6rem);line-height:1.25;letter-spacing:-.025em;color:#1d2845}
+.bc-value-danger {color:#ba4a4a!important}
+.bc-quiet-notice {display:flex;align-items:center;gap:9px;color:#66718a;font-size:.83rem}
+.bc-quiet-marker {width:6px;height:6px;border-radius:50%;background:#8c8ba9;flex:none}
+.bc-day-list-body {padding:0!important}
+.bc-expense-list {display:flex;flex-direction:column}
+.bc-expense-item {display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr) auto;align-items:start;gap:10px 14px;padding:17px 20px;border-bottom:1px solid #edf0f5}
+.bc-expense-item:last-child {border-bottom:0}
+.bc-expense-item-title {display:flex;align-items:center;gap:9px;flex-wrap:wrap;color:#1f2840}
+.bc-expense-item-title strong {font-size:.96rem}
+.bc-task-hint {font-size:.77rem;color:#778195;margin-top:6px;line-height:1.35}
+.bc-status {background:#f1f3f7;color:#59657c;padding:3px 7px;border-radius:999px;font-size:.68rem;font-weight:600;white-space:nowrap}
+.bc-status.is-alert {background:#fff2f0;color:#a64741}
+.bc-expense-item-amounts {display:flex;flex-direction:column;gap:5px;font-size:.8rem;color:#647088}
+.bc-expense-item-amounts strong {color:#23304c;font-size:.86rem}
+.bc-expense-item-actions {display:flex;gap:6px;justify-content:flex-end;align-self:center;flex-wrap:wrap}
+.bc-expense-item-actions .btn-primary {background:#5b55d9;border-color:#5b55d9}
+.bc-expense-item-meals {grid-column:1/-1}
+.bc-meals {padding:11px 13px;border:1px solid #e9eaf2;background:#fafbff;border-radius:10px;display:flex;flex-direction:column;gap:8px}
+.bc-meals-title {font-size:.81rem;font-weight:600;color:#485579}
+.bc-meals-grid {display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px}
+.bc-meal {display:flex;flex-direction:column;gap:4px;padding:8px 10px;background:#fff;border:1px solid #eff0f6;border-radius:8px}
+.bc-meal span {font-size:.77rem;color:#78839a}
+.bc-meal strong {font-size:.86rem;color:#27334e}
+.bc-meals-note {font-size:.7rem;color:#8991a3}
+.bc-day-limit {font-size:.8rem;color:#68738b}
+@media(max-width:1100px){.bc-expense-item {grid-template-columns:minmax(0,1fr) minmax(0,1fr)}.bc-expense-item-actions {grid-column:1/-1;justify-content:flex-start}}
+@media(max-width:680px){.bc-summary-strip {gap:7px}.bc-summary-stat {padding:12px 10px}.bc-summary-stat>span {font-size:.7rem}.bc-summary-stat>strong {font-size:1rem}.bc-expense-item {grid-template-columns:minmax(0,1fr);padding:15px}.bc-expense-item-actions,.bc-expense-item-meals {grid-column:1}.bc-expense-item-amounts {flex-direction:row;gap:13px;flex-wrap:wrap}.bc-calendar-simple .bc-calendar-day {min-height:2.7rem;border-radius:8px;gap:4px}.bc-calendar-simple {gap:3px}.bc-meals-grid{gap:5px}.bc-meal {padding:7px 5px}.bc-meal strong{font-size:.75rem}}

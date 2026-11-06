@@ -1,0 +1,49 @@
+{% extends 'base.html' %}
+{% block title %}{{ heading }} · Budget Companion{% endblock %}
+{% block body_class %}bc-app{% endblock %}
+{% block main_class %}bc-app-main{% endblock %}
+{% block content %}
+<section class="bc-narrow-page" aria-labelledby="budget-form-title">
+  <a class="bc-back-link" href="{{ url_for('budget_periods.index') }}">← Quay lại danh sách tháng</a>
+  <div class="bc-panel bc-form-card">
+    <p class="bc-kicker">NGÂN SÁCH THÁNG</p>
+    <h1 class="bc-card-title is-large" id="budget-form-title">{{ 'Tạo ngân sách tháng' if form.month is defined else 'Sửa nguồn tiền' }}</h1>
+    <p class="bc-card-description">{{ 'Chọn tháng, ngày bắt đầu theo dõi và số tiền có thể sử dụng.' if form.month is defined else 'Điều chỉnh nguồn tiền hiện có của tháng.' }}</p>
+    <form method="post" class="bc-form" novalidate>
+      {{ form.hidden_tag() }}
+      {% if form.month is defined %}
+      <div class="bc-form-group">
+        <label class="bc-form-label" for="budget-month-picker">Tháng lập ngân sách</label>
+        <select class="bc-form-control{{ ' is-invalid' if form.month.errors else '' }}" name="month" id="budget-month-picker" required>
+          {% for value,label in month_options %}
+          <option value="{{ value }}"{{ ' selected' if form.month.data == value else '' }}>{{ label }}</option>
+          {% endfor %}
+        </select>
+        {% for error in form.month.errors %}<div class="bc-form-error" role="alert">{{ error }}</div>{% endfor %}
+      </div>
+      <div class="bc-form-group">
+        <label class="bc-form-label" for="tracking-start-day">Ngày bắt đầu theo dõi</label>
+        {{ form.tracking_start_day(class='bc-form-control' + (' is-invalid' if form.tracking_start_day.errors else ''), id='tracking-start-day', type='number', min='1', max='31', step='1', inputmode='numeric', placeholder='Nhập ngày (1–31)', required=true) }}
+        <div class="bc-form-help" id="start-day-guidance">Chỉ nhập số ngày. Không thể chọn ngày trước hôm nay trong tháng hiện tại.</div>
+        {% for error in form.tracking_start_day.errors %}<div class="bc-form-error" role="alert">{{ error }}</div>{% endfor %}
+      </div>
+      {% endif %}
+      <div class="bc-form-group">
+        <label class="bc-form-label" for="available-vnd">Số tiền có thể sử dụng (VNĐ)</label>
+        <div class="bc-money-input">
+          {{ form.available_vnd(class='bc-form-control' + (' is-invalid' if form.available_vnd.errors else ''), id='available-vnd', min='0', step='1', inputmode='numeric') }}<span>VNĐ</span>
+        </div>
+        {% for error in form.available_vnd.errors %}<div class="bc-form-error" role="alert">{{ error }}</div>{% endfor %}
+      </div>
+      <div class="bc-action-row">
+        <button class="bc-button bc-button-primary" type="submit">{{ 'Tạo ngân sách tháng' if form.month is defined else 'Lưu thay đổi' }}</button>
+        <a class="bc-button bc-button-light" href="{{ url_for('budget_periods.index') }}">Hủy</a>
+      </div>
+    </form>
+  </div>
+</section>
+{% endblock %}
+{% block scripts %}
+{{ super() }}
+{% if form.month is defined %}<script src="{{ url_for('static', filename='js/budget-month-day.js') }}" defer data-today="{{ today_vn.isoformat() }}"></script>{% endif %}
+{% endblock %}
