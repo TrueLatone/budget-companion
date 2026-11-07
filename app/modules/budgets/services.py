@@ -1,6 +1,8 @@
-"""Authorized persistence for budget setup, generated plans and confirmation."""
+"""Authorized persistence for budget setup, generated/manual plans and confirmation."""
 
 from contextlib import contextmanager
+import hashlib
+import json
 from uuid import UUID
 
 from sqlalchemy.exc import IntegrityError
@@ -43,10 +45,18 @@ def get_month(user_id, month_id, *, lock=False):
 
 @contextmanager
 def _write_month(user_id, month_id):
-    # Serialize setup edits and confirmation on PostgreSQL. The existing partial
-    # unique index is the final guard against concurrent confirmations on SQLite.
+    # PostgreSQL uses the month row lock. SQLite ignores FOR UPDATE, so acquire
+    # its write lock before reading the draft state (without changing the row).
     try:
-        yield get_month(user_id, month_id, lock=True)
+        if db.session.get_bind().dialect.name == "sqlite":
+            db.session.execute(db.update(BudgetMonth).where(
+                BudgetMonth.id == _uuid(month_id), BudgetMonth.user_id == _uuid(user_id),
+            ).values(available_vnd=BudgetMonth.available_vnd, updated_at=BudgetMonth.updated_at))
+        month = get_month(user_id, month_id, lock=True)
+        # Routes may have loaded plans before waiting for the lock. Refresh
+        # those objects and their relationships before checking form snapshots.
+        db.session.expire_all()
+        yield month
         db.session.commit()
     except IntegrityError as exc:
         db.session.rollback()
@@ -310,7 +320,130 @@ def generate_budget_plans(user_id, month_id):
     return plans
 
 
-def confirm_plan(user_id, month_id, plan_id):
+def plan_draft_fingerprint(plan):
+    """Stable, non-secret version token for an editable saved plan.
+
+    KAN-19 does not need a version column. This hashes one saved plan's
+    allocation content; ``customization_fingerprint`` combines the selected
+    source, current MANUAL draft, and monthly funds for a safe form token.
+    """
+    content = {
+        "id": str(plan.id),
+        "status": plan.status,
+        "type": plan.plan_type,
+        "savings": plan.planned_savings,
+        "allocations": sorted(
+            [(str(a.budget_expense_id), a.allocated_amount) for a in plan.allocations],
+            key=lambda part: part[0],
+        ),
+    }
+    payload = json.dumps(content, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+def customization_fingerprint(user_id, month_id, source_plan_id):
+    """Optimistic lock token for the *whole* editable manual-plan workflow.
+
+    A generated source plan stays unchanged when a MANUAL draft is saved.
+    Consequently fingerprinting the source alone cannot detect two browser tabs
+    overwriting the same MANUAL draft. Include the latest MANUAL candidate,
+    current available funds and source before accepting a save.
+
+    The caller must check this value again inside ``_write_month``. Tokens are
+    not authentication credentials: month ownership/CSRF are verified separately.
+    """
+    month = get_month(user_id, month_id)
+    source = get_plan(user_id, month.id, source_plan_id)
+    manual_plans = list(db.session.scalars(db.select(BudgetPlan).where(
+        BudgetPlan.budget_month_id == month.id,
+        BudgetPlan.plan_type == "MANUAL", BudgetPlan.status == "GENERATED",
+    )))
+    if len(manual_plans) > 1:
+        raise BudgetConflict("Multiple manual drafts exist. Resolve the duplicate before saving.")
+    payload = {
+        "month": str(month.id),
+        "funds": month.available_vnd,
+        "source": plan_draft_fingerprint(source),
+        "manual": plan_draft_fingerprint(manual_plans[0]) if manual_plans else None,
+    }
+    return hashlib.sha256(json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")).hexdigest()
+
+
+def save_manual_plan(user_id, month_id, source_plan_id, editable_amounts, *, expected_fingerprint):
+    """Save a separate MANUAL candidate; keep all three generated strategies.
+
+    The caller supplies exactly one P1/P2 amount per included expense; P0 is
+    taken solely from the saved source plan. Existing KAN-19 allocations and
+    confirmation rules remain authoritative. No scheduled/confirmed data edits.
+    """
+    if not isinstance(editable_amounts, dict):
+        raise BudgetError("Invalid allocation changes.")
+    with _write_month(user_id, month_id) as month:
+        _assert_editable(month)
+        source = get_plan(user_id, month.id, source_plan_id)
+        if source.status != "GENERATED" or source.plan_type not in {"SAVING", "BALANCED", "LIFESTYLE", "MANUAL"}:
+            raise BudgetConflict("Only a generated budget option can be customized.")
+        # Require the token on *every* write; an omitted hidden field must not
+        # bypass concurrency protection. Recheck under the owned-month lock.
+        if (not isinstance(expected_fingerprint, str) or
+                len(expected_fingerprint) != 64 or
+                customization_fingerprint(user_id, month.id, source.id) != expected_fingerprint):
+            raise BudgetConflict("The plan was changed in another tab. Reload before customizing.")
+        inputs = _inputs(user_id, month.id)
+        original = list(source.allocations)
+        validate_allocations(month.available_vnd, inputs,
+                             [(a.budget_expense_id, a.allocated_amount) for a in original],
+                             source.planned_savings)
+        if any(a.tasks for a in original):
+            raise BudgetConflict("A scheduled plan cannot be customized.")
+        editable = {str(a.budget_expense_id) for a in original
+                    if a.budget_expense.priority in ("P1", "P2")}
+        if set(editable_amounts) != editable:
+            raise BudgetError("Submit exactly one amount for each P1 and P2 expense.")
+        values = {str(key): money(value, "Allocation", positive=True)
+                  for key, value in editable_amounts.items()}
+        allocations = [(a.budget_expense_id,
+                        a.allocated_amount if a.budget_expense.priority == "P0"
+                        else values[str(a.budget_expense_id)]) for a in original]
+        saved_savings = month.available_vnd - sum(amount for _, amount in allocations)
+        if saved_savings < 0:
+            raise BudgetError("Allocations exceed available funds.")
+        validate_allocations(month.available_vnd, inputs, allocations, saved_savings)
+
+        manual_candidates = list(db.session.scalars(db.select(BudgetPlan).where(
+            BudgetPlan.budget_month_id == month.id, BudgetPlan.plan_type == "MANUAL",
+            BudgetPlan.status == "GENERATED",
+        )))
+        if len(manual_candidates) > 1:
+            raise BudgetConflict("Multiple manual drafts exist. Resolve the duplicate before saving.")
+        manual = manual_candidates[0] if manual_candidates else None
+        if manual is None:
+            manual = BudgetPlan(budget_month_id=month.id, plan_type="MANUAL",
+                                status="GENERATED", planned_savings=saved_savings)
+            db.session.add(manual)
+            db.session.flush()
+        else:
+            if any(a.tasks for a in manual.allocations):
+                raise BudgetConflict("A scheduled customized plan cannot be overwritten.")
+            manual.planned_savings = saved_savings
+        by_expense = {item.budget_expense_id: item for item in manual.allocations}
+        if len(by_expense) != len(manual.allocations):
+            raise BudgetError("Stored customized allocations are inconsistent.")
+        expected = {exp_id for exp_id, _ in allocations}
+        if set(by_expense) - expected:
+            raise BudgetConflict("Customized plan contains outdated expenses. Regenerate plans.")
+        for expense_id, amount in allocations:
+            if expense_id in by_expense:
+                by_expense[expense_id].allocated_amount = amount
+            else:
+                db.session.add(BudgetAllocation(
+                    plan_id=manual.id, budget_expense_id=expense_id, allocated_amount=amount,
+                ))
+        db.session.flush()
+    return manual
+
+
+def confirm_plan(user_id, month_id, plan_id, *, expected_fingerprint=None):
     with _write_month(user_id, month_id) as month:
         plan = get_plan(user_id, month.id, plan_id)
         if plan.status == "CONFIRMED":
@@ -318,6 +451,12 @@ def confirm_plan(user_id, month_id, plan_id):
         _assert_editable(month)
         if plan.status != "GENERATED":
             raise BudgetConflict("Only a generated plan can be confirmed.")
+        # A MANUAL draft can be edited in a second tab while its confirmation
+        # page stays open. The route requires a token only for MANUAL plans;
+        # generated-strategy confirmation retains its existing API contract.
+        if (plan.plan_type == "MANUAL" and expected_fingerprint is not None and
+                plan_draft_fingerprint(plan) != expected_fingerprint):
+            raise BudgetConflict("The manual plan changed in another tab. Review the latest amounts before confirming.")
         validate_allocations(
             month.available_vnd, _inputs(user_id, month.id),
             [(a.budget_expense_id, a.allocated_amount) for a in plan.allocations],

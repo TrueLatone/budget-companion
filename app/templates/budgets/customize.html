@@ -1,0 +1,33 @@
+{% extends 'workspace_base.html' %}
+{% block title %}Customize budget plan{% endblock %}
+{% block workspace_content %}
+<h1>Customize {{ plan.plan_type }} allocations</h1>
+<p>Available funds: {{ money(month.available_vnd) }} VND. P0 allocations stay fixed.
+  Enter a positive integer VND amount for each P1 / P2 expense. P1 minimums apply.</p>
+<p>Savings are recalculated when you save, so allocations plus savings equal available funds.
+  Saving keeps the three generated strategies and creates or updates one independent MANUAL draft.</p>
+{% if validation_error %}<p class="alert alert-danger" role="alert">{{ validation_error }}</p>{% endif %}
+<form method="post">
+  {{ action_form.hidden_tag() }}
+  <input type="hidden" name="plan_snapshot" value="{{ plan_snapshot }}">
+  {% for allocation in plan.allocations|sort(attribute='budget_expense.expense_name') %}
+    {% set expense = allocation.budget_expense %}
+    <div class="mb-3">
+    {% if expense.priority == 'P0' %}
+      <p>{{ expense.expense_name }} (P0, fixed): <strong>{{ money(allocation.allocated_amount) }} VND</strong></p>
+    {% else %}
+      {% set name = 'allocation_' ~ expense.id %}
+      <label class="form-label" for="{{ name }}">{{ expense.expense_name }} ({{ expense.priority }}) allocation (VND)</label>
+      <input class="form-control" type="text" inputmode="numeric" pattern="[0-9]+" required
+             name="{{ name }}" id="{{ name }}" value="{{ submitted_values.get(name, allocation.allocated_amount) }}"
+             aria-describedby="minimum_{{ expense.id }}">
+      <small id="minimum_{{ expense.id }}">Minimum: {{ money(expense.minimum_amount or 1) }} VND.</small>
+    {% endif %}
+    </div>
+  {% endfor %}
+  <p>Current saved savings: {{ money(plan.planned_savings) }} VND.</p>
+  <button class="btn btn-primary" type="submit">Save MANUAL draft</button>
+</form>
+<p><a href="{{ url_for('budgets.customize', month_id=month.id, plan_id=plan.id) }}">Reload current allocations</a></p>
+<a href="{{ url_for('budgets.plan', month_id=month.id, plan_id=plan.id) }}">Back to saved plan</a>
+{% endblock %}

@@ -55,6 +55,7 @@
   <dl>{% for label, amount in totals.items() %}<dt>{{ label }}</dt><dd>{{ money(amount) }} VND</dd>{% endfor %}
     <dt>Plan total</dt><dd>{{ money(totals.values()|sum) }} VND</dd></dl>
   <a class="btn btn-outline-primary" href="{{ url_for('budgets.plan', month_id=month.id, plan_id=plan.id) }}">Review {{ plan.plan_type }}{% if not locked %} / Confirm{% endif %}</a>
+  {% if not locked %}<a class="btn btn-link" href="{{ url_for('budgets.customize', month_id=month.id, plan_id=plan.id) }}">Customize {{ plan.plan_type }}</a>{% endif %}
 </div></div></article>{% else %}<p>{{ t('ui_no_saved') }}</p>{% endfor %}</div>
 </section>
 {% endif %}{% endblock %}
