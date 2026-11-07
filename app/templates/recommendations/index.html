@@ -18,15 +18,61 @@
   <input id="analysis-cutoff" type="date" name="as_of" min="{{ month.month_start }}" max="{{ today }}" value="{{ result.as_of }}" {% if not result.completeness.checks.tracking_started %}disabled{% endif %}>
   <button class="btn btn-primary" type="submit" {% if not result.completeness.checks.tracking_started %}disabled{% endif %}>Cập nhật gợi ý</button>
 </form>
-{% if result.review.data_complete %}
+
+<section aria-label="Data completeness" class="mb-3">
+  <h2 class="h5">Kiểm tra độ đầy đủ dữ liệu</h2>
+  <p>Trạng thái: <strong>{{ 'Đủ điều kiện phân tích cá nhân hóa' if result.completeness.status == 'SUFFICIENT' else 'Chưa đủ để đưa ra kết luận cá nhân hóa' }}</strong>.</p>
+  <p>Giao dịch hợp lệ: {{ result.completeness.complete_transaction_count }} · Danh mục có chi: {{ result.completeness.category_count }} · Độ phủ: {{ result.completeness.coverage_days }} ngày · Tỷ lệ đầy đủ: {{ (result.completeness.completeness_rate * 100)|round|int }}%.</p>
+  {% if result.completeness.insufficient_reasons %}<ul>{% for reason in result.completeness.insufficient_reasons %}<li>{{ reason }}</li>{% endfor %}</ul>{% endif %}
+  {% if result.completeness.issues %}<details><summary>Thông tin cần kiểm tra ({{ result.completeness.issues|length }})</summary><ul>{% for issue in result.completeness.issues %}<li>{{ issue.message }}</li>{% endfor %}</ul></details>{% endif %}
+</section>
 <section aria-label="Tổng kết tháng">
   <h2>Tổng kết tháng</h2>
+  {% if result.review.data_complete %}
   <p>Tổng chi đã ghi nhận đến {{ result.as_of }}: <strong>{{ money(result.review.recorded_expense_total) }} đồng</strong>.</p>
   <p>Ngân sách đã xác nhận: {{ money(result.review.confirmed_allocation_total) }} đồng · Còn lại theo kế hoạch: {{ money(result.review.remaining_vs_plan) }} đồng.</p>
+  {% if result.review.category_review %}
+  <h3 class="h5 mt-3">Theo danh mục</h3>
+  <div class="table-responsive"><table class="table table-sm">
+    <thead><tr><th>Danh mục</th><th>Kế hoạch</th><th>Đã chi</th><th>Còn lại</th></tr></thead>
+    <tbody>{% for row in result.review.category_review %}<tr>
+      <th scope="row">{{ row.category_name }}</th><td>{{ money(row.planned_amount) }}</td>
+      <td>{{ money(row.actual_amount) }}</td><td>{{ money(row.variance) }}</td>
+    </tr>{% endfor %}</tbody>
+  </table></div>
+  {% endif %}
+  {% else %}
+  <p class="text-warning" role="status">{{ result.review.summary_note }} Các khoản dưới đây chỉ tính từ giao dịch hợp lệ đã ghi nhận đến {{ result.as_of }}.</p>
+  {% if result.review.recorded_expense_count %}
+  <p>Đã ghi nhận hợp lệ: <strong>{{ money(result.review.recorded_expense_total) }} đồng</strong> trong {{ result.review.recorded_expense_count }} khoản chi. Đây chưa phải tổng chi cuối tháng.</p>
+  {% if result.review.category_review %}
+  <h3 class="h5 mt-3">Khoản chi hợp lệ đã ghi nhận theo danh mục</h3>
+  <div class="table-responsive"><table class="table table-sm">
+    <thead><tr><th>Danh mục</th><th>Số khoản</th><th>Đã ghi nhận</th></tr></thead>
+    <tbody>{% for row in result.review.category_review if row.transaction_count > 0 %}<tr>
+      <th scope="row">{{ row.category_name }}</th><td>{{ row.transaction_count }}</td>
+      <td>{{ money(row.actual_amount) }} đồng</td>
+    </tr>{% endfor %}</tbody>
+  </table></div>
+  {% endif %}
+  {% else %}
+  <p>Chưa có khoản chi hợp lệ nào được ghi nhận đến {{ result.as_of }}. Điều này không xác nhận rằng tháng không phát sinh chi tiêu.</p>
+  {% endif %}
+  {% endif %}
+  <form method="post" action="{{ url_for('recommendations.monthly_feedback') }}" class="mt-3">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="month" value="{{ result.month }}">
+    <label for="monthly-rating">Mức độ hài lòng với kế hoạch tháng này (1–5)</label>
+    <select id="monthly-rating" name="rating">
+      <option value="">Chưa đánh giá</option>
+      {% for score in range(1, 6) %}<option value="{{ score }}" {% if result.review.rating == score %}selected{% endif %}>{{ score }}</option>{% endfor %}
+    </select>
+    <label for="monthly-comment" class="d-block mt-2">Nhận xét về kế hoạch</label>
+    <textarea id="monthly-comment" name="comment" maxlength="2000" rows="3" class="form-control">{{ result.review.comment or '' }}</textarea>
+    <button class="btn btn-outline-primary mt-2" type="submit">Lưu đánh giá</button>
+  </form>
 </section>
-{% else %}
-<p class="text-muted">Tổng kết tháng sẽ hiển thị khi các kỳ chi tiêu trong tháng đã kết thúc và được xác nhận.</p>
-{% endif %}
+
 <section aria-label="Gợi ý chi tiêu" class="mb-4">
   <h2>Gợi ý dành cho bạn</h2>
   {% set suggestions = result.suggestions|default([], true) %}
