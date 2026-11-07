@@ -1,4 +1,5 @@
 {% extends 'workspace_base.html' %}
+{% from 'expenses/_edit_record_modal.html' import edit_record_modal with context %}
 {% block title %}Expense Planning & Smart Check-in — Budget Companion{% endblock %}
 
 {% macro render_meal_guidance(task) %}
@@ -67,9 +68,9 @@
 <div class="modal fade" id="checkin{{ task.task_id }}" tabindex="-1" aria-labelledby="checkinLabel{{ task.task_id }}" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered">
     <div class="modal-content">
-      <form method="post" action="{{ url_for('expenses.checkin', task_id=task.task_id) }}" data-checkin-form>
+      <form method="post" action="{{ url_for('expenses.checkin', task_id=task.task_id) }}" data-checkin-form data-no-double-submit>
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <input type="hidden" name="idempotency_key" value="{{ checkin_tokens[task.task_id] }}">
+        <input type="hidden" name="submission_token" value="{{ checkin_tokens[task.task_id] }}">
         <div class="modal-header">
           <div>
             <h2 class="modal-title h5" id="checkinLabel{{ task.task_id }}">Check-in task</h2>
@@ -146,6 +147,7 @@
 
 {% block extra_styles %}{{ super() }}<link rel="stylesheet" href="{{ url_for('static', filename='css/expenses.css') }}">{% endblock %}
 {% block workspace_content %}
+<div data-expense-root>
 {% include 'expenses/_flashes.html' %}
 {% include 'expenses/_setup.html' %}
 <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-3">
@@ -540,12 +542,12 @@
     <div class="row g-4">
       <div class="col-12 col-lg-4">
         <h3 class="h6">Thêm khoản chi bất ngờ</h3>
-        <form method="post" action="{{ url_for('expenses.create_record') }}" class="vstack gap-2">
+        <form method="post" action="{{ url_for('expenses.create_record') }}" class="vstack gap-2" data-no-double-submit>
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <input type="hidden" name="view" value="{{ period.view }}">
           <input type="hidden" name="date" value="{{ period.anchor.isoformat() }}">
           <input type="hidden" name="tag" value="{{ tag }}">
-          <input type="hidden" name="idempotency_key" value="{{ unexpected_token }}">
+          <input type="hidden" name="submission_token" value="{{ unexpected_token }}">
           <input type="hidden" name="budget_month_id" value="{{ selected_month.id if selected_month else '' }}">
           {% if not selected_month %}<p class="text-warning">Create/select an owned budget month before recording unexpected spending.</p>{% endif %}
           <div>
@@ -641,54 +643,13 @@
 
 
 {% for record in modal_records %}
-<div class="modal fade" id="editRecord{{ record.record_id }}" tabindex="-1" aria-labelledby="editRecordLabel{{ record.record_id }}" aria-hidden="true">
-  <div class="modal-dialog">
-    <div class="modal-content">
-      <form method="post" action="{{ url_for('expenses.edit_record', record_id=record.record_id) }}">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <div class="modal-header">
-          <h2 class="modal-title h5" id="editRecordLabel{{ record.record_id }}">Sửa giao dịch</h2>
-          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Đóng"></button>
-        </div>
-        <div class="modal-body">
-          <input type="hidden" name="view" value="{{ period.view }}">
-          <input type="hidden" name="date" value="{{ period.anchor.isoformat() }}">
-          <input type="hidden" name="tag" value="{{ tag }}">
-          {% if record.record_type == 'UNEXPECTED' %}
-          <div class="mb-2">
-            <label for="record-title-{{ record.record_id }}" class="form-label">Tên khoản chi</label>
-            <input type="text" id="record-title-{{ record.record_id }}" name="title" class="form-control" maxlength="120" value="{{ record.title or '' }}" required>
-          </div>
-          {% endif %}
-          <div class="mb-2">
-            <label for="record-amount-{{ record.record_id }}" class="form-label">Số tiền (VND)</label>
-            <input type="number" id="record-amount-{{ record.record_id }}" name="amount" class="form-control" min="1" step="1" value="{{ record.amount }}" required>
-          </div>
-          <div class="mb-2">
-            <label for="record-date-{{ record.record_id }}" class="form-label">Ngày phát sinh</label>
-            <input type="date" id="record-date-{{ record.record_id }}" name="expense_date" class="form-control" value="{{ record.expense_date.isoformat() }}" required>
-          </div>
-          <div class="mb-2">
-            <label for="record-category-{{ record.record_id }}" class="form-label">Danh mục</label>
-            <input type="text" id="record-category-{{ record.record_id }}" name="category" class="form-control" maxlength="100" value="{{ record.category.category_name if record.category else (record.category or '') }}">
-          </div>
-          <div class="mb-2">
-            <label for="record-note-{{ record.record_id }}" class="form-label">Ghi chú</label>
-            <input type="text" id="record-note-{{ record.record_id }}" name="note" class="form-control" value="{{ record.note or '' }}">
-          </div>
-        </div>
-        <div class="modal-footer">
-          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Hủy</button>
-          <button type="submit" class="btn btn-primary">Lưu thay đổi</button>
-        </div>
-      </form>
-    </div>
-  </div>
-</div>
+{{ edit_record_modal(record, categories, priority_labels, {'view': period.view, 'date': period.anchor.isoformat(), 'tag': tag}) }}
 {% endfor %}
+</div>
 {% endblock %}
 
 {% block workspace_scripts %}
+<script src="{{ url_for('static', filename='js/expenses.js') }}" defer></script>
 <script>
   document.querySelectorAll('form.schedule-form').forEach(function (form) {
     var select = form.querySelector('[name="schedule_tag"]');

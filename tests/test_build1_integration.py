@@ -298,7 +298,8 @@ def test_build1_registration_to_recommendation_survives_replay_and_restart(build
     assert client.post(f"{root}/plans/{plan_id}/confirm", data={"csrf_token": csrf}).status_code == 302
     assert client.post(root + "/plans/generate", data={"csrf_token": csrf}).status_code == 409
     values = dict(month_id=month_id, budget_month_id=month_id, expense_id=expense_id,
-                  plan_id=plan_id, task_id=first_task, record_id=record_id, recommendation_id=recommendation_id)
+                  plan_id=plan_id, task_id=first_task, record_id=record_id, recommendation_id=recommendation_id,
+                  pending_id="csrf-probe")
     # Every registered mutating route is guarded by the existing global CSRF.
     for rule in application.url_map.iter_rules():
         if "POST" in rule.methods:

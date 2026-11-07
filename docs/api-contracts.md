@@ -127,6 +127,9 @@ must consume it before scheduling. This is a Python service, not a new HTTP API.
 | POST | `/expenses/records` | Add an unexpected transaction to an existing owned month |
 | POST | `/expenses/records/<uuid:record_id>/edit` | Correct a spending transaction within its original month/task period |
 | POST | `/expenses/records/<uuid:record_id>/delete` | Delete one owned spending transaction and recalculate task status |
+| GET | `/expenses/duplicates/<pending_id>` | Review the authorized transaction from a repeated browser submission |
+| POST | `/expenses/duplicates/<pending_id>/confirm` | Explicitly create one additional actual purchase; confirmation retries cannot add more copies |
+| POST | `/expenses/duplicates/<pending_id>/dismiss` | Keep the original purchase without writing another record |
 
 Every route requires login; every POST uses the existing CSRF architecture.
 No client user_id authorizes access. Unknown/malformed/foreign resources return
@@ -136,11 +139,19 @@ No demo identity, bulk cleanup or legacy duplicate model is exposed.
 
 Check-in fields: action (`actual`, `planned`, `no_expense`), amount (required
 positive integer VND for actual), expense_date (optional, defaults to assigned
-date), category (optional override name), note and idempotency_key. Actual and
+date), category (optional override name or owned/built-in UUID), optional title,
+note and idempotency_key. Actual and
 planned submissions require a nonempty retry token of at most 64 characters.
 The token is unique within the budget month across both transaction types;
 identical replay returns the existing result and changed payload returns 409.
 Each new token may create a separate actual purchase; a task may have many.
+KAN-34 browser creation forms use `submission_token` as the database retry key.
+Reusing it redirects to an owned duplicate-confirmation page without another
+write. Confirmation copies the saved record, not a changed replay payload;
+its database key is derived from the pending confirmation and owner. The
+existing `idempotency_key` interface retains its payload-checked retry behavior.
+Confirmation metadata expires after one hour, but committed retry protection
+does not depend on session metadata or a particular application worker.
 `planned` explicitly records current_limit once and is rejected if it is zero or
 other purchases already exist. NO_EXPENSE creates no zero-amount record, is
 repeat-safe, and conflicts while transactions exist. Future tasks cannot be
@@ -153,6 +164,12 @@ expense_date, note (up to 2000), optional budget_impact_scope
 (DAILY/WEEKLY/MONTHLY) and idempotency_key. A month is never auto-created with
 zero funds. Unknown input is rejected, not replaced with a category/priority or
 zero amount. Updates do not move transactions across months or modify funds.
+KAN-35 history and day views share edit/delete dialogs. Edits may change a
+transaction title and, for UNEXPECTED records, priority and budget impact scope;
+omitted priority/scope fields preserve the existing values. History submissions
+retain `page=history`, `start` and `end` through redirects. Deleting the final
+purchase resets its task to PENDING; only an explicit check-in sets NO_EXPENSE.
+Scheduled dates, allocation amounts and bill payment status are preserved.
 
 Read totals label the observed transaction sum separately. Missing/unconfirmed
 check-ins and incomplete schedules keep the plan comparison Unknown (NULL),
@@ -177,8 +194,9 @@ authenticated page. GET `/recommendations/analysis`, `/completeness` and
 `/monthly-review` take `month=YYYY-MM` and optional `as_of=YYYY-MM-DD`.
 POST `/recommendations/generate` takes the same fields as a JSON object.
 GET `/recommendations/<uuid>` reads an owned saved snapshot;
-POST `/recommendations/<uuid>/decision` takes `decision` (REJECT is repeat-safe;
-ACCEPT always returns 409 because financial adjustments are disabled).
+POST `/recommendations/<uuid>/decision` takes `decision`. The approved KAN-38/39
+safe ACCEPT returns 200 and changes recommendation status only, with financial
+adjustments disabled. Unsafe legacy proposals return 409; REJECT is repeat-safe.
 POST `/recommendations/monthly-review/feedback` upserts owned feedback.
 All POSTs retain global CSRF; JSON callers use `X-CSRFToken`. See the
 [KAN-27 contract](kan27-spending-analysis.md) for exact statuses, baseline guidance,

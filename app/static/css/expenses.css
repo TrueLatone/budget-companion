@@ -86,6 +86,10 @@ a.bc-calendar-day:focus-visible {
 .bc-day-table td:nth-child(2) { min-width: 9rem; }
 .bc-task-card .card-body { border-radius: var(--bs-border-radius); }
 .bc-month-muted { opacity: 0.72; }
+.bc-focus-pulse {
+  outline: 2px solid var(--bs-primary);
+  outline-offset: 2px;
+}
 
 @media (max-width: 575.98px) {
   .bc-calendar { gap: 0.22rem; }

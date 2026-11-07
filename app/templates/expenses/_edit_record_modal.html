@@ -1,0 +1,75 @@
+{% macro edit_record_modal(record, categories, priority_labels, back_fields) %}
+<div class="modal fade" id="editRecord{{ record.record_id }}" tabindex="-1" aria-labelledby="editRecordLabel{{ record.record_id }}" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <form id="editRecordForm{{ record.record_id }}" method="post" action="{{ url_for('expenses.edit_record', record_id=record.record_id) }}" data-no-double-submit>
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        {% for name, value in back_fields.items() %}<input type="hidden" name="{{ name }}" value="{{ value }}">{% endfor %}
+        <div class="modal-header">
+          <h2 class="modal-title h5" id="editRecordLabel{{ record.record_id }}">Edit transaction</h2>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-2">
+            <label for="record-title-{{ record.record_id }}" class="form-label">Transaction title</label>
+            <input type="text" id="record-title-{{ record.record_id }}" name="title" class="form-control" maxlength="120" value="{{ record.title or '' }}" {% if record.record_type == 'UNEXPECTED' %}required{% endif %}>
+          </div>
+          <div class="mb-2">
+            <label for="record-amount-{{ record.record_id }}" class="form-label">Amount (VND)</label>
+            <input type="number" id="record-amount-{{ record.record_id }}" name="amount" class="form-control" min="1" step="1" value="{{ record.amount }}" required>
+          </div>
+          <div class="mb-2">
+            <label for="record-date-{{ record.record_id }}" class="form-label">Expense date</label>
+            <input type="date" id="record-date-{{ record.record_id }}" name="expense_date" class="form-control" value="{{ record.expense_date.isoformat() }}" required>
+          </div>
+          <div class="mb-2">
+            <label for="record-category-{{ record.record_id }}" class="form-label">Existing category</label>
+            <select id="record-category-{{ record.record_id }}" name="category" class="form-select" required>
+              <option value="">Choose an existing category</option>
+              {% for category in categories %}<option value="{{ category.id }}" {% if record.category_id == category.id %}selected{% endif %}>{{ category.category_name }}</option>{% endfor %}
+            </select>
+          </div>
+          {% if record.record_type == 'UNEXPECTED' %}
+          <div class="row g-2 mb-2">
+            <div class="col-6">
+              <label for="record-priority-{{ record.record_id }}" class="form-label">Priority</label>
+              <select id="record-priority-{{ record.record_id }}" name="priority" class="form-select" required>
+                {% for code, label in priority_labels.items() %}<option value="{{ code }}" {% if record.priority == code %}selected{% endif %}>{{ label }}</option>{% endfor %}
+              </select>
+            </div>
+            <div class="col-6">
+              <label for="record-scope-{{ record.record_id }}" class="form-label">Budget impact scope</label>
+              <select id="record-scope-{{ record.record_id }}" name="budget_impact_scope" class="form-select">
+                <option value="" {% if not record.budget_impact_scope %}selected{% endif %}>Not specified</option>
+                {% for scope in ['DAILY', 'WEEKLY', 'MONTHLY'] %}
+                <option value="{{ scope }}" {% if record.budget_impact_scope == scope %}selected{% endif %}>{{ scope }}</option>
+                {% endfor %}
+              </select>
+            </div>
+          </div>
+          {% endif %}
+          <div class="mb-2">
+            <label for="record-note-{{ record.record_id }}" class="form-label">Note</label>
+            <input type="text" id="record-note-{{ record.record_id }}" name="note" class="form-control" maxlength="2000" value="{{ record.note or '' }}">
+          </div>
+          {% if record.task %}
+          <p class="small text-secondary mb-0">Task: {{ record.task.title }} · Assigned {{ record.task.assigned_date|date_vn }}. Editing ExpenseDate does not change AssignedDate.</p>
+          {% endif %}
+        </div>
+      </form>
+      <div class="modal-footer d-flex flex-wrap justify-content-between gap-2">
+        <form method="post" action="{{ url_for('expenses.delete_record', record_id=record.record_id) }}" data-no-double-submit
+              data-confirm="Delete this transaction? Other transactions for the same task are kept.">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          {% for name, value in back_fields.items() %}<input type="hidden" name="{{ name }}" value="{{ value }}">{% endfor %}
+          <button type="submit" class="btn btn-outline-danger" data-focus-target="#record-row-{{ record.record_id }}">Delete transaction</button>
+        </form>
+        <div class="d-flex gap-2 ms-auto">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" form="editRecordForm{{ record.record_id }}" class="btn btn-primary">Save changes</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endmacro %}
