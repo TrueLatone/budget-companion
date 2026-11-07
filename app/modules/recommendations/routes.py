@@ -113,8 +113,19 @@ def monthly_review():
 @bp.post("/monthly-review/feedback")
 @_json_login_required
 def monthly_feedback():
-    payload = _payload()
-    return jsonify(services.save_monthly_feedback(g.current_user.id, payload.get("month"), payload.get("rating"), payload.get("comment")))
+    if request.is_json:
+        payload = _payload()
+        return jsonify(services.save_monthly_feedback(
+            g.current_user.id, payload.get("month"), payload.get("rating"), payload.get("comment")
+        ))
+    month = request.form.get("month")
+    raw_rating = request.form.get("rating", "").strip()
+    if raw_rating and not raw_rating.isdecimal():
+        raise services.RecommendationServiceError("rating must be an integer from 1 to 5")
+    rating = int(raw_rating) if raw_rating else None
+    services.save_monthly_feedback(g.current_user.id, month, rating, request.form.get("comment"))
+    flash("Đã lưu đánh giá tháng của bạn.", "info")
+    return redirect(url_for("recommendations.index", month=month))
 
 
 @bp.errorhandler(services.RecommendationServiceError)

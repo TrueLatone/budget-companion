@@ -192,17 +192,29 @@ def _review(data, completeness):
                  and data.as_of == data.end and not completeness["inconsistent_task_count"]
                  and not completeness["incomplete_transaction_count"]
                  and all(task.task_status in {"RECORDED", "NO_EXPENSE"} for task in data.tasks))
-    planned = sum(task.current_limit for task in data.tasks) if data.tasks else None
+    planned = sum(task.current_limit for task in data.tasks) if known else None
     observed = sum(record.amount for record in data.records if rules.is_complete_expense_record(record))
     rows = _category_rows(data)
     for row in rows:
         row["variance"] = row["planned_amount"] - row["actual_amount"] if known else None
+        if not known:
+            row["planned_amount"] = None
+    feedback = db.session.scalar(db.select(MonthlyReview).where(
+        MonthlyReview.budget_month_id == data.month.id,
+    ))
     return dict(month=data.month.month_start.strftime("%Y-%m"), as_of=data.as_of.isoformat(),
                 review_status="COMPLETE" if known else "INCOMPLETE_DATA", data_complete=known,
+                summary_note=None if known else (
+                    "Chỉ bao gồm các khoản chi hợp lệ đã ghi nhận; đây chưa phải tổng chi cuối tháng "
+                    "và không xác định số ngân sách còn lại."
+                ),
                 planned_task_total=planned, recorded_expense_total=observed,
+                recorded_expense_count=completeness["complete_transaction_count"],
                 remaining_vs_plan=planned - observed if known else None,
                 confirmed_allocation_total=sum(a.allocated_amount for a in data.allocations) if data.allocations else None,
-                category_review=rows, task_status_counts=completeness["task_status_counts"])
+                category_review=rows, task_status_counts=completeness["task_status_counts"],
+                rating=feedback.rating if feedback else None,
+                comment=feedback.comment if feedback else None)
 
 
 def _analysis(data):
