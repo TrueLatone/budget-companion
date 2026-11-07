@@ -13,8 +13,11 @@
 <p>Plan total including savings: {{ money((plan.allocations|sum(attribute='allocated_amount')) + plan.planned_savings) }} VND</p>
 {% if plan.status == 'GENERATED' %}<p>Confirming locks this month's expense setup and the saved allocations. Funds and P0/P1 requirements are checked again before confirmation.</p>
 <form method="post" action="{{ url_for('budgets.confirm', month_id=month.id, plan_id=plan.id) }}">
+  {% if plan.plan_type == 'MANUAL' %}<input type="hidden" name="confirm_snapshot" value="{{ confirm_snapshot }}">{% endif %}
   {{ action_form.hidden_tag() }}<button class="btn btn-primary" type="submit">Confirm saved plan</button>
-</form>{% else %}<p>This is the original confirmed plan. Later changes to available funds do not rewrite it.</p>
+</form>
+<p><a href="{{ url_for('budgets.customize', month_id=month.id, plan_id=plan.id) }}">Customize P1 / P2 allocations</a></p>
+{% else %}<p>This is the original confirmed plan. Later changes to available funds do not rewrite it.</p>
 <a class="btn btn-primary mb-3" href="{{ url_for('expenses.index', budget_month_id=month.id, view='month') }}">Continue to Spending Schedule</a>
 <p>Create / verify the schedule there with an explicit action, then open a day for check-in. Daily Food has optional illustrative meal guidance; it creates no extra tasks or spending.</p>{% endif %}
 <a href="{{ url_for('budgets.month', month_id=month.id) }}">Back to budget</a>

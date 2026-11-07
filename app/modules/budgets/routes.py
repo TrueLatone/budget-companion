@@ -125,14 +125,67 @@ def plan(month_id, plan_id):
         "budgets/plan.html", plan=saved_plan, month=saved_plan.budget_month,
         action_form=BudgetActionForm(),
         breakdown=services.plan_breakdown(g.current_user.id, month_id, plan_id),
+        confirm_snapshot=services.plan_draft_fingerprint(saved_plan),
     )
+
+
+@bp.route("/budget/<uuid:month_id>/plans/<uuid:plan_id>/customize", methods=("GET", "POST"))
+@login_required
+def customize(month_id, plan_id):
+    month = services.get_month(g.current_user.id, month_id)
+    candidate = services.get_plan(g.current_user.id, month_id, plan_id)
+    if any(p.status == "CONFIRMED" for p in services.list_plans(g.current_user.id, month_id)):
+        raise services.BudgetConflict("This budget month is already confirmed.")
+    if candidate.status != "GENERATED":
+        raise services.BudgetConflict("Only unconfirmed plans can be customized.")
+    display = dict(
+        month=month, plan=candidate, action_form=BudgetActionForm(),
+        submitted_values={}, validation_error=None,
+        plan_snapshot=services.customization_fingerprint(g.current_user.id, month.id, candidate.id),
+    )
+    if request.method == "GET":
+        return render_template("budgets/customize.html", **display)
+    _require_action()
+    editable = {str(a.budget_expense_id) for a in candidate.allocations
+                if a.budget_expense.priority in ("P1", "P2")}
+    fields = {"allocation_" + expense_id for expense_id in editable}
+    posted_fields = {key for key in request.form if key.startswith("allocation_")}
+    display["submitted_values"] = request.form.to_dict(flat=True)
+    # Never replace the submitted token on an error: retrying an old form must
+    # still conflict, even when the first submission failed field validation.
+    display["plan_snapshot"] = request.form.get("plan_snapshot", "")
+    if (posted_fields != fields or
+            any(len(request.form.getlist(field)) != 1 for field in fields) or
+            len(request.form.getlist("plan_snapshot")) != 1):
+        display["validation_error"] = "Submit exactly one amount for each P1 and P2 expense."
+        return render_template("budgets/customize.html", **display), 400
+    try:
+        customized = services.save_manual_plan(
+            g.current_user.id, month_id, plan_id,
+            {expense_id: request.form.get("allocation_" + expense_id) for expense_id in editable},
+            expected_fingerprint=request.form.get("plan_snapshot"),
+        )
+    except BudgetError as exc:
+        display["validation_error"] = str(exc)
+        return render_template("budgets/customize.html", **display), (
+            409 if isinstance(exc, services.BudgetConflict) else 400
+        )
+    flash("Manual draft saved. Review the allocations before confirming.", "success")
+    return redirect(url_for("budgets.plan", month_id=month.id, plan_id=customized.id))
 
 
 @bp.post("/budget/<uuid:month_id>/plans/<uuid:plan_id>/confirm")
 @login_required
 def confirm(month_id, plan_id):
     _require_action()
-    services.confirm_plan(g.current_user.id, month_id, plan_id)
+    selected = services.get_plan(g.current_user.id, month_id, plan_id)
+    snapshot = None
+    if selected.status == "GENERATED" and selected.plan_type == "MANUAL":
+        snapshots = request.form.getlist("confirm_snapshot")
+        if len(snapshots) != 1 or not snapshots[0]:
+            raise services.BudgetConflict("Review the latest manual plan before confirming.")
+        snapshot = snapshots[0]
+    services.confirm_plan(g.current_user.id, month_id, plan_id, expected_fingerprint=snapshot)
     flash("Budget plan confirmed. Create or verify its spending schedule below to display planned expenses.", "success")
     return redirect(url_for("expenses.index", budget_month_id=month_id, view="month"))
 
