@@ -145,6 +145,25 @@ def test_category_signals_use_exact_money_and_protect_p0(priority):
     assert rules.choose_category_adjustment(rules.MAX_VND, rules.MAX_VND, priority) is None
 
 
+def test_category_proposals_protect_p0_p1_minimum_and_savings():
+    assert rules.propose_category_adjustment(200, 100, "P0", 500, 100, 1_000) is None
+
+    p1_under = rules.propose_category_adjustment(100, 1_000, "P1", 600, 500, 0)
+    assert p1_under["change_amount"] == -100
+    assert p1_under["suggested_monthly_amount"] == 500
+    assert p1_under["suggested_monthly_amount"] >= 500
+
+    p1_over = rules.propose_category_adjustment(1_500, 1_000, "P1", 600, 500, 200)
+    assert p1_over["change_amount"] == 200
+    assert p1_over["suggested_monthly_amount"] == 800
+    assert p1_over["funding_source"] == "PLANNED_SAVINGS"
+
+    no_savings = rules.propose_category_adjustment(1_500, 1_000, "P2", 600, 0, 0)
+    assert no_savings["change_amount"] == 0
+    assert no_savings["suggested_monthly_amount"] == 600
+    assert no_savings["constraint_applied"] == "NO_AVAILABLE_SAVINGS"
+
+
 def test_real_persisted_spending_readiness_and_analysis_do_not_write(app, client, seeded):
     with app.app_context():
         before = financial_snapshot()
@@ -158,12 +177,12 @@ def test_real_persisted_spending_readiness_and_analysis_do_not_write(app, client
         assert {item["priority"] for item in result["findings"]} == {"P1", "P2"}
         food = next(item for item in result["findings"] if item["category_name"] == "Food")
         assert food["actual_amount"] == 8000 and type(food["planned_amount"]) is int
-        assert "8000 VND" in food["reason"] and result["baseline_guidance"] == []
+        assert "8.000 đồng" in food["reason"] and result["baseline_guidance"] == []
         assert row_count(Recommendation) == 0 and financial_snapshot() == before
     for path in ("/recommendations", "/recommendations/analysis?month=2026-10", "/recommendations/completeness?month=2026-10", "/recommendations/monthly-review?month=2026-10"):
         response = client.get(path)
         assert response.status_code == 200
-    assert b"Data-backed observations" in client.get("/recommendations").data
+    assert "GỢI Ý CÁ NHÂN HÓA".encode() in client.get("/recommendations").data
     with app.app_context():
         assert row_count(Recommendation) == 0 and financial_snapshot() == before
 
@@ -173,13 +192,40 @@ def test_insufficient_data_returns_baseline_without_inventing_transactions(app, 
         before = financial_snapshot()
         result = generate(setup)
         assert result["status"] == "SKIPPED_INSUFFICIENT_DATA"
-        assert result["findings"] == result["recommendations"] == [] and len(result["baseline_guidance"]) == 3
+        assert result["findings"] == result["recommendations"] == []
+        assert len(result["baseline_guidance"]) == 2
+        assert {item["code"] for item in result["suggestions"]} == {
+            "BASELINE_AMOUNT_SPLIT", "CREATE_CONFIRMED_PLAN",
+        }
+        assert all(item["kind"] == "BASELINE_GUIDANCE" and not item["personalized"]
+                   for item in result["suggestions"])
+        assert all("đồng" in message for message in result["baseline_guidance"])
         assert result["completeness"]["insufficient_reasons"]
         assert result["review"]["planned_task_total"] is None and result["review"]["remaining_vs_plan"] is None
         assert row_count(Recommendation) == 0 and financial_snapshot() == before
     page = client.get("/recommendations")
-    assert page.status_code == 200 and b"Baseline guidance" in page.data
-    assert b"No personalized recommendations were generated" in page.data
+    assert page.status_code == 200 and "GỢI Ý CHUNG".encode() in page.data
+    assert "GỢI Ý CÁ NHÂN HÓA".encode() not in page.data
+
+
+def test_early_category_signals_are_not_saved_when_f18_data_is_insufficient(app, seeded):
+    with app.app_context():
+        incomplete_task = db.session.scalar(
+            db.select(AssignedExpenseTask).where(AssignedExpenseTask.task_status == "NO_EXPENSE")
+        )
+        incomplete_task.task_status = "PENDING"
+        db.session.commit()
+        before = financial_snapshot()
+
+        result = generate(seeded)
+
+        assert result["status"] == "SKIPPED_INSUFFICIENT_DATA"
+        assert result["completeness"]["status"] == "INSUFFICIENT"
+        assert result["findings"]
+        early_signals = [item for item in result["suggestions"] if item["kind"] == "EARLY_SIGNAL"]
+        assert early_signals and all(not item["personalized"] for item in early_signals)
+        assert result["recommendations"] == [] and row_count(Recommendation) == 0
+        assert financial_snapshot() == before
 
 
 def test_no_expense_only_can_complete_review_without_personalization(app, setup):
@@ -222,7 +268,27 @@ def test_generation_replay_reuses_uuid_and_dismissal_remains_dismissed(app, seed
         assert row_count(Recommendation) == 3 and financial_snapshot() == before
 
 
-def test_accept_is_disabled_even_for_malicious_cross_user_json(app, client, seeded):
+def test_accept_and_reject_only_change_recommendation_status(app, client, seeded):
+    with app.app_context():
+        generated = generate(seeded)
+        accepted_id, rejected_id = [item["id"] for item in generated["recommendations"][:2]]
+        before = financial_snapshot()
+
+    accepted = client.post(f"/recommendations/{accepted_id}/decision", json={"decision": "ACCEPT"})
+    assert accepted.status_code == 200
+    assert accepted.json["status"] == "ACCEPTED"
+    assert accepted.json["adjustments_enabled"] is False
+    assert accepted.json["financial_adjustment_applied"] is False
+
+    rejected = client.post(f"/recommendations/{rejected_id}/decision", json={"decision": "REJECT"})
+    assert rejected.status_code == 200 and rejected.json["status"] == "REJECTED"
+    with app.app_context():
+        assert db.session.get(Recommendation, UUID(accepted_id)).status == "ACCEPTED"
+        assert db.session.get(Recommendation, UUID(rejected_id)).status == "REJECTED"
+        assert financial_snapshot() == before
+
+
+def test_unsafe_legacy_proposal_cannot_be_accepted_or_change_financial_data(app, client, seeded):
     with app.app_context():
         budgets.apply_suggested_expenses(seeded["other"], seeded["foreign_month"], [s.key for s in SUGGESTED_EXPENSES if s.selected], {
             s.key: {"estimated_amount": s.example_amount} for s in SUGGESTED_EXPENSES
@@ -236,9 +302,11 @@ def test_accept_is_disabled_even_for_malicious_cross_user_json(app, client, seed
         db.session.commit()
         item_id = recommendation.id
         before = financial_snapshot()
-    for _ in range(2):
-        response = client.post(f"/recommendations/{item_id}/decision", json={"decision": "ACCEPT", "user_id": str(seeded["other"])})
-        assert response.status_code == 409 and "read-only" in response.json["error"]
+    response = client.post(
+        f"/recommendations/{item_id}/decision",
+        json={"decision": "ACCEPT", "user_id": str(seeded["other"])},
+    )
+    assert response.status_code == 409 and "read-only" in response.json["error"]
     detail = client.get(f"/recommendations/{item_id}").json
     assert detail["proposed_changes"] == {"mode": "READ_ONLY", "changes": [], "legacy_proposal_withheld": True}
     with app.app_context():
@@ -376,7 +444,7 @@ def test_login_analyze_save_display_dismiss_and_json_csrf_flow(app, client, seed
     assert response.status_code == 201
     item_id = response.json["recommendations"][0]["id"]
     page = client.get("/recommendations")
-    assert b"Saved guidance for this data snapshot" in page.data and b"Dismiss guidance" in page.data
+    assert "Gợi ý đã lưu".encode() in page.data and "Ẩn gợi ý".encode() in page.data
     assert client.post("/recommendations/analyze", data={"month": "2026-10", "csrf_token": csrf}, follow_redirects=True).status_code == 200
     assert client.post(f"/recommendations/{item_id}/dismiss", data={"csrf_token": csrf}).status_code == 302
     assert client.post(f"/recommendations/{item_id}/decision", json={"decision": "REJECT"}, headers={"X-CSRFToken": csrf}).status_code == 200
@@ -471,10 +539,14 @@ def test_saved_guidance_is_withheld_when_current_evidence_becomes_insufficient(a
         record_id = db.session.scalar(db.select(ExpenseRecord.id).where(ExpenseRecord.title == "Food"))
         expenses.delete_record(seeded["user"], record_id)
         current = services.analyze_spending(seeded["user"], "2026-10")
-        assert not current["findings"] and not current["recommendations"]
+        assert not current["recommendations"]
+        assert all(not suggestion["personalized"]
+                   for suggestion in current["suggestions"])
+        assert all(suggestion["kind"] in {"EARLY_SIGNAL", "BASELINE_GUIDANCE"}
+                   for suggestion in current["suggestions"])
         assert current["completeness"]["status"] == "INSUFFICIENT"
     page = client.get("/recommendations")
-    assert b"Baseline guidance" in page.data and b"Saved guidance for this data snapshot" not in page.data
+    assert "GỢI Ý CHUNG".encode() in page.data and "Gợi ý đã lưu".encode() not in page.data
     detail = client.get(f"/recommendations/{item_id}")
     assert detail.status_code == 200 and "current data may differ" in detail.json["snapshot_notice"]
 
@@ -563,6 +635,6 @@ def test_new_account_has_functional_page_without_creating_financial_data(app, cl
     with client.session_transaction() as session:
         session["user_id"] = str(owner_id)
     response = client.get("/recommendations")
-    assert response.status_code == 200 and b"Create a Budget Month" in response.data
+    assert response.status_code == 200 and "Tạo tháng ngân sách".encode() in response.data
     with app.app_context():
         assert financial_snapshot() == before

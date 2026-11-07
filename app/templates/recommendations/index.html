@@ -1,22 +1,22 @@
 {% extends 'workspace_base.html' %}
-{% block title %}Spending analysis · Budget Companion{% endblock %}
+{% block title %}Gợi ý chi tiêu · Budget Companion{% endblock %}
 {% block workspace_content %}
-<h1>Spending analysis</h1>
+<h1>Gợi ý chi tiêu</h1>
 {% for message in get_flashed_messages() %}<p class="alert alert-info" role="status">{{ message }}</p>{% endfor %}
-<p>Read-only guidance from your saved Budget and Expense data. Automatic adjustments are disabled.</p>
+<p>Gợi ý được tạo từ ngân sách và các khoản chi bạn đã ghi nhận. Khi dữ liệu còn ít, gợi ý chỉ mang tính tham khảo và có thể thay đổi khi bạn cập nhật thêm. Hệ thống không tự thay đổi ngân sách hay khoản chi.</p>
 <form method="get" action="{{ url_for('recommendations.index') }}" class="mb-3">
-  <label for="analysis-month">Budget Month</label>
+  <label for="analysis-month">Tháng ngân sách</label>
   <select id="analysis-month" name="month" required>{% for period in months %}<option value="{{ period.month_start.strftime('%Y-%m') }}" {% if month and month.id == period.id %}selected{% endif %}>{{ month_name(period.month_start) }}</option>{% endfor %}</select>
-  <button class="btn btn-secondary" type="submit">Open month</button>
+  <button class="btn btn-secondary" type="submit">Xem tháng</button>
 </form>
 {% if result %}
-<p><a href="{{ url_for('budgets.month', month_id=month.id) }}">Budget setup / confirmed plan</a> · <a href="{{ url_for('expenses.index', budget_month_id=month.id, view='month') }}">Expense calendar / check-in</a></p>
+<p><a href="{{ url_for('budgets.month', month_id=month.id) }}">Thiết lập ngân sách</a> · <a href="{{ url_for('expenses.index', budget_month_id=month.id, view='month') }}">Lịch chi tiêu</a></p>
 <form method="post" action="{{ url_for('recommendations.analyze') }}" class="mb-4">
   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
   <input type="hidden" name="month" value="{{ result.month }}">
-  <label for="analysis-cutoff">Analyze through (Vietnam date)</label>
+  <label for="analysis-cutoff">Phân tích đến ngày</label>
   <input id="analysis-cutoff" type="date" name="as_of" min="{{ month.month_start }}" max="{{ today }}" value="{{ result.as_of }}" {% if not result.completeness.checks.tracking_started %}disabled{% endif %}>
-  <button class="btn btn-primary" type="submit" {% if not result.completeness.checks.tracking_started %}disabled{% endif %}>Analyze and save guidance</button>
+  <button class="btn btn-primary" type="submit" {% if not result.completeness.checks.tracking_started %}disabled{% endif %}>Cập nhật gợi ý</button>
 </form>
 
 <section aria-label="Data completeness" class="mb-3">
@@ -72,6 +72,7 @@
     <button class="btn btn-outline-primary mt-2" type="submit">Lưu đánh giá</button>
   </form>
 </section>
+
 <section aria-label="Gợi ý chi tiêu" class="mb-4">
   <h2>Gợi ý dành cho bạn</h2>
   {% set suggestions = result.suggestions|default([], true) %}
@@ -193,5 +194,8 @@
   {% endfor %}
 </section>
 {% endif %}
-{% else %}<p>Create a Budget Month and record your real spending to begin.</p><a href="{{ url_for('budget_periods.create') }}">Create Budget Month</a>{% endif %}
+{% else %}
+<p>Tạo tháng ngân sách và ghi lại các khoản chi để bắt đầu nhận gợi ý.</p>
+<a href="{{ url_for('budget_periods.create') }}">Tạo tháng ngân sách</a>
+{% endif %}
 {% endblock %}
