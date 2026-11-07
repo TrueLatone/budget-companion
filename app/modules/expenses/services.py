@@ -74,15 +74,18 @@ def find_month(user_id, anchor):
 @contextmanager
 def _write_month(user_id, month_id):
     try:
-        month = budgets.get_month(to_uuid(user_id), to_uuid(month_id), lock=True)
-        yield month
-        db.session.commit()
+        # Use the same lock/refresh protocol as Budget, including SQLite's
+        # write lock, so retries remain safe across processes and stale sessions.
+        with budgets._write_month(to_uuid(user_id), to_uuid(month_id)) as month:
+            yield month
     except budgets.BudgetNotFound:
         db.session.rollback()
         raise NotFoundError("Budget month not found.") from None
     except IntegrityError as exc:
         db.session.rollback()
         raise ExpenseConflict("A concurrent write changed the expense data. Reload and retry using the same token.") from exc
+    except budgets.BudgetConflict as exc:
+        raise ExpenseConflict(str(exc)) from exc
     except Exception:
         db.session.rollback()
         raise
@@ -245,6 +248,16 @@ def _valid_date(month, expense_date, task=None):
 
 def _category(user_id, name, *, default_id=None):
     name = str(name or "").strip()
+    if name:
+        try:
+            category_id = uuid.UUID(name)
+        except ValueError:
+            pass  # Existing callers may still enter a category name.
+        else:
+            category = db.session.get(ExpenseCategory, category_id)
+            if category is None or category.user_id not in (None, to_uuid(user_id)):
+                raise NotFoundError("Category not found.")
+            return category
     if not name and default_id:
         category = db.session.get(ExpenseCategory, default_id)
         if category and category.user_id in (None, to_uuid(user_id)):
@@ -263,6 +276,10 @@ def _category(user_id, name, *, default_id=None):
     db.session.add(category)
     db.session.flush()
     return category
+
+
+def list_categories(user_id):
+    return budgets.list_categories(to_uuid(user_id))
 
 
 def _token(value):
@@ -284,7 +301,7 @@ def _replay(month, key, payload):
 
 
 def checkin_task(user_id, task_id, *, action, amount_raw=None, expense_date_raw=None,
-                 category=None, note=None, idempotency_key=None):
+                 category=None, note=None, title=None, idempotency_key=None):
     task = _get_task(task_id, user_id)
     month_id = task.allocation.plan.budget_month_id
     with _write_month(user_id, month_id) as month:
@@ -306,10 +323,13 @@ def checkin_task(user_id, task_id, *, action, amount_raw=None, expense_date_raw=
             clean_note = str(note or "").strip() or None
             if clean_note and len(clean_note) > 2000:
                 raise ValidationError("Notes must be at most 2000 characters.")
+            clean_title = str(title or "").strip() or task.allocation.budget_expense.expense_name
+            if len(clean_title) > 120:
+                raise ValidationError("Titles must be at most 120 characters.")
             payload = dict(
                 task_id=task.id, record_type="PLANNED", amount=amount, expense_date=expense_date,
                 category_id=category_row.id, priority=task.allocation.budget_expense.priority,
-                title=task.allocation.budget_expense.expense_name, note=clean_note, budget_impact_scope=None,
+                title=clean_title, note=clean_note, budget_impact_scope=None,
             )
             record = _replay(month, key, payload)
             if record is None:
@@ -350,6 +370,25 @@ def _get_record(record_id, user_id):
 
 def get_record(user_id, record_id):
     return ExpenseRecordAdapter(_get_record(record_id, user_id))
+
+
+def get_submission(user_id, month_id, token):
+    """Find a committed retry, independent of browser cookies or worker state."""
+    month = get_month(user_id, month_id)
+    record_id = db.session.scalar(db.select(ExpenseRecord.id).where(
+        ExpenseRecord.budget_month_id == month.id,
+        ExpenseRecord.idempotency_key == _token(token),
+        ExpenseRecord.record_type.in_(("PLANNED", "UNEXPECTED")),
+    ))
+    return get_record(user_id, record_id) if record_id else None
+
+
+def _recalculate_task_status(task):
+    # Flush pending record changes before counting, then invalidate the cached
+    # relationship so status display and later NO_EXPENSE checks see the same rows.
+    db.session.flush()
+    db.session.expire(task, ["records"])
+    task.task_status = "RECORDED" if any(r.record_type == "PLANNED" for r in task.records) else "PENDING"
 
 
 def list_records(user_id, start, end, *, schedule_tag=None):
@@ -402,8 +441,17 @@ def update_record(user_id, record_id, form):
         record.category_id = category.id
         if record.record_type == "UNEXPECTED":
             record.title = data["title"]
+            if "priority" in form:
+                record.priority = parse_choice(form.get("priority"), ("P0", "P1", "P2"), "Priority")
+            if "budget_impact_scope" in form:
+                scope = str(form.get("budget_impact_scope") or "").strip().upper() or None
+                if scope is not None and scope not in {"DAILY", "WEEKLY", "MONTHLY"}:
+                    raise ValidationError("Invalid budget impact scope.")
+                record.budget_impact_scope = scope
+        elif data["title"]:
+            record.title = data["title"]
         if record.task:
-            record.task.task_status = "RECORDED"
+            _recalculate_task_status(record.task)
     return ExpenseRecordAdapter(record)
 
 
@@ -416,10 +464,7 @@ def delete_record(user_id, record_id):
         db.session.flush()
         if task_id:
             task = _get_task(task_id, user_id)
-            remaining = db.session.scalar(db.select(db.func.count(ExpenseRecord.id)).where(
-                ExpenseRecord.task_id == task.id, ExpenseRecord.record_type == "PLANNED",
-            ))
-            task.task_status = "RECORDED" if remaining else "PENDING"
+            _recalculate_task_status(task)
 
 
 @dataclass

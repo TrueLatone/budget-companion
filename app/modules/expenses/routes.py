@@ -14,7 +14,7 @@ from flask import (
     url_for,
 )
 
-from app.modules.expenses import services
+from app.modules.expenses import duplicates, services
 from app.modules.accounts.auth import login_required
 from app.modules.budget_periods.services import list_budget_months
 from app.modules.budgets.rules import BudgetError
@@ -147,17 +147,106 @@ def _user_id() -> str:
     return services.resolve_current_user_id()
 
 
-def _back_url():
+def _back_url(fields=None):
     """Redirect back to the current view/date after a POST (POST-Redirect-GET)."""
-    view = request.form.get("view") or request.args.get("view") or "day"
-    raw_date = request.form.get("date") or request.args.get("date")
+    source, fallback = (request.form, request.args) if fields is None else (fields, {})
+    if (source.get("page") or fallback.get("page")) == "history":
+        return redirect(url_for("expenses.history", **{
+            key: source.get(key) or fallback.get(key) for key in ("start", "end")
+            if source.get(key) or fallback.get(key)
+        }))
+    view = source.get("view") or fallback.get("view") or "day"
+    raw_date = source.get("date") or fallback.get("date")
     values = {"view": view}
     if raw_date:
         values["date"] = raw_date
-    tag = request.form.get("tag") or request.args.get("tag")
+    tag = source.get("tag") or fallback.get("tag")
     if tag:
         values["tag"] = tag
     return redirect(url_for("expenses.index", **values))
+
+
+def _back_fields():
+    return {name: value[:64] for name in ("page", "start", "end", "view", "date", "tag")
+            if (value := request.form.get(name))}
+
+
+def _prompt_duplicate(user_id, *, flow, target, action=None):
+    token = request.form.get(duplicates.TOKEN_FIELD)
+    if not token:
+        return None  # Preserve the legacy idempotency_key API's silent safe retry.
+    if flow == "checkin":
+        task = services.get_task(user_id, target)
+        month_id = task.raw_task.allocation.plan.budget_month_id
+    else:
+        month_id = target
+    record = services.get_submission(user_id, month_id, token)
+    if record is None:
+        return None
+    if ((flow == "checkin" and str(record.raw_record.task_id) != str(target)) or
+            (flow == "unexpected" and record.record_type != "UNEXPECTED")):
+        raise services.ExpenseConflict("This retry token belongs to a different transaction.")
+    pending_id = duplicates.add_pending(
+        flow=flow, target=target, action=action, back=_back_fields(),
+        record_id=record.id, user_id=user_id,
+    )
+    return redirect(url_for("expenses.duplicate_submission", pending_id=pending_id))
+
+
+@bp.get("/expenses/duplicates/<pending_id>")
+@login_required
+def duplicate_submission(pending_id):
+    pending = duplicates.peek_pending(pending_id)
+    if pending is None or pending["user_id"] != str(_user_id()):
+        flash("This duplicate confirmation is no longer available.", "warning")
+        return redirect(url_for("expenses.index"))
+    return render_template(
+        "pages/duplicate_submission.html", pending_id=pending_id,
+        record=services.get_record(_user_id(), pending["record_id"]),
+        token=duplicates.confirmation_token(pending_id, _user_id()),
+        can_duplicate=pending["flow"] == "unexpected" or pending["action"] == "actual",
+    )
+
+
+@bp.post("/expenses/duplicates/<pending_id>/confirm")
+@login_required
+def confirm_duplicate(pending_id):
+    user_id = _user_id()
+    pending = duplicates.peek_pending(pending_id)
+    if pending is None or pending["user_id"] != str(user_id):
+        flash("This duplicate confirmation was already used or has expired. Nothing was saved again.", "warning")
+        return _back_url()
+    record = services.get_record(user_id, pending["record_id"])
+    key = duplicates.confirmation_token(pending_id, user_id)
+    if pending["flow"] == "checkin":
+        if pending["action"] != "actual":
+            raise ValidationError("A planned check-in can only be recorded once per task.")
+        services.checkin_task(
+            user_id, pending["target"], action="actual", amount_raw=record.amount,
+            expense_date_raw=record.expense_date.isoformat(), category=str(record.category_id),
+            note=record.note, title=record.title, idempotency_key=key,
+        )
+    else:
+        services.create_unexpected_record(user_id, dict(
+            budget_month_id=pending["target"], title=record.title, amount=record.amount,
+            expense_date=record.expense_date.isoformat(), category=str(record.category_id),
+            priority=record.priority, budget_impact_scope=record.budget_impact_scope,
+            note=record.note, idempotency_key=key,
+        ))
+    duplicates.take_pending(pending_id)
+    flash("A second identical transaction was saved.", "success")
+    return _back_url(pending["back"])
+
+
+@bp.post("/expenses/duplicates/<pending_id>/dismiss")
+@login_required
+def dismiss_duplicate(pending_id):
+    pending = duplicates.peek_pending(pending_id)
+    if pending is None or pending["user_id"] != str(_user_id()):
+        return _back_url()
+    duplicates.take_pending(pending_id)
+    flash("Only the first transaction was kept. Nothing else was saved.", "info")
+    return _back_url(pending["back"])
 
 
 def _flash_error(exc: Exception) -> None:
@@ -310,6 +399,7 @@ def index():
         month_cards=month_cards,
         navigation=navigation,
         modal_records=modal_records,
+        categories=services.list_categories(_user_id()),
         mode_label=VIEW_LABELS.get(period.view, "Ngày"),
         selected_day_label=(
             f"{WEEKDAY_LABELS[period.anchor.weekday()]}, "
@@ -356,17 +446,26 @@ def history():
         end=end,
         total=summary["actual_total"],
         selected_month=services.find_month(user_id, end),
+        categories=services.list_categories(user_id), priority_labels=PRIORITY_LABELS,
     )
 
 
 @bp.post("/expenses/tasks/<uuid:task_id>/checkin")
 @login_required
 def checkin(task_id: str):
+    action = request.form.get("action", "")
+    if action not in {"actual", "planned", "no_expense"}:
+        raise ValidationError("Choose planned, actual or no_expense.")
+    if action != "no_expense":
+        prompt = _prompt_duplicate(_user_id(), flow="checkin", target=task_id, action=action)
+        if prompt is not None:
+            return prompt
     services.checkin_task(
-        _user_id(), task_id, action=request.form.get("action", ""),
+        _user_id(), task_id, action=action,
         amount_raw=request.form.get("amount"), expense_date_raw=request.form.get("expense_date"),
         category=request.form.get("category"), note=request.form.get("note"),
-        idempotency_key=request.form.get("idempotency_key"),
+        title=request.form.get("title"),
+        idempotency_key=request.form.get("submission_token") or request.form.get("idempotency_key"),
     )
     flash("Đã ghi nhận check-in.", "success")
     return _back_url()
@@ -383,7 +482,12 @@ def set_payment_status(task_id: str):
 @bp.post("/expenses/records")
 @login_required
 def create_record():
-    services.create_unexpected_record(_user_id(), request.form)
+    prompt = _prompt_duplicate(_user_id(), flow="unexpected", target=request.form.get("budget_month_id"))
+    if prompt is not None:
+        return prompt
+    form = request.form.to_dict()
+    form["idempotency_key"] = form.get("submission_token") or form.get("idempotency_key")
+    services.create_unexpected_record(_user_id(), form)
     flash("Đã ghi nhận khoản chi bất ngờ.", "success")
     return _back_url()
 

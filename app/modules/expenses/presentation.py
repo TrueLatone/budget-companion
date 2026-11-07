@@ -59,14 +59,14 @@ def get_task_status(
     """
     raw_task: AssignedExpenseTask = getattr(task, "raw_task", task)  # type: ignore[assignment]
     records = [r for r in raw_task.records if r.record_type == RECORD_PLANNED]
-    if raw_task.task_status == STATUS_NO_EXPENSE:
-        return STATUS_UNRECORDED if records else STATUS_NO_EXPENSE
     if records:
         total = sum(r.amount for r in records)
         limit = raw_task.current_limit
         return STATUS_WITHIN_BUDGET if total <= limit else STATUS_OVER_BUDGET
-    if raw_task.task_status == "RECORDED":
-        return STATUS_UNRECORDED  # Missing transactions remain unknown.
+    if raw_task.task_status == STATUS_NO_EXPENSE:
+        return STATUS_NO_EXPENSE
+    # RECORDED with no transactions remains unknown. Apply the same deadline
+    # as an unresolved task instead of declaring it overdue before its period ends.
 
     # Exclude dates before tracking_start_date
     if (

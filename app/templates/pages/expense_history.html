@@ -1,12 +1,14 @@
 {% extends 'workspace_base.html' %}
+{% from 'expenses/_edit_record_modal.html' import edit_record_modal with context %}
 {% block title %}Lịch sử chi tiêu — Budget Companion{% endblock %}
 {% block extra_styles %}{{ super() }}<link rel="stylesheet" href="{{ url_for('static', filename='css/expenses.css') }}">{% endblock %}
 {% block workspace_content %}
+<div data-expense-root>
 {% include 'expenses/_flashes.html' %}
 <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-3">
   <div>
     <h1 class="h3 mb-1">Lịch sử chi tiêu</h1>
-    <p class="text-secondary mb-0">Giao dịch thực tế theo ngày phát sinh. Chỉnh sửa giao dịch trong màn hình kỳ chi tiêu.</p>
+    <p class="text-secondary mb-0">Edit or delete transactions below. Expense dates do not change scheduled task dates.</p>
   </div>
   <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('expenses.index', view='month', date=end.isoformat()) }}">Quay lại kỳ chi tiêu</a>
 </div>
@@ -105,11 +107,11 @@
     <div class="table-responsive">
       <table class="table table-sm align-middle">
         <thead>
-          <tr><th>Ngày phát sinh</th><th>Khoản chi</th><th>Loại</th><th>Số tiền</th><th>Task result</th><th>Danh mục</th><th>Ghi chú</th><th>Task</th></tr>
+          <tr><th>Ngày phát sinh</th><th>Khoản chi</th><th>Loại</th><th>Số tiền</th><th>Task result</th><th>Danh mục</th><th>Ghi chú</th><th>Task</th><th>Actions</th></tr>
         </thead>
         <tbody>
           {% for record in records %}
-          <tr>
+          <tr id="record-row-{{ record.record_id }}">
             <td class="text-nowrap">{{ record.expense_date|date_vn }}</td>
             <td>{{ record.title or (record.task.plan_item.title if record.task and record.task.plan_item else '—') }}</td>
             <td>
@@ -136,6 +138,7 @@
               —
               {% endif %}
             </td>
+            <td><button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#editRecord{{ record.record_id }}">Edit / Delete</button></td>
           </tr>
           {% endfor %}
         </tbody>
@@ -146,4 +149,9 @@
     {% endif %}
   </div>
 </section>
+{% for record in records %}
+{{ edit_record_modal(record, categories, priority_labels, {'page': 'history', 'start': start.isoformat(), 'end': end.isoformat()}) }}
+{% endfor %}
+</div>
 {% endblock %}
+{% block workspace_scripts %}<script src="{{ url_for('static', filename='js/expenses.js') }}" defer></script>{% endblock %}
