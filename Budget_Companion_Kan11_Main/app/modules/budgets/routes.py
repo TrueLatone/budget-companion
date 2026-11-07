@@ -118,11 +118,24 @@ def _expense_form(month_id, expense_id=None):
         try:
             services.save_expense(g.current_user.id, month.id, form.data, expense_id=expense_id)
         except BudgetError as exc:
+            if isinstance(exc, services.BudgetConflict):
+                return render_template(
+                    "budgets/error.html", message=_friendly_budget_error(exc)
+                ), 409
             error = _friendly_budget_error(exc)
         else:
             flash("Đã lưu khoản chi.", "success")
             return redirect(url_for("budgets.month", month_id=month.id, _anchor="add-expense" if not expense_id else "setup"))
     elif request.method == "POST":
+        # A locked month is a state conflict even if an old form/tab sends an
+        # otherwise incomplete request. Read-only response: no expense is saved.
+        if any(plan.status == "CONFIRMED" for plan in services.list_plans(g.current_user.id, month.id)):
+            return render_template(
+                "budgets/error.html",
+                message=_friendly_budget_error(services.BudgetConflict(
+                    "This month's confirmed plan and expense setup are locked."
+                )),
+            ), 409
         messages = [err for field in form for err in field.errors]
         error = "Kiểm tra lại các trường bắt buộc: " + "; ".join(messages) if messages else "Dữ liệu chưa hợp lệ. Hãy kiểm tra lại."
     else:
@@ -276,7 +289,9 @@ def generate(month_id):
     except BudgetError as exc:
         return _workspace(services.get_month(user_id, month_id),
                           form_error=_friendly_budget_error(exc),
-                          submitted_values=request.form.to_dict(flat=True)), 400
+                          submitted_values=request.form.to_dict(flat=True)), (
+                              409 if isinstance(exc, services.BudgetConflict) else 400
+                          )
     session["budget_plan_explanations"] = {"month_id": str(month_id), "explanations": explanations}
     flash("Đã tạo ba phương án. Hãy xem và chọn kế hoạch phù hợp.", "success")
     if request.form.get("budget_ai_weights") == "1":

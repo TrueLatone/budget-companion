@@ -216,9 +216,21 @@ def _save_expense(month, data, *, expense_id=None):
     recurring = data.get("is_recurring", False)
     if type(recurring) is not bool:
         raise BudgetError("Recurring must be a boolean.")
-    # Canonical ExpenseCategory remains for KAN-19 FK integrity.
-    # Users do not need to select a category; use the expense name.
-    category = _category(month.user_id, {"category_name": name})
+    # Keep explicit category choices for F03 and the shared KAN-19 model.
+    # Inline custom expenses may omit category information entirely; for those
+    # new entries the expense name is a safe fallback, not an override.
+    category_id = data.get("category_id")
+    category_name = str(data.get("category_name") or "").strip()
+    if category_id or category_name:
+        category = _category(user_id, {
+            "category_id": category_id,
+            "category_name": category_name,
+        })
+    elif expense is not None:
+        # Editing the amount/frequency must not silently reclassify an expense.
+        category = expense.category
+    else:
+        category = _category(user_id, {"category_name": name})
     _discard_drafts(month)
     if expense is None:
         expense = BudgetExpense(budget_month_id=month.id)
@@ -365,6 +377,7 @@ def generate_budget_plans_from_setup(user_id, month_id, selected_keys, suggested
             _save_expense(month, {
                 "expense_name": suggestion.name,
                 "priority": suggestion.priority,
+                "category_name": suggestion.category,
                 "allocation_frequency": values.get("allocation_frequency", suggestion.frequency),
                 "estimated_amount": values.get("estimated_amount"),
                 "minimum_amount": values.get("minimum_amount"),

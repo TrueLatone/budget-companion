@@ -384,3 +384,156 @@ def test_cross_account_cannot_customize_confirm_or_schedule(app, scenario):
             with pytest.raises((budget_service.BudgetNotFound, expense_service.NotFoundError)):
                 action()
         assert db.session.scalar(db.select(db.func.count(AssignedExpenseTask.id))) == 0
+
+
+# Task 2 regression additions: browser handoff, read-only display, durable DB.
+# Do not remove the earlier F06 acceptance tests or KAN-23 integration tests.
+
+def test_t2_manual_confirm_to_explicit_schedule_http_flow(app, scenario, owner_client):
+    """A confirmed MANUAL snapshot is the only input to the explicit schedule POST."""
+    with app.app_context():
+        balanced = _generate(scenario)
+        manual = budget_service.save_manual_plan(
+            scenario["owner"], scenario["month"], balanced.id, _editable(balanced),
+            expected_fingerprint=budget_service.customization_fingerprint(
+                scenario["owner"], scenario["month"], balanced.id),
+            auto_savings=True,
+        )
+        plan_id = manual.id
+        confirm_snapshot = budget_service.plan_draft_fingerprint(manual)
+    detail_url = f"/budget/{scenario['month']}/plans/{plan_id}"
+    post_url = f"/expenses/months/{scenario['month']}/schedule"
+
+    assert owner_client.get(detail_url).status_code == 200
+    confirmed = owner_client.post(
+        detail_url + "/confirm", data={"confirm_snapshot": confirm_snapshot}
+    )
+    assert confirmed.status_code == 302
+    assert confirmed.location.endswith(detail_url)
+
+    # Confirming or viewing plans must not silently create spending records.
+    detail = owner_client.get(detail_url)
+    assert detail.status_code == 200
+    assert f'action="{post_url}"'.encode() in detail.data
+    assert owner_client.get(f"/budget/{scenario['month']}/schedule?view=day&date=2026-11-06").status_code == 200
+    with app.app_context():
+        assert expense_service.get_schedule_state(scenario["owner"], scenario["month"]).code == "NOT_SCHEDULED"
+        assert db.session.scalar(db.select(db.func.count(AssignedExpenseTask.id))) == 0
+        assert db.session.scalar(db.select(db.func.count(ExpenseRecord.id))) == 0
+
+    assert owner_client.post(post_url).status_code == 302
+    for view in ("day", "week", "month"):
+        url = f"/budget/{scenario['month']}/schedule?view={view}&date=2026-11-06"
+        assert owner_client.get(url).status_code == 200
+    with app.app_context():
+        assert expense_service.get_schedule_state(scenario["owner"], scenario["month"]).code == "READY"
+        initial = list(db.session.scalars(db.select(AssignedExpenseTask)))
+        assert len(initial) == 34
+        snapshot = {(t.id, t.allocation_id, t.assigned_date, t.period_end,
+                     t.original_limit, t.current_limit, t.task_status) for t in initial}
+        assert db.session.scalar(db.select(db.func.count(ExpenseRecord.id))) == 0
+
+    # Repeated HTTP POSTs must not create duplicate tasks or change values.
+    assert owner_client.post(post_url).status_code == 302
+    with app.app_context():
+        again = list(db.session.scalars(db.select(AssignedExpenseTask)))
+        assert {(t.id, t.allocation_id, t.assigned_date, t.period_end,
+                 t.original_limit, t.current_limit, t.task_status) for t in again} == snapshot
+        assert db.session.scalar(db.select(db.func.count(ExpenseRecord.id))) == 0
+
+
+def test_t2_budget_schedule_displays_original_not_adjusted_limits(app, scenario, owner_client):
+    """The initial Budget plan must not absorb subsequent Expense-module changes."""
+    from flask import template_rendered
+
+    with app.app_context():
+        balanced = _generate(scenario)
+        budget_service.confirm_plan(scenario["owner"], scenario["month"], balanced.id)
+        tasks = expense_service.ensure_tasks_for_month(scenario["owner"], scenario["month"])
+        food = next(task for task in tasks if
+                    task.allocation.budget_expense.expense_name == "Food"
+                    and task.assigned_date == date(2026, 11, 6))
+        original_limit, task_id = food.original_limit, food.id
+        food.current_limit = original_limit + 17
+        db.session.commit()
+
+    context = {}
+    def capture(sender, template, context: dict, **kwargs):
+        if template.name == "budgets/schedule.html":
+            rendered_context.update(context)
+    rendered_context = context
+    with template_rendered.connected_to(capture, app):
+        page = owner_client.get(f"/budget/{scenario['month']}/schedule?view=day&date=2026-11-06")
+    assert page.status_code == 200
+    assert rendered_context["state"].code == "READY"
+    displayed_food = next(t for t in rendered_context["assigned"] if t.id == task_id)
+    assert displayed_food.original_limit == original_limit
+    assert displayed_food.current_limit == original_limit + 17
+    assert rendered_context["total"] == sum(t.original_limit for t in rendered_context["assigned"])
+    with app.app_context():
+        assert db.session.get(AssignedExpenseTask, task_id).current_limit == original_limit + 17
+        assert db.session.scalar(db.select(db.func.count(ExpenseRecord.id))) == 0
+
+
+def test_t2_confirmed_schedule_survives_new_file_backed_app_instance(tmp_path):
+    """Unlike sqlite://, a file DB verifies survival across a new app instance."""
+    from app import create_app
+
+    config = {
+        "TESTING": True,
+        "SECRET_KEY": "task2-persistence-test-only",
+        "SQLALCHEMY_DATABASE_URI": "sqlite:///" + (tmp_path / "task2.sqlite").as_posix(),
+        "WTF_CSRF_ENABLED": False,
+    }
+    first_app = create_app(config)
+    with first_app.app_context():
+        db.create_all()
+        owner = User(email="task2-restart@example.com", password_hash="test-only")
+        db.session.add(owner)
+        db.session.flush()
+        month = BudgetMonth(user_id=owner.id, month_start=date(2026, 11, 1),
+                            tracking_start_date=date(2026, 11, 6), available_vnd=7_000_000)
+        category = ExpenseCategory(user_id=owner.id, category_name="Task 2 persistence")
+        db.session.add_all([month, category])
+        db.session.flush()
+        for name, priority, estimate, minimum, frequency in [
+            ("Rent", "P0", 2_000_000, None, "MONTHLY"),
+            ("Electricity", "P0", 200_000, None, "MONTHLY"),
+            ("Water", "P0", 100_000, None, "MONTHLY"),
+            ("Food", "P1", None, 1_000_000, "DAILY"),
+            ("Transportation", "P1", None, 200_000, "WEEKLY"),
+            ("Entertainment", "P2", 0, None, "MONTHLY"),
+        ]:
+            db.session.add(BudgetExpense(
+                budget_month_id=month.id, category_id=category.id,
+                expense_name=name, priority=priority, estimated_amount=estimate,
+                minimum_amount=minimum, allocation_frequency=frequency,
+            ))
+        db.session.commit()
+        owner_id, month_id = owner.id, month.id
+        plans = budget_service.generate_budget_plans(owner_id, month_id)
+        plan = next(p for p in plans if p.plan_type == "BALANCED")
+        plan_id = plan.id
+        budget_service.confirm_plan(owner_id, month_id, plan_id)
+        initial = expense_service.ensure_tasks_for_month(owner_id, month_id)
+        task_snapshot = {(t.id, t.allocation_id, t.assigned_date,
+                          t.period_end, t.original_limit) for t in initial}
+        assert len(task_snapshot) == 34
+        db.session.remove()
+        db.engine.dispose()
+
+    # A new factory/session must reload, not regenerate, the confirmed plan.
+    second_app = create_app(config)
+    with second_app.app_context():
+        confirmed = budget_service.get_plan(owner_id, month_id, plan_id)
+        assert confirmed.status == "CONFIRMED"
+        assert sum(a.allocated_amount for a in confirmed.allocations) + confirmed.planned_savings == 7_000_000
+        persisted = list(db.session.scalars(db.select(AssignedExpenseTask)))
+        assert {(t.id, t.allocation_id, t.assigned_date,
+                 t.period_end, t.original_limit) for t in persisted} == task_snapshot
+        assert expense_service.get_schedule_state(owner_id, month_id).code == "READY"
+        assert db.session.scalar(db.select(db.func.count(ExpenseRecord.id))) == 0
+        retried = expense_service.ensure_tasks_for_month(owner_id, month_id)
+        assert {task.id for task in retried} == {row[0] for row in task_snapshot}
+        db.session.remove()
+        db.engine.dispose()
