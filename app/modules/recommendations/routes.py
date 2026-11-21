@@ -132,9 +132,15 @@ def monthly_feedback():
     if raw_rating and not raw_rating.isdecimal():
         raise services.RecommendationServiceError("rating must be an integer from 1 to 5")
     rating = int(raw_rating) if raw_rating else None
-    services.save_monthly_feedback(g.current_user.id, month, rating, request.form.get("comment"))
-    flash("Đã lưu đánh giá tháng của bạn.", "info")
-    return redirect(url_for("recommendations.index", month=month))
+    feedback = services.save_monthly_feedback(g.current_user.id, month, rating, request.form.get("comment"))
+    if feedback["rating"] is not None:
+        message = f"Đã cập nhật đánh giá tháng {month}: {feedback['rating']}/5. Số liệu tổng kết không thay đổi."
+    elif feedback["comment"]:
+        message = f"Đã lưu nhận xét cho tháng {month}. Số liệu tổng kết không thay đổi."
+    else:
+        message = f"Đã xóa đánh giá cho tháng {month}. Số liệu tổng kết không thay đổi."
+    flash(message, "success")
+    return redirect(url_for("recommendations.index", month=month, as_of=request.form.get("as_of") or None))
 
 
 @bp.errorhandler(services.RecommendationServiceError)
