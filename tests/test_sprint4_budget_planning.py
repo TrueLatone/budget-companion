@@ -1,7 +1,7 @@
 """Sprint 4 Budget Planning acceptance cases for the supplied MAIN snapshot.
 
 One pytest function per automated BP case in Budget_Planning_Test_Cases_Sprint4.xlsx.
-BP-04, BP-14 and BP-28 use the browser procedures in the KAN-71 verification report.
+BP-04, BP-14 and BP-28 use the browser procedures in the KAN-63 workbook.
 All state is confined to disposable SQLite fixtures; no real accounts or funds.
 
 D1: Nov 2026, 7,000,000 VND, seven expenses with P0=2,500,000.
@@ -458,3 +458,138 @@ def test_BP_30_reject_cross_user_schedule_access(app, d2):
         with pytest.raises(expenses.NotFoundError):
             expenses.ensure_tasks_for_month(d2["other"], d2["month"])
         assert set(db.session.scalars(db.select(AssignedExpenseTask.id))) == ids
+
+
+# PA4 additions to the original KAN-52 case set.
+def _session(client, user_id):
+    with client.session_transaction() as session:
+        session["user_id"] = str(user_id)
+
+
+def test_BP_31_zero_funds(app, client):
+    _signed_in(client, app)
+    response = client.post("/budget-periods/new", data={"month":"02/2040", "tracking_start_day":"29", "available_vnd":"0"})
+    assert response.status_code == 302
+    with app.app_context():
+        m = db.session.scalar(db.select(BudgetMonth))
+        assert (m.tracking_start_date, m.available_vnd) == (date(2040, 2, 29), 0)
+
+
+def test_BP_32_reject_fraction_of_planning_unit(app, client):
+    _signed_in(client, app)
+    response = client.post("/budget-periods/new", data={"month":"02/2040", "tracking_start_day":"29", "available_vnd":"1500"})
+    assert "1,000 VND" in response.text
+    with app.app_context():
+        assert db.session.scalar(db.select(BudgetMonth)) is None
+
+
+def test_BP_33_no_months(app, client):
+    _signed_in(client, app)
+    page = client.get("/budget")
+    assert page.status_code == 200 and '/budget-periods/new' in page.text
+    with app.app_context():
+        assert db.session.scalar(db.select(BudgetMonth)) is None
+
+
+def test_BP_34_foreign_month_selection(client, d1):
+    _session(client, d1["other"])
+    assert client.post(f"/budget-periods/{d1['month']}/select").status_code == 404
+    with client.session_transaction() as session:
+        assert "active_budget_month_id" not in session
+
+
+def test_BP_35_missing_month(client, d1):
+    _session(client, d1["owner"])
+    assert client.get("/budget?month=2040-12").status_code == 404
+    assert client.get(f"/budget/{d1['month']}").status_code == 200
+
+
+def test_BP_36_year_filter(app, client, d1):
+    from app.modules.budget_periods.services import create_budget_month
+    with app.app_context():
+        create_budget_month(d1["owner"], "2027-01", 4_000_000)
+    _session(client, d1["owner"])
+    page = client.get("/budget?view=year&year=2027")
+    table = page.text.split("<tbody>")[1].split("</tbody>")[0]
+    assert "01/2027" in table and "4,000,000" in table and "11/2026" not in table
+
+
+def test_BP_37_regenerate_unconfirmed(app, d1):
+    with app.app_context():
+        _generate(d1)
+        before = {p.id for p in budgets.list_plans(d1["owner"], d1["month"])}
+        _generate(d1)
+        after = budgets.list_plans(d1["owner"], d1["month"])
+        assert len(after) == 3 and before.isdisjoint(p.id for p in after)
+        assert all(p.status == "GENERATED" for p in after)
+        assert db.session.scalar(db.select(AssignedExpenseTask)) is None
+
+
+def test_BP_38_review_another_option(app, client, d1):
+    with app.app_context():
+        plans = budgets.generate_budget_plans(d1["owner"], d1["month"])
+        urls = {p.plan_type: f"/budget/{d1['month']}/plans/{p.id}" for p in plans}
+    _session(client, d1["owner"])
+    for key,name in [("BALANCED","Balanced"),("LIFESTYLE","Lifestyle")]:
+        page = client.get(urls[key])
+        assert page.status_code == 200 and f"{name} · 11/2026" in page.text
+        assert "GENERATED" in page.text
+    with app.app_context():
+        assert all(p.status=="GENERATED" for p in budgets.list_plans(d1["owner"],d1["month"]))
+        assert db.session.scalar(db.select(AssignedExpenseTask)) is None
+
+
+def test_BP_39_confirm_generates_schedule(app, client, d2):
+    with app.app_context():
+        plan_id = _generate(d2).id
+    _session(client, d2["owner"])
+    response = client.post(f"/budget/{d2['month']}/plans/{plan_id}/confirm")
+    assert response.status_code == 302 and response.location.startswith("/expenses?")
+    with app.app_context():
+        assert expenses.get_schedule_state(d2["owner"],d2["month"]).code == "READY"
+        assert db.session.scalar(db.select(db.func.count(AssignedExpenseTask.id))) == 34
+        assert db.session.scalar(db.select(ExpenseRecord)) is None
+
+
+def test_BP_40_schedule_before_confirmation(app, client, d2):
+    with app.app_context():
+        _generate(d2)
+    _session(client, d2["owner"])
+    page = client.get(f"/budget/{d2['month']}/schedule")
+    assert page.status_code == 302 and page.location.endswith(str(d2['month']))
+    with app.app_context():
+        assert db.session.scalar(db.select(AssignedExpenseTask)) is None
+
+
+def test_BP_41_incomplete_original_schedule(app, client, d2):
+    with app.app_context():
+        plan = _generate(d2)
+        budgets.confirm_plan(d2["owner"], d2["month"], plan.id)
+    _session(client, d2["owner"])
+    page = client.get(f"/budget/{d2['month']}/schedule")
+    assert page.status_code==200 and "schedule is not ready" in page.text
+    with app.app_context():
+        assert db.session.scalar(db.select(AssignedExpenseTask)) is None
+
+
+def test_BP_42_clipped_week(app, client, d2):
+    with app.app_context():
+        plan = _generate(d2)
+        budgets.confirm_and_schedule(d2["owner"], d2["month"], plan.id)
+    _session(client, d2["owner"])
+    page = client.get(f"/budget/{d2['month']}/schedule?view=week&date=2026-11-07")
+    assert page.status_code == 200 and "06/11/2026 – 08/11/2026" in page.text
+    assert "Transportation" in page.text
+
+
+def test_BP_43_month_original_total(app, client, d2):
+    with app.app_context():
+        plan = _generate(d2)
+        total = sum(a.allocated_amount for a in plan.allocations)
+        budgets.confirm_and_schedule(d2["owner"], d2["month"], plan.id)
+    _session(client, d2["owner"])
+    page = client.get(f"/budget/{d2['month']}/schedule?view=month")
+    assert page.status_code == 200 and f"{total:,} VND" in page.text
+    assert "Transportation" in page.text
+    with app.app_context():
+        assert db.session.scalar(db.select(ExpenseRecord)) is None
