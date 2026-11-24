@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+{% from 'components/icons.html' import icon %}
 {% block title %}{{ heading }} · Budget Companion{% endblock %}
 {% block body_class %}bc-app{% endblock %}
 {% block main_class %}bc-app-main{% endblock %}
@@ -14,26 +15,37 @@
         {% if form.month is defined %}
           <div class="bc-form-group">
             {{ form.month.label(class='bc-form-label') }}
-            {{ form.month(class='bc-form-control' + (' is-invalid' if form.month.errors else ''), type='month') }}
-            {% for error in form.month.errors %}<div class="bc-form-error" role="alert">{{ error }}</div>{% endfor %}
+            <div class="bc-month-field">
+              <input class="bc-form-control" id="month" name="month" placeholder="MM/YYYY" maxlength="7" required value="{{ form.month.data[5:] ~ '/' ~ form.month.data[:4] if form.month.data and '-' in form.month.data else form.month.data or '' }}">
+              <button type="button" id="open-picker" aria-label="{{ 'Chọn tháng' if ui_locale=='vi' else 'Choose month' }}" aria-haspopup="dialog" aria-expanded="false" aria-controls="month-calendar">{{ icon('calendar') }}</button>
+              <dialog id="month-calendar" aria-label="{{ 'Chọn tháng' if ui_locale=='vi' else 'Choose month' }}">
+                <header>
+                  <button type="button" id="year-prev" aria-label="{{ 'Năm trước' if ui_locale=='vi' else 'Previous year' }}">‹</button>
+                  <strong id="picker-year" aria-live="polite"></strong>
+                  <button type="button" id="year-next" aria-label="{{ 'Năm sau' if ui_locale=='vi' else 'Next year' }}">›</button>
+                </header>
+                <div id="month-options"></div>
+                <button type="button" id="picker-close">{{ t('cancel') }}</button>
+              </dialog>
+            </div>
+            {% for error in form.month.errors %}<div class="bc-form-error" role="alert">{{ error|ui_error }}</div>{% endfor %}
           </div>
         {% endif %}
-        {% if form.tracking_start_date is defined %}
+        {% if existing %}<a href="{{ url_for('budgets.month', month_id=existing.id) }}">{{ t('live_open_month') }}</a>{% endif %}
+        {% if form.tracking_start_day is defined %}
           <div class="bc-form-group">
-            {{ form.tracking_start_date.label(class='bc-form-label') }}
-            {{ form.tracking_start_date(class='bc-form-control' + (' is-invalid' if form.tracking_start_date.errors else '')) }}
-            <div class="bc-form-help">{{ t('tracking_start_date_help') }}</div>
-            {% for error in form.tracking_start_date.errors %}<div class="bc-form-error" role="alert">{{ error }}</div>{% endfor %}
+            <label for="tracking_start_day">{{ t('tracking_start_date_field') }}</label>
+            {{ form.tracking_start_day(class='bc-form-control', min=1, max=31, required=true, data_today=today.isoformat()) }}
+            {% for error in form.tracking_start_day.errors + form.tracking_start_date.errors %}<div class="bc-form-error" role="alert">{{ error|ui_error }}</div>{% endfor %}
           </div>
         {% endif %}
         <div class="bc-form-group">
           {{ form.available_vnd.label(class='bc-form-label') }}
           <div class="bc-money-input">
-            {{ form.available_vnd(class='bc-form-control' + (' is-invalid' if form.available_vnd.errors else ''), min='0', step='1', inputmode='numeric') }}
+            {{ form.available_vnd(class='bc-form-control' + (' is-invalid' if form.available_vnd.errors else ''), min='0', step=(budget_month.planning_unit if budget_month else 1000), inputmode='numeric') }}
             <span>VND</span>
           </div>
-          <div class="bc-form-help">{{ t('available_funds_help') }}</div>
-          {% for error in form.available_vnd.errors %}<div class="bc-form-error" role="alert">{{ error }}</div>{% endfor %}
+          {% for error in form.available_vnd.errors %}<div class="bc-form-error" role="alert">{{ error|ui_error }}</div>{% endfor %}
         </div>
         <div class="bc-action-row">
           {{ form.submit(class='bc-button bc-button-primary') }}
@@ -43,3 +55,5 @@
     </div>
   </section>
 {% endblock %}
+
+{% block scripts %}{{ super() }}{% if form.tracking_start_day is defined %}<script defer src="{{ url_for('static', filename='js/budget-day.js') }}"></script>{% endif %}{% endblock %}

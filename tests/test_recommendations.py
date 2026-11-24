@@ -44,8 +44,8 @@ def setup(app, client, monkeypatch):
         other = User(email="other-analysis@example.com", password_hash="test-only")
         db.session.add_all([owner, other])
         db.session.commit()
-        month = create_budget_month(owner.id, "2026-10", 5_000_000, date(2026, 10, 1))
-        foreign_month = create_budget_month(other.id, "2026-09", 5_000_000)
+        month = create_budget_month(owner.id, "2026-10", 5_000_000, date(2026, 10, 1), planning_unit=1)
+        foreign_month = create_budget_month(other.id, "2026-09", 5_000_000, planning_unit=1)
         data = dict(user=owner.id, other=other.id, month=month.id, foreign_month=foreign_month.id)
         budgets.apply_suggested_expenses(owner.id, month.id, [s.key for s in SUGGESTED_EXPENSES if s.selected], {
             s.key: {"estimated_amount": s.example_amount} for s in SUGGESTED_EXPENSES
@@ -359,7 +359,7 @@ def test_missing_schedule_and_missing_checkins_are_never_known_zero(app, seeded)
 
 def test_short_month_and_midmonth_history_do_not_reduce_coverage_threshold(app, setup):
     with app.app_context():
-        period = create_budget_month(setup["user"], "2026-09", 100, date(2026, 9, 15))
+        period = create_budget_month(setup["user"], "2026-09", 100, date(2026, 9, 15), planning_unit=1)
         category = budgets.list_categories(setup["user"])[0]
         for index in range(10):
             expenses.create_unexpected_record(setup["user"], dict(budget_month_id=str(period.id), title="Test purchase", category=category.category_name,
@@ -484,7 +484,7 @@ def test_unauthenticated_html_redirects_and_json_returns_401(app, client, setup)
 
 def test_future_month_and_empty_account_produce_no_fabricated_history(app, client, setup):
     with app.app_context():
-        create_budget_month(setup["user"], "2026-12", 5000000)
+        create_budget_month(setup["user"], "2026-12", 5000000, planning_unit=1)
         result = services.analyze_spending(setup["user"], "2026-12")
         assert not result["completeness"]["checks"]["tracking_started"] and not result["findings"]
         before = financial_snapshot()
@@ -595,7 +595,7 @@ def test_recommendation_persistence_on_migrated_schema(tmp_path, monkeypatch):
             owner = User(email="migrated-analysis@example.com", password_hash="test-only")
             db.session.add(owner)
             db.session.commit()
-            month = create_budget_month(owner.id, "2026-10", 5_000_000)
+            month = create_budget_month(owner.id, "2026-10", 5_000_000, planning_unit=1)
             data = dict(user=owner.id, month=month.id)
             budgets.apply_suggested_expenses(owner.id, month.id, [s.key for s in SUGGESTED_EXPENSES if s.selected], {
                 s.key: {"estimated_amount": s.example_amount} for s in SUGGESTED_EXPENSES

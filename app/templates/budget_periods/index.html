@@ -28,15 +28,23 @@
             {% for period in budget_months %}
               <tr>
                 <td>
-                  <strong>{{ month_name(period.month_start) }}</strong>
+                  <strong>{{ period.month_start.strftime('%m/%Y') }}</strong>
                   {% if active_budget_month_id == period.id|string %}<span class="bc-status-badge">{{ t('budget_selected') }}</span>{% endif %}
                 </td>
                 <td>{{ period.tracking_start_date.isoformat() }}</td>
                 <td>{{ money(period.available_vnd) }} VND</td>
                 <td>
                   <div class="bc-table-actions">
-                    <a class="bc-button bc-button-soft bc-button-compact" href="{{ url_for('budgets.month', month_id=period.id) }}">Plan budget</a>
-                    <a class="bc-button bc-button-light bc-button-compact" href="{{ url_for('budget_periods.edit', budget_month_id=period.id) }}">{{ t('edit') }}</a>
+                    <a class="bc-button bc-button-soft bc-button-compact" href="{{ url_for('budgets.month', month_id=period.id) }}">{{ 'Xem ngân sách' if ui_locale=='vi' else 'View budget' }}</a>
+                    {% if not period.plans %}<a class="bc-button bc-button-light bc-button-compact" href="{{ url_for('budget_periods.edit', budget_month_id=period.id) }}">{{ t('edit') }}</a>{% endif %}
+<button class="bc-button bc-button-light bc-button-compact" type="button" data-delete="{{ period.id }}">{{ 'Xóa tháng' if ui_locale=='vi' else 'Delete month' }}</button>
+<dialog id="remove-{{ period.id }}" aria-labelledby="remove-title-{{ period.id }}">
+<h2 id="remove-title-{{ period.id }}">{{ 'Xóa tháng' if ui_locale=='vi' else 'Delete month' }} {{ period.month_start.strftime('%m/%Y') }}?</h2>
+<p>{{ 'Toàn bộ thiết lập, kế hoạch và lịch của tháng sẽ bị xóa.' if ui_locale=='vi' else 'All setup, plans and schedules for this month will be deleted.' }}
+{% if period.expense_records %}{{ 'Bao gồm các giao dịch thực tế đã ghi nhận.' if ui_locale=='vi' else 'This includes the recorded transactions.' }}{% endif %}
+{{ 'Không thể hoàn tác.' if ui_locale=='vi' else 'This cannot be undone.' }}</p>
+<form method="dialog"><button autofocus class="bc-button">{{ t('cancel') }}</button></form>
+<form method="post" action="{{ url_for('budget_periods.remove',month_id=period.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="confirm_month" value="{{ period.id }}"><button class="bc-button">{{ 'Xóa tháng' if ui_locale=='vi' else 'Delete month' }} {{ period.month_start.strftime('%m/%Y') }}</button></form></dialog>
                     {% if active_budget_month_id != period.id|string %}
                       <form method="post" action="{{ url_for('budget_periods.select', budget_month_id=period.id) }}">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -60,3 +68,4 @@
     {% endif %}
   </section>
 {% endblock %}
+{% block scripts %}{{ super() }}<script>document.querySelectorAll('[data-delete]').forEach(button=>button.addEventListener('click',()=>document.getElementById('remove-'+button.dataset.delete).showModal()));</script>{% endblock %}

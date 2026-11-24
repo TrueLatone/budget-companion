@@ -38,7 +38,7 @@ def test_create_budget_month_accepts_zero_and_selects_it(client, app):
 
     response = client.get("/budget-periods")
     assert response.status_code == 200
-    assert b"October 2026" in response.data
+    assert b"10/2026" in response.data
     assert b"Selected" in response.data
 
 
@@ -56,14 +56,14 @@ def test_same_calendar_month_is_allowed_for_different_users(client, app):
     sign_in(client, app, "first@example.com")
     assert client.post(
         "/budget-periods/new",
-        data={"month": "2026-10", "available_vnd": "100"},
+        data={"month": "2026-10", "available_vnd": "100000"},
     ).status_code == 302
     client.post("/logout")
 
     sign_in(client, app, "second@example.com")
     assert client.post(
         "/budget-periods/new",
-        data={"month": "2026-10", "available_vnd": "200"},
+        data={"month": "2026-10", "available_vnd": "200000"},
     ).status_code == 302
 
     with app.app_context():
@@ -114,20 +114,20 @@ def test_update_available_funds_does_not_replace_period(client, app):
     sign_in(client, app)
     client.post(
         "/budget-periods/new",
-        data={"month": "2026-10", "available_vnd": "100"},
+        data={"month": "2026-10", "available_vnd": "100000"},
     )
     with app.app_context():
         period_id = db.session.scalar(db.select(BudgetMonth.id))
 
     response = client.post(
         f"/budget-periods/{period_id}/edit",
-        data={"available_vnd": "250"},
+        data={"available_vnd": "250000"},
     )
     assert response.status_code == 302
 
     with app.app_context():
         period = db.session.get(BudgetMonth, period_id)
-        assert period.available_vnd == 250
+        assert period.available_vnd == 250000
         assert db.session.scalar(db.select(db.func.count(BudgetMonth.id))) == 1
 
 
@@ -143,7 +143,7 @@ def test_budget_month_page_uses_vietnamese_copy_and_formatting(client, app):
 
     assert response.status_code == 200
     assert "Ngân sách tháng" in response.get_data(as_text=True)
-    assert "Tháng 10 2026" in response.get_data(as_text=True)
+    assert "10/2026" in response.get_data(as_text=True)
     assert "1.500.000 VND" in response.get_data(as_text=True)
 
 
@@ -164,7 +164,7 @@ def test_create_month_accepts_mid_month_tracking_start(client, app):
 def test_create_month_rejects_invalid_tracking_start(client, app, tracking):
     sign_in(client, app)
     response = client.post("/budget-periods/new", data={
-        "month": "2026-10", "available_vnd": "100", "tracking_start_date": tracking,
+        "month": "2026-10", "available_vnd": "100000", "tracking_start_date": tracking,
     })
     assert response.status_code == 200
     with app.app_context():
@@ -179,7 +179,7 @@ def test_tracking_date_validation_is_translated(client, app, tracking, message):
     client.set_cookie("bc_language", "vi")
     sign_in(client, app)
     response = client.post("/budget-periods/new", data={
-        "month": "2026-10", "available_vnd": "100", "tracking_start_date": tracking,
+        "month": "2026-10", "available_vnd": "100000", "tracking_start_date": tracking,
     })
     assert message in response.get_data(as_text=True)
 
@@ -190,3 +190,25 @@ def test_service_rejects_invalid_tracking_before_database_write(app):
         with pytest.raises(ValueError, match="Tracking start date"):
             create_budget_month(user.id, "2026-10", 100, date(2026, 11, 1))
         assert db.session.scalar(db.select(db.func.count(BudgetMonth.id))) == 0
+
+
+def test_month_picker_day_and_legacy_date_agree(client, app):
+    sign_in(client, app)
+    data = {"month": "2040-02", "available_vnd": "7000000", "tracking_start_day": "29"}
+    response = client.post("/budget-periods/new", data=data)
+    assert response.status_code == 302
+    with app.app_context():
+        month = db.session.scalar(db.select(BudgetMonth))
+        assert month.tracking_start_date == date(2040, 2, 29)
+        assert response.location.endswith("/budget-periods")
+
+
+@pytest.mark.parametrize("month,day", [("2041-02", "29"), ("2040-02", ""), ("2000-02", "15")])
+def test_month_picker_rejects_invalid_start(client, app, month, day):
+    sign_in(client, app)
+    result = client.post("/budget-periods/new", data={
+        "month": month, "available_vnd": "0", "tracking_start_day": day,
+    })
+    assert result.status_code == 200
+    with app.app_context():
+        assert db.session.scalar(db.select(BudgetMonth)) is None

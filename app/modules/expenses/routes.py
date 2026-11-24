@@ -303,7 +303,8 @@ def index():
             # fields. Date-only navigation can still leave the session month.
             selected_date = parse_optional_date(raw_date)
             if not selected_date or selected_date.replace(day=1) != active_month.month_start:
-                raw_date = active_month.tracking_start_date.isoformat()
+                today = services.today_vn()
+                raw_date = (today if today.replace(day=1) == active_month.month_start else active_month.tracking_start_date).isoformat()
             raw_month = raw_year = None
         elif not (raw_date or raw_month or raw_year):
             today = services.today_vn()
@@ -391,6 +392,7 @@ def index():
         selected_month=selected_month,
         budget_months=list_budget_months(user_id),
         schedule_state=schedule_state,
+        confirmed_budget=services.budgets.get_plan(user_id, selected_month.id, schedule_state.plan_id) if schedule_state and schedule_state.plan_id else None,
         can_schedule=bool(schedule_state and schedule_state.can_schedule),
         calendar=calendar_weeks,
         day_items=day_items,
@@ -519,7 +521,7 @@ def schedule(month_id):
 
 @bp.errorhandler(NotFoundError)
 def not_found(error):
-    return "Expense resource not found.", 404
+    return render_template("expenses/error.html", message=str(error)), 404
 
 
 @bp.errorhandler(ValidationError)

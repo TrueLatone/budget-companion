@@ -26,13 +26,13 @@
   </div>
 </header>
 <div class="ws-content">
-  {% if workspace_month %}<form method="get" action="{{ workspace_urls[active_page].split('?')[0] if active_page in workspace_urls else url_for('dashboard.index') }}" class="ws-month-switcher mb-3">
+  {% if workspace_month and request.endpoint not in ("budgets.month","budgets.index") %}<form method="get" action="{{ workspace_urls[active_page].split('?')[0] if active_page in workspace_urls else url_for('dashboard.index') }}" class="ws-month-switcher mb-3">
     <label for="workspace-month">{{ t('ws_month') }}</label>
     <select id="workspace-month" name="budget_month_id" class="form-select w-auto" required>
       {% set workspace_periods = months if months is defined else budget_months if budget_months is defined else workspace_owned_months() %}
-      {% for period in workspace_periods %}<option value="{{ period.id }}" {% if period.id == workspace_month.id %}selected{% endif %}>{{ month_name(period.month_start) }}</option>{% endfor %}
+      {% for period in workspace_periods %}<option value="{{ period.id }}" {% if period.id == workspace_month.id %}selected{% endif %}>{{ period.month_start.strftime('%m/%Y') }}</option>{% endfor %}
     </select>
-    {% if active_page == 'expenses' %}<input type="hidden" name="view" value="month">{% endif %}
+    {% if active_page == 'expenses' %}<input type="hidden" name="view" value="day">{% endif %}
     <button class="ws-button" type="submit">{{ t('live_open_month') }}</button>
     <a href="{{ url_for('budget_periods.index') }}">{{ t('manage_budget_months') }}</a>
   </form>{% endif %}

@@ -14,8 +14,7 @@ guidance, not synthetic transactions or a reduced completeness threshold.
 See [Build 1 verification](build1-verification.md) for reproducible acceptance
 coverage and remaining deployment limitations.
 
-Load Example and Food's 30/40/30 meal guidance are illustrative presentation
-features, not demo persistence or additional transactions. No live endpoint uses
+Food’s meal guidance divides the daily allowance for display. No live endpoint uses
 `ui_demo.py` or browser localStorage as financial storage. Funds addition,
 cross-month reports, automatic adjustments and LLM advice have no implemented
 write contract. Some legacy Expense/Recommendation text still needs translation.
@@ -102,8 +101,7 @@ Suggested setup fields: repeated `suggestion` keys from `rent`, `electricity`,
 `<key>_allocation_frequency` and `<key>_due_day` (monthly only). Names, default
 priorities and categories come from the server's suggestion list, not submitted
 identity fields. Omitted frequencies use monthly bills / daily Food / weekly
-Transportation. Blank estimates stay NULL; example amounts require explicit
-user input or the unsaved **Load Example** action. Existing case-insensitive
+Transportation. Blank estimates stay NULL. Students enter their own amounts. Existing case-insensitive
 names are always preserved on retries, even if submitted values differ. The
 entire batch uses the existing Budget write path and rolls back on failure.
 No GET seeds financial records. See [Budget core parity](budget-core-parity.md)

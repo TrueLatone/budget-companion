@@ -45,7 +45,7 @@ def money(value, label, *, optional=False, positive=False):
     return value
 
 
-def validate_setup(funds, expenses):
+def validate_setup(funds, expenses, unit=1):
     money(funds, "Available funds")
     names = [expense.name.strip().casefold() for expense in expenses]
     if len(set(names)) != len(names):
@@ -66,7 +66,7 @@ def validate_setup(funds, expenses):
         if expense.priority != "P1" and expense.minimum_amount is not None:
             raise BudgetError("Only P1 expenses may specify a minimum.")
     required = sum(
-        e.estimated_amount if e.priority == "P0" else (e.minimum_amount or 1)
+        e.estimated_amount if e.priority == "P0" else (e.minimum_amount or unit)
         for e in expenses
     )
     if required > funds:
@@ -108,13 +108,35 @@ def validate_allocations(funds, expenses, allocations, savings):
         raise BudgetError("Allocations plus planned savings must exactly equal available funds; generate plans again.")
 
 
-def meal_breakdown(daily_limit):
+def check_unit(amount, unit):
+    if amount is not None and amount % unit:
+        raise BudgetError("Enter multiples of 1,000 VND.")
+
+
+def meal_breakdown(daily_limit, unit=1):
     """Presentation only: subdivide one existing daily Food limit, even zero."""
     daily_limit = money(daily_limit, "Daily Food limit")
-    return dict(zip(MEAL_WEIGHTS, split_integer(daily_limit, list(MEAL_WEIGHTS.values()))))
+    # Adjusted actual limits on legacy schedules can use single dong.
+    step = unit if daily_limit % unit == 0 else 1
+    return dict(zip(MEAL_WEIGHTS, (n * step for n in split_integer(daily_limit // step, list(MEAL_WEIGHTS.values())))))
 
 
-def generate_plans(funds, expenses):
+def generate_plans(funds, expenses, unit=1):
+    if unit != 1:
+        validate_setup(funds, expenses, unit)
+        check_unit(funds, unit)
+        scaled = []
+        for e in expenses:
+            check_unit(e.estimated_amount, unit)
+            check_unit(e.minimum_amount, unit)
+            scaled.append(ExpenseInput(e.id, e.name, e.priority,
+                          e.estimated_amount // unit if e.estimated_amount is not None else None,
+                          e.minimum_amount // unit if e.minimum_amount is not None else None))
+        plans = generate_plans(funds // unit, scaled)
+        for plan in plans:
+            plan["planned_savings"] *= unit
+            plan["allocations"] = [(key, amount * unit) for key, amount in plan["allocations"]]
+        return plans
     validate_setup(funds, expenses)
     p0 = [e for e in expenses if e.priority == "P0"]
     p1 = [e for e in expenses if e.priority == "P1"]

@@ -43,3 +43,28 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   });
 });
+
+// Browser-native validation follows the selected UI language even on an English OS.
+if (document.documentElement.lang === "vi") {
+  document.addEventListener("invalid", event => {
+    const input = event.target;
+    if (!input.validity || input.validity.customError) return;
+    const state = input.validity;
+    let message = "Kiểm tra lại giá trị đã nhập.";
+    if (state.valueMissing) message = "Vui lòng điền trường này.";
+    else if (state.rangeUnderflow) message = "Giá trị nhỏ nhất là " + input.min + ".";
+    else if (state.rangeOverflow) message = "Giá trị lớn nhất là " + input.max + ".";
+    else if (state.badInput || state.stepMismatch) message = "Nhập một số hợp lệ.";
+    else if (state.typeMismatch && input.type === "email") message = "Nhập địa chỉ email hợp lệ.";
+    input.setCustomValidity(message);
+    input.dataset.viNativeError = "1";
+  }, true);
+  const clearNativeError = event => {
+    if (event.target.dataset?.viNativeError) {
+      event.target.setCustomValidity("");
+      delete event.target.dataset.viNativeError;
+    }
+  };
+  document.addEventListener("input", clearNativeError, true);
+  document.addEventListener("change", clearNativeError, true);
+}

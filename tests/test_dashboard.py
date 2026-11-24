@@ -35,9 +35,9 @@ def setup(app, client, monkeypatch):
         other = User(email="private-workspace@example.com", password_hash="test-only")
         db.session.add_all([owner, other])
         db.session.commit()
-        month = create_budget_month(owner.id, "2026-10", 5_000_000, date(2026, 10, 15))
-        later = create_budget_month(owner.id, "2026-11", 500_003)
-        foreign = create_budget_month(other.id, "2026-10", 99_000_000)
+        month = create_budget_month(owner.id, "2026-10", 5_000_000, date(2026, 10, 15), planning_unit=1)
+        later = create_budget_month(owner.id, "2026-11", 500_003, planning_unit=1)
+        foreign = create_budget_month(other.id, "2026-10", 99_000_000, planning_unit=1)
         budgets.apply_suggested_expenses(owner.id, month.id, [s.key for s in SUGGESTED_EXPENSES if s.selected], {
             s.key: {"estimated_amount": s.example_amount} for s in SUGGESTED_EXPENSES
         })
@@ -87,7 +87,7 @@ def test_dashboard_no_confirmation_never_uses_drafts_or_sample_finances(app, cli
 def test_confirm_schedule_and_calendar_connect_to_dashboard(app, client, setup):
     assert client.post(f"/budget/{setup['month']}/plans/{setup['plan']}/confirm").status_code == 302
     response, context = page(app, client, "/dashboard")
-    assert context["view"]["schedule_state"].code == "NOT_SCHEDULED"
+    assert context["view"]["schedule_state"].code == "READY"
     assert context["view"]["planned"] == 4_360_000
     assert context["view"]["savings"] == 640_000 and context["view"]["remaining"] is None
     assert client.post(f"/expenses/months/{setup['month']}/schedule").status_code == 302
@@ -139,13 +139,17 @@ def test_savings_and_unallocated_funds_never_double_count_saved_plan(app, setup)
         tasks = schedule(setup)
         actual(setup, tasks[0])
         month = budgets.get_month(setup["user"], setup["month"])
-        update_available_vnd(month, 6_000_000)
+        # Historical data from before the funding lock.
+        month.available_vnd = 6_000_000
+        db.session.commit()
         view = services.build_dashboard(setup["user"], setup["month"])
         assert view["planned"] == 4_360_000 and view["saved_total"] == 5_000_000
         assert view["savings"] == 640_000 and view["available"] == 6_000_000
         assert view["unallocated"] == 1_000_000 and view["funding_shortfall"] == 0
         assert view["remaining"] is None  # 6M funding is not a spending balance.
-        update_available_vnd(month, 4_000_000)
+        # Historical data from before the funding lock.
+        month.available_vnd = 4_000_000
+        db.session.commit()
         view = services.build_dashboard(setup["user"], setup["month"])
         assert view["funding_shortfall"] == 1_000_000 and view["unallocated"] == 0
         assert view["saved_total"] == 5_000_000
@@ -242,7 +246,7 @@ def test_zero_data_account_and_empty_owned_month_render_no_demo(client, app):
         session["user_id"] = str(owner_id)
     assert b"No Budget Month yet" in client.get("/dashboard").data
     with app.app_context():
-        month = create_budget_month(owner_id, "2026-10", 0)
+        month = create_budget_month(owner_id, "2026-10", 0, planning_unit=1)
         month_id = month.id
     response, context = page(app, client, f"/dashboard?budget_month_id={month_id}")
     assert context["view"]["available"] == 0 and context["view"]["remaining"] is None
@@ -253,7 +257,8 @@ def test_bigint_dashboard_totals_and_chart_shares_remain_exact(app, setup):
     from app.modules.budgets.rules import MAX_VND
     with app.app_context():
         month = budgets.get_month(setup["user"], setup["month"])
-        update_available_vnd(month, MAX_VND)
+        month.available_vnd = MAX_VND
+        db.session.commit()
         plans = budgets.generate_budget_plans(setup["user"], setup["month"])
         setup = setup | {"plan": plans[1].id}
         tasks = schedule(setup)
@@ -293,7 +298,7 @@ def test_live_assets_never_activate_browser_financial_persistence():
 
 def test_invalid_confirmed_snapshot_does_not_present_saved_savings_as_unallocated_cash(app, setup):
     with app.app_context():
-        month = create_budget_month(setup["user"], "2026-09", 1000)
+        month = create_budget_month(setup["user"], "2026-09", 1000, planning_unit=1)
         # Legacy/incomplete imported state, never produced by Budget confirmation.
         db.session.add(BudgetPlan(budget_month_id=month.id, plan_type="MANUAL", status="CONFIRMED", planned_savings=1000))
         db.session.commit()

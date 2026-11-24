@@ -20,7 +20,7 @@ from app.modules.expenses.validators import ValidationError
 
 def make_budget(user_id, month="2026-10", tracking=None, *, tiny=False):
     """Every plan/expense/allocation comes through the canonical Budget flow."""
-    period = create_budget_month(user_id, month, 4 if tiny else 100_003, tracking)
+    period = create_budget_month(user_id, month, 4 if tiny else 100_003, tracking, planning_unit=1)
     specs = [
         ("Rent", "P0", 1 if tiny else 20_000, None, "MONTHLY", 1),
         ("Electricity", "P0", 1 if tiny else 4_000, None, "MONTHLY", 15),
@@ -140,7 +140,8 @@ def test_schedule_retry_preserves_transactions_adjustments_and_original_snapshot
         actual(setup, task.id)
         task.current_limit += 50
         db.session.commit()
-        update_available_vnd(budgets.get_month(setup["user"], setup["month"]), 999_999)
+        with pytest.raises(budgets.BudgetConflict):
+            update_available_vnd(budgets.get_month(setup["user"], setup["month"]), 999_999)
         repeated = services.ensure_tasks_for_month(setup["user"], setup["month"])
         assert {row.id for row in repeated} == ids
         assert task.original_limit == original
@@ -266,7 +267,7 @@ def test_unexpected_spending_is_month_scoped_and_retry_payload_is_checked(app, s
         assert services.create_unexpected_record(setup["user"], form).id == first.id
         with pytest.raises(services.ExpenseConflict):
             services.create_unexpected_record(setup["user"], dict(form, amount="999"))
-        prior = create_budget_month(setup["user"], "2026-09", 1234)
+        prior = create_budget_month(setup["user"], "2026-09", 1234, planning_unit=1)
         second = services.create_unexpected_record(setup["user"], dict(form, budget_month_id=str(prior.id), expense_date="2026-09-20"))
         assert second.id != first.id
         assert budgets.get_month(setup["user"], setup["month"]).available_vnd == 100_003
@@ -487,7 +488,9 @@ def test_integer_bigint_schedule_survives_database_round_trip(app, setup):
     from app.modules.budgets.rules import MAX_VND
 
     with app.app_context():
-        update_available_vnd(budgets.get_month(setup["user"], setup["month"]), MAX_VND)
+        # Seed a historical boundary-value snapshot.
+        budgets.get_month(setup["user"], setup["month"]).available_vnd = MAX_VND
+        db.session.commit()
         setup["plans"] = [plan.id for plan in budgets.generate_budget_plans(setup["user"], setup["month"])]
         tasks = schedule(setup)
         count = len(tasks)
@@ -583,10 +586,10 @@ def test_confirmation_guides_to_owned_month_and_safe_csrf_post(app, setup, clien
     assert "/expenses?" in response.location and str(setup["month"]) in response.location
     page, context = calendar_page(app, client, response.location)
     assert context["selected_month"].id == setup["month"]
-    assert context["schedule_state"].code == "NOT_SCHEDULED"
+    assert context["schedule_state"].code == "READY"
     assert str(setup["month"]).encode() in page.data
     with app.app_context():
-        assert db.session.scalar(db.select(db.func.count(AssignedExpenseTask.id))) == 0
+        assert db.session.scalar(db.select(db.func.count(AssignedExpenseTask.id))) > 0
     schedule_url = f"/expenses/months/{setup['month']}/schedule"
     assert client.post(schedule_url).status_code == 400
     response = client.post(schedule_url, data={"csrf_token": csrf_token(page)}, follow_redirects=True)
@@ -601,7 +604,7 @@ def test_confirmation_guides_to_owned_month_and_safe_csrf_post(app, setup, clien
 ])
 def test_calendar_empty_states_are_actionable_and_read_only(app, setup, signed_client, stage, expected, message):
     with app.app_context():
-        empty = create_budget_month(setup["user"], "2026-09", 100_003)
+        empty = create_budget_month(setup["user"], "2026-09", 100_003, planning_unit=1)
         if stage == "empty":
             month_id = empty.id
         else:
@@ -657,7 +660,7 @@ def test_continuing_periods_and_due_dates_do_not_repeat_financial_totals(app, se
     assert not items["Transportation"].assigned_in_period and not items["Transportation"].due_in_period
     assert context["day_totals"].continuing_count == 5
     assert context["summary"]["plan_total"] == items["Food"].task.current_limit
-    assert b"Continuing period; excluded" in page.data
+    assert b"Continuing periods" in page.data
     assert b"2026-10-16" in page.data  # Continuing task check-in uses the selected date.
     cells = calendar_days(context)
     assert cells[date(2026, 10, 1)].due_count == 1  # Rent due before tracking remains visible.
@@ -767,7 +770,7 @@ def test_calendar_readiness_and_display_never_include_other_users_data(app, setu
 
 def test_confirmed_plan_without_allocations_explains_corrupt_handoff(app, setup, signed_client):
     with app.app_context():
-        empty = create_budget_month(setup["user"], "2026-09", 1000)
+        empty = create_budget_month(setup["user"], "2026-09", 1000, planning_unit=1)
         # An incomplete legacy/imported row; normal Budget confirmation never
         # produces this. Diagnostics must explain it rather than invent tasks.
         db.session.add(BudgetPlan(budget_month_id=empty.id, plan_type="MANUAL", status="CONFIRMED", planned_savings=1000))
@@ -795,12 +798,11 @@ def test_ownership_date_filter_cannot_disguise_a_conflicting_saved_schedule(app,
         assert financial_snapshot() == before
 
 
-def test_schedule_post_failure_preserves_confirmation_and_allows_retry(app, setup, signed_client):
+def test_confirmation_and_schedule_roll_back_together_and_allow_retry(app, setup, signed_client):
     def fail_insert(mapper, connection, target):
         raise IntegrityError("simulated schedule insert failure", {}, RuntimeError("failure"))
 
-    url = f"/expenses/months/{setup['month']}/schedule"
-    assert signed_client.post(f"/budget/{setup['month']}/plans/{setup['plans'][1]}/confirm").status_code == 302
+    url = f"/budget/{setup['month']}/plans/{setup['plans'][1]}/confirm"
     with app.app_context():
         before = financial_snapshot()
         event.listen(AssignedExpenseTask, "before_insert", fail_insert)
@@ -810,7 +812,7 @@ def test_schedule_post_failure_preserves_confirmation_and_allows_retry(app, setu
         event.remove(AssignedExpenseTask, "before_insert", fail_insert)
     with app.app_context():
         assert financial_snapshot() == before
-        assert services.get_schedule_state(setup["user"], setup["month"]).code == "NOT_SCHEDULED"
+        assert services.get_schedule_state(setup["user"], setup["month"]).code == "UNCONFIRMED"
     assert signed_client.post(url, follow_redirects=True).status_code == 200
     with app.app_context():
         assert services.get_schedule_state(setup["user"], setup["month"]).code == "READY"

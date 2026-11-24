@@ -86,7 +86,7 @@ against that file and verifies record preservation. It never resets live data.
 | Recommendations (KAN-27) | Partial product scope | Real-data F18 analysis and explainable read-only guidance; ACCEPT financial adjustments disabled |
 | Workspace and Dashboard (KAN-25) | Completed core | Shared owned-month navigation, confirmed plan/savings, observed spending and completeness-aware remaining allocation |
 | EN/VI | Partial | Shared navigation, Dashboard and Budget translated; some Expense/Recommendation/validation prose remains mixed |
-| Prototype examples | Illustrative only | Load Example fills unsaved inputs; optional meals subdivide Food without extra records; no live financial localStorage/ui_demo |
+| Prototype examples | Illustrative only | Suggested expense estimates start blank; optional meals subdivide Food without extra records; no live financial localStorage/ui_demo |
 | Later functions | Not implemented | Funds additions, automatic reallocation, alerts, cross-month reports/copying, LLM advice, bank integration and Help |
 
 Available:
@@ -109,17 +109,13 @@ shared database. Open **Plan budget** from a budget month to begin. See the
 [KAN-21 integration contract](docs/kan21-budget-planning.md) for rules and the
 Expense Planning handoff.
 
-Budget setup now offers explicit suggested expenses and optional **Load Example**
-amounts, inline custom expense entry, and P0/P1/P2/Savings plan comparison.
-Examples are never saved automatically. Confirmed daily Food tasks offer optional
-30/40/30 meal guidance without adding transactions or duplicating limits. See
-the [before/after Budget parity audit](docs/budget-core-parity.md).
+Select suggested expenses, enter amounts, and optionally add a custom expense.
+**Generate three plans** saves the entries and opens the plan comparison.
+See the [earlier Budget parity audit](docs/budget-core-parity.md) for background.
 
-After confirming a Budget plan, open **Expenses & check-in for this month** and
-choose **Create / verify spending schedule**. Monthly totals are distributed
-across eligible dates without duplication. Record positive purchases or explicitly
-confirm **NO_EXPENSE**; missing check-ins remain Unknown. See the
-[KAN-23 contract](docs/kan23-expense-planning.md) for scheduling and retry rules.
+Confirmation creates the initial spending schedule and opens Expense Planning
+for the selected month. Record purchases or explicitly confirm **NO_EXPENSE**.
+See the [KAN-23 contract](docs/kan23-expense-planning.md) for scheduling and retry rules.
 
 Confirming a plan now opens its Expense month with explicit schedule-state
 guidance. Daily expenses appear in the calendar/month list; weekly/monthly

@@ -2,6 +2,7 @@
 
 from functools import wraps
 
+from app.ui_errors import ui_error
 from flask import Blueprint, flash, g, jsonify, redirect, render_template, request, session, url_for
 
 from app.modules.accounts.auth import login_required
@@ -16,7 +17,7 @@ def _json_login_required(view):
     @wraps(view)
     def wrapped(*args, **kwargs):
         if g.current_user is None:
-            return jsonify(error="Authentication required"), 401
+            return jsonify(error=ui_error("Authentication required")), 401
         return view(*args, **kwargs)
     return wrapped
 
@@ -141,4 +142,4 @@ def monthly_feedback():
 def invalid_recommendation(error):
     if request.endpoint in {"recommendations.index", "recommendations.analyze", "recommendations.dismiss", "recommendations.decide"} and not request.is_json:
         return render_template("recommendations/error.html", message=str(error)), error.status_code
-    return jsonify(error=str(error)), error.status_code
+    return jsonify(error=ui_error(error)), error.status_code

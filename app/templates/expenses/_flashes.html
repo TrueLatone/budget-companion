@@ -1,5 +1,5 @@
 {% with messages = get_flashed_messages(with_categories=true) %}
   {% for category, message in messages %}
-    <div class="alert alert-{{ category if category in ('success', 'danger', 'warning', 'info') else 'info' }}" role="status">{{ message }}</div>
+    <div class="alert alert-{{ category if category in ('success', 'danger', 'warning', 'info') else 'info' }}" role="status">{{ message|ui_error if category in ('danger','warning','error') else message }}</div>
   {% endfor %}
 {% endwith %}

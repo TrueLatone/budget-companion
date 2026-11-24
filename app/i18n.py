@@ -42,6 +42,9 @@ def format_month(value, language=None):
 def register_ui_languages(app):
     """Expose translations to templates without changing feature/API routes."""
 
+    from app.ui_errors import ui_error
+    app.add_template_filter(ui_error, "ui_error")
+
     @app.before_request
     def select_ui_language():
         requested = request.args.get("lang")

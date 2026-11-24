@@ -366,3 +366,13 @@ body.bc-app { margin: 0; background: var(--bc-canvas) !important; color: var(--b
   html { scroll-behavior: auto; }
   .bc-home *, .bc-home *::before, .bc-home *::after { transition-duration: .01ms !important; animation-duration: .01ms !important; }
 }
+#month-calendar,dialog[id^=remove-]{max-width:min(28rem,93vw);padding:1.4rem;border:1px solid #d4daea;border-radius:.85rem;color:#222c40}dialog::backdrop{background:#18213c5c}#month-calendar header{display:flex;align-items:center;justify-content:space-between}#month-options{display:grid;grid-template-columns:repeat(4,1fr);gap:.45rem;margin:1rem 0}#month-calendar button{padding:.45rem .8rem;border:1px solid #d7dbea;background:white;border-radius:.45rem}#month-calendar [aria-pressed=true]{background:#514bc1;color:white}dialog[id^=remove-] form{display:inline-block;margin-right:.6rem}
+
+.bc-month-field { position: relative; }
+.bc-month-field #month { width: 100%; padding-inline-end: 3rem; }
+#open-picker { position: absolute; inset-inline-end: .25rem; top: 50%; transform: translateY(-50%); width: 2.5rem; height: 2.5rem; display: grid; place-items: center; padding: 0; color: inherit; background: transparent; border: 0; border-radius: .5rem; cursor: pointer; }
+#open-picker:hover, #open-picker:focus-visible { background: #f0effa; }
+#open-picker svg { width: 1.15rem; height: 1.15rem; }
+.bc-month-field #month-calendar { position: absolute; inset: auto 0 auto auto; top: calc(100% + .35rem); z-index: 10; margin: 0; width: min(18rem,100%); box-sizing: border-box; padding: 1rem; background: white; box-shadow: 0 .5rem 1.5rem #26253e21; }
+#month-calendar button:disabled { color: #9497a2; background: #f8f8fb; cursor: default; }
+#month-calendar button:focus-visible { outline: 2px solid #514bc1; outline-offset: 2px; }

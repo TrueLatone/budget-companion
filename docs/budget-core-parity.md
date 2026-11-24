@@ -37,6 +37,8 @@ action and must not change real month funds to the prototype's 5,000,000 VND.
 
 ## Restored workflow
 
+This section records the earlier integration. In KAN-71, Generate three plans saves the selected expenses and confirmation creates the schedule automatically.
+
 1. Open an owned month at `/budget`. GET only displays suggestions; it creates
    no expense, category, plan, task or spending records.
 2. Choose suggested rows (Internet is off by default; Food and Transportation

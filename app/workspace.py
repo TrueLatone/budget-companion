@@ -56,7 +56,7 @@ def register_workspace(app):
             return {
                 "dashboard": url_for("dashboard.index", **args),
                 "budgets": url_for("budgets.index", **args),
-                "expenses": url_for("expenses.index", view="month", **args),
+                "expenses": url_for("expenses.index", view="day", **args),
                 "recommendations": url_for("recommendations.index", **args),
             }
 

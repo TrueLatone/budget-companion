@@ -1,12 +1,12 @@
 """HTML forms use the application's existing Flask-WTF CSRF protection."""
 
-from flask_wtf import FlaskForm
+from app.forms import LocalizedForm
 from wtforms import BooleanField, SelectField, StringField, SubmitField
 from wtforms.validators import InputRequired, Length, Optional
 from app.i18n import translate
 
 
-class ExpenseForm(FlaskForm):
+class ExpenseForm(LocalizedForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         for field in self:
@@ -29,5 +29,5 @@ class ExpenseForm(FlaskForm):
     submit = SubmitField("Save expense")
 
 
-class BudgetActionForm(FlaskForm):
+class BudgetActionForm(LocalizedForm):
     submit = SubmitField("Continue")
