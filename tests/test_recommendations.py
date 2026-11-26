@@ -109,6 +109,32 @@ def test_f18_exact_thresholds_and_coverage_are_not_silently_lowered():
         assert rules.build_completeness_result(changed, [], date(2026, 10, 31))["status"] == "INSUFFICIENT"
 
 
+def test_incomplete_transaction_is_reported_but_does_not_override_the_80_percent_gate():
+    categories = [uuid4(), uuid4(), uuid4()]
+    records = [record(category_id=categories[i % 3], expense_date=date(2026, 10, 1 if i < 9 else 30))
+               for i in range(10)]
+    records.append(record(amount=None, category_id=None))
+    data = SimpleNamespace(
+        records=records, tasks=[], as_of=date(2026, 10, 31), closed=False,
+        allocations=[object()],
+        schedule_state=SimpleNamespace(code="READY", message="Ready"),
+        month=SimpleNamespace(month_start=date(2026, 10, 1), tracking_start_date=date(2026, 10, 1)),
+    )
+
+    rules_result = rules.build_completeness_result(records, [], date(2026, 10, 31))
+    service_result = services._completeness(data)
+
+    assert rules_result["incomplete_transaction_count"] == 1
+    assert rules_result["completeness_rate"] == round(10 / 11, 4)
+    assert all(rules.is_complete_expense_record(item) for item in records[:10])
+    assert not rules.is_complete_expense_record(records[-1])
+    assert any(issue["type"] == "INCOMPLETE_TRANSACTION" for issue in rules_result["issues"])
+    assert rules_result["checks"]["no_incomplete_transactions"] is False
+    assert rules_result["status"] == "SUFFICIENT"
+    assert service_result["status"] == "SUFFICIENT"
+    assert service_result["insufficient_reasons"] == []
+
+
 def test_completeness_denominator_does_not_count_contradictory_no_expense_as_zero():
     no_expense = task("NO_EXPENSE")
     inconsistent = task("NO_EXPENSE")
@@ -185,6 +211,51 @@ def test_real_persisted_spending_readiness_and_analysis_do_not_write(app, client
     assert "GỢI Ý CÁ NHÂN HÓA".encode() in client.get("/recommendations").data
     with app.app_context():
         assert row_count(Recommendation) == 0 and financial_snapshot() == before
+
+
+@pytest.mark.parametrize("cutoff, expected_count, expected_status", [
+    ("2026-10-30", 8, "SKIPPED_INSUFFICIENT_DATA"),
+    ("2026-10-31", 10, "GENERATED"),
+])
+def test_f16_01_generation_respects_cutoff_and_excludes_funds_added(
+    app, client, seeded, cutoff, expected_count, expected_status
+):
+    with app.app_context():
+        db.session.add(ExpenseRecord(
+            budget_month_id=seeded["month"], amount=100_000,
+            expense_date=date(2026, 10, 15), record_type="FUNDS_ADDED",
+        ))
+        db.session.commit()
+        before = financial_snapshot()
+
+    response = client.post("/recommendations/generate", json={
+        "month": "2026-10", "as_of": cutoff,
+    })
+    result = response.json
+
+    assert response.status_code == (201 if expected_status == "GENERATED" else 200)
+    assert result["status"] == expected_status
+    assert result["as_of"] == cutoff
+    assert result["completeness"]["complete_transaction_count"] == expected_count
+    if cutoff == "2026-10-31":
+        assert result["completeness"]["status"] == "SUFFICIENT"
+        assert result["completeness"]["category_count"] == 3
+        assert result["completeness"]["coverage_days"] == 31
+        assert result["review"]["recorded_expense_total"] == 1_608_000
+        assert len(result["recommendations"]) == 3
+        food_evidence = []
+        for recommendation in result["recommendations"]:
+            detail = client.get(f"/recommendations/{recommendation['id']}").json
+            assert detail["status"] == "PENDING"
+            assert detail["reason"] and detail["expected_impact"]
+            if detail["proposed_changes"]["category_name"] == "Food":
+                food_evidence = detail["proposed_changes"]["evidence"]
+        assert len(food_evidence) == 8
+    else:
+        assert result["completeness"]["coverage_days"] < 31
+        assert not result["recommendations"]
+    with app.app_context():
+        assert financial_snapshot() == before
 
 
 def test_insufficient_data_returns_baseline_without_inventing_transactions(app, client, setup):
@@ -286,6 +357,29 @@ def test_accept_and_reject_only_change_recommendation_status(app, client, seeded
         assert db.session.get(Recommendation, UUID(accepted_id)).status == "ACCEPTED"
         assert db.session.get(Recommendation, UUID(rejected_id)).status == "REJECTED"
         assert financial_snapshot() == before
+
+
+def test_stale_recommendation_cannot_be_accepted_after_source_expense_changes(app, client, seeded):
+    with app.app_context():
+        generated = generate(seeded)
+        recommendation_id = generated["recommendations"][0]["id"]
+        food = db.session.scalar(db.select(ExpenseRecord).where(
+            ExpenseRecord.title == "Food", ExpenseRecord.expense_date == date(2026, 10, 1)
+        ))
+        expenses.update_record(seeded["user"], food.id, dict(
+            amount="2000000", expense_date="2026-10-01", category="Food"
+        ))
+        before_decision = financial_snapshot()
+
+    response = client.post(
+        f"/recommendations/{recommendation_id}/decision", json={"decision": "ACCEPT"}
+    )
+
+    assert response.status_code == 409
+    assert "refresh" in response.json["error"].lower()
+    with app.app_context():
+        assert db.session.get(Recommendation, UUID(recommendation_id)).status == "PENDING"
+        assert financial_snapshot() == before_decision
 
 
 def test_unsafe_legacy_proposal_cannot_be_accepted_or_change_financial_data(app, client, seeded):

@@ -19,7 +19,7 @@
   <button class="btn btn-primary" type="submit" {% if not result.completeness.checks.tracking_started %}disabled{% endif %}>Cập nhật gợi ý</button>
 </form>
 
-<section aria-label="Data completeness" class="mb-3">
+<section aria-label="Kiểm tra độ đầy đủ dữ liệu" class="mb-3">
   <h2 class="h5">Kiểm tra độ đầy đủ dữ liệu</h2>
   <p>Trạng thái: <strong>{{ 'Đủ điều kiện phân tích cá nhân hóa' if result.completeness.status == 'SUFFICIENT' else 'Chưa đủ để đưa ra kết luận cá nhân hóa' }}</strong>.</p>
   <p>Giao dịch hợp lệ: {{ result.completeness.complete_transaction_count }} · Danh mục có chi: {{ result.completeness.category_count }} · Độ phủ: {{ result.completeness.coverage_days }} ngày · Tỷ lệ đầy đủ: {{ (result.completeness.completeness_rate * 100)|round|int }}%.</p>
@@ -42,7 +42,10 @@
   </table></div>
   {% endif %}
   {% else %}
-  <p class="text-warning" role="status">{{ result.review.summary_note }} Các khoản dưới đây chỉ tính từ giao dịch hợp lệ đã ghi nhận đến {{ result.as_of }}.</p>
+  <div class="alert alert-info" role="status">
+    <p class="mb-1">{{ result.review.summary_note }}</p>
+    <p class="mb-0">Các khoản dưới đây chỉ tính từ giao dịch hợp lệ đã ghi nhận đến {{ result.as_of }}.</p>
+  </div>
   {% if result.review.recorded_expense_count %}
   <p>Đã ghi nhận hợp lệ: <strong>{{ money(result.review.recorded_expense_total) }} đồng</strong> trong {{ result.review.recorded_expense_count }} khoản chi. Đây chưa phải tổng chi cuối tháng.</p>
   {% if result.review.category_review %}
@@ -62,6 +65,8 @@
   <form method="post" action="{{ url_for('recommendations.monthly_feedback') }}" class="mt-3">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <input type="hidden" name="month" value="{{ result.month }}">
+    <input type="hidden" name="as_of" value="{{ result.as_of }}">
+    <p class="small text-muted">Đánh giá này được lưu cùng tháng để bạn xem lại mức độ phù hợp của kế hoạch. Đánh giá không làm thay đổi số liệu chi tiêu hoặc tự điều chỉnh ngân sách.</p>
     <label for="monthly-rating">Mức độ hài lòng với kế hoạch tháng này (1–5)</label>
     <select id="monthly-rating" name="rating">
       <option value="">Chưa đánh giá</option>

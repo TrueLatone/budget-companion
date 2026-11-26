@@ -17,6 +17,16 @@ OVER_BUDGET_PERCENT = 110
 UNDER_BUDGET_PERCENT = 80
 
 
+def is_sufficient(checks):
+    """Apply readiness gates while treating invalid rows as reported issues.
+
+    A malformed transaction contributes to the completeness denominator and
+    remains visible as an issue. It blocks personalization only when the
+    configured completeness threshold (or another readiness gate) fails.
+    """
+    return all(passed for key, passed in checks.items() if key != "no_incomplete_transactions")
+
+
 def is_complete_expense_record(record):
     amount = getattr(record, "amount", None)
     return bool(
@@ -50,16 +60,16 @@ def build_completeness_result(records, tasks, as_of, *, as_of_closed=False):
         if contradictory:
             inconsistent += 1
             issues.append({"type": "INCONSISTENT_CHECKIN", "task_id": str(task.id),
-                           "message": "Task status and visible transactions disagree; spending remains unknown."})
+                           "message": "Trạng thái kỳ chi không khớp với các giao dịch đã ghi; số tiền chi vẫn chưa xác định."})
         elif status == "NO_EXPENSE":
             no_expense += 1
         elif status == "PENDING" and (task.period_end < as_of or as_of_closed and task.period_end == as_of):
             pending += 1
             issues.append({"type": "UNRECORDED_TASK", "task_id": str(task.id),
-                           "message": "A completed task period has no check-in."})
+                           "message": "Kỳ chi đã kết thúc nhưng chưa được xác nhận."})
     for record in incomplete:
         issues.append({"type": "INCOMPLETE_TRANSACTION", "record_id": str(record.id),
-                       "message": "Transaction requires positive integer VND, category, date and spending type."})
+                       "message": "Giao dịch cần có số tiền VND nguyên dương, danh mục, ngày chi và loại chi tiêu hợp lệ."})
     complete_items = len(complete) + no_expense
     expected_items = complete_items + len(incomplete) + pending + inconsistent
     rate = complete_items / expected_items if expected_items else 0.0
@@ -74,7 +84,7 @@ def build_completeness_result(records, tasks, as_of, *, as_of_closed=False):
         "no_unresolved_tasks": pending == 0 and inconsistent == 0,
         "no_incomplete_transactions": not incomplete,
     }
-    sufficient = all(checks.values())
+    sufficient = is_sufficient(checks)
     return {
         "status": "SUFFICIENT" if sufficient else "INSUFFICIENT",
         "guidance_mode": "PERSONALIZED_GUIDANCE" if sufficient else "BASELINE_GUIDANCE",
