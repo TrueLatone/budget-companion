@@ -16,7 +16,7 @@ class ExpenseForm(LocalizedForm):
         self.allocation_frequency.choices = [(key, translate("live_frequency_" + key)) for key in ("DAILY", "WEEKLY", "MONTHLY")]
 
     expense_name = StringField("Expense name", validators=[InputRequired(), Length(max=120)], filters=[lambda value: value.strip() if value else value])
-    category_id = SelectField("Existing category", choices=[])
+    category_id = SelectField("Existing category", choices=[], default="")
     category_name = StringField("Or new category", validators=[Optional(), Length(max=100)])
     priority = SelectField("Priority", choices=[("P0", "P0 — mandatory"), ("P1", "P1 — essential"), ("P2", "P2 — flexible")])
     # WTForms also filters values loaded from obj=expense. Stored VND amounts
