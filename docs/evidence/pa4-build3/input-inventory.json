@@ -1,0 +1,269 @@
+[
+  {
+    "id": "10096",
+    "filename": "Budget_Planning_Test_Cases_Sprint4.xlsx",
+    "size": 14388,
+    "created": "2026-11-19T19:21:05.898+0700",
+    "issue": "KAN-52",
+    "owner": "Nhan",
+    "local_name": "10096",
+    "sha256": "680452950578787519572fcd0708e61c02aa12568dd589e1658fd3d545e117e3",
+    "bytes": 14388
+  },
+  {
+    "id": "10097",
+    "filename": "Budget_Planning_Test_Plan_Validation_Scenarios_Sprint4_Revised.docx",
+    "size": 42881,
+    "created": "2026-11-19T19:21:05.956+0700",
+    "issue": "KAN-52",
+    "owner": "Nhan",
+    "local_name": "10097",
+    "sha256": "1f2cf6f8e57a7e1a9b80dd11a39d7c8946385c10ddb49ea8b1ad379615e50250",
+    "bytes": 42881
+  },
+  {
+    "id": "10098",
+    "filename": "KAN-58-Sprint-4-Test-Cases.docx",
+    "size": 13609,
+    "created": "2026-11-20T00:32:57.236+0700",
+    "issue": "KAN-58",
+    "owner": "Tiết Trọng Khiêm",
+    "local_name": "10098",
+    "sha256": "93a8ae55d5c4dc867f5c67d3bf8beff95e3ac4fe6ecaa49464c17c35e8fdbb07",
+    "bytes": 13609
+  },
+  {
+    "id": "10101",
+    "filename": "KAN-54-test-cases template-v1.1.xlsx",
+    "size": 20142,
+    "created": "2026-11-20T22:27:55.541+0700",
+    "issue": "KAN-54",
+    "owner": "Anh Phan Nguyễn Tuấn",
+    "local_name": "10101",
+    "sha256": "c3dda6fc0744712adc98823520bfa36dc53f903ab86a6a235d57ab3ac8cebd77",
+    "bytes": 20142
+  },
+  {
+    "id": "10102",
+    "filename": "KAN-55-test-report template-v1.1.xlsx",
+    "size": 16109,
+    "created": "2026-11-21T12:59:43.494+0700",
+    "issue": "KAN-55",
+    "owner": "Anh Phan Nguyễn Tuấn",
+    "local_name": "10102",
+    "sha256": "3a6212fa7daa4d1e2da5d0c57e60d589bb4219c280077d3ba4dc86c3e63fb34f",
+    "bytes": 16109
+  },
+  {
+    "id": "10103",
+    "filename": "KAN-54-test-cases template-v1.1.xlsx",
+    "size": 22268,
+    "created": "2026-11-21T12:59:44.338+0700",
+    "issue": "KAN-55",
+    "owner": "Anh Phan Nguyễn Tuấn",
+    "local_name": "10103",
+    "sha256": "2a796f75c3d77ea72e2b51fb37ba2982675606b9054a104d790df7c1b9eb6d4b",
+    "bytes": 22268
+  },
+  {
+    "id": "10106",
+    "filename": "Budget_Planning_Test_Plan_Validation_Scenarios_Sprint4_Updated.docx",
+    "size": 533140,
+    "created": "2026-11-21T15:59:59.312+0700",
+    "issue": "KAN-53",
+    "owner": "Nhan",
+    "local_name": "10106",
+    "sha256": "b0aa7b2784a3785c4a822bfa07b474ea6570ca0ce450e37132f82a134b8ec191",
+    "bytes": 533140
+  },
+  {
+    "id": "10107",
+    "filename": "Budget_Planning_Test_Cases_Sprint4_Updated.xlsx",
+    "size": 830171,
+    "created": "2026-11-21T15:59:59.357+0700",
+    "issue": "KAN-53",
+    "owner": "Nhan",
+    "local_name": "10107",
+    "sha256": "331af748e1fa636e5ca1a80c406d449b89ccd83ff084050ecf09442baea9fdd6",
+    "bytes": 830171
+  },
+  {
+    "id": "10108",
+    "filename": "full_regression_output.txt",
+    "size": 9766,
+    "created": "2026-11-21T16:00:12.087+0700",
+    "issue": "KAN-53",
+    "owner": "Nhan",
+    "local_name": "10108",
+    "sha256": "b02fd7c24304be4fdeeb5e75ab19a675f2cd628a19f37da0bc999f01147c5bf7",
+    "bytes": 9766
+  },
+  {
+    "id": "10109",
+    "filename": "sprint4_pytest_output.txt",
+    "size": 5892,
+    "created": "2026-11-21T16:00:12.131+0700",
+    "issue": "KAN-53",
+    "owner": "Nhan",
+    "local_name": "10109",
+    "sha256": "d6a9a84c8bfac5483999d3ef2db79f6e68a9416559bf083506a89026da2cfe41",
+    "bytes": 5892
+  },
+  {
+    "id": "10111",
+    "filename": "KAN56-UI-Usability-Review .docx",
+    "size": 544050,
+    "created": "2026-11-22T14:41:14.771+0700",
+    "issue": "KAN-56",
+    "owner": "Thiện Nguyễn",
+    "local_name": "10111",
+    "sha256": "a313dfb9359145c979178e5d801b62c1cefb022d50f0380ad93281a8e462de29",
+    "bytes": 544050
+  },
+  {
+    "id": "10112",
+    "filename": "KAN57-Test-Report.xlsx",
+    "size": 10748,
+    "created": "2026-11-22T20:04:11.300+0700",
+    "issue": "KAN-57",
+    "owner": "Thiện Nguyễn",
+    "local_name": "10112",
+    "sha256": "2fa31de90db8045f64ae0234abd03f26379beb7bda40724280df1ca835cfb6e8",
+    "bytes": 10748
+  },
+  {
+    "id": "10113",
+    "filename": "KAN57-Dashboard-Test-Report.docx",
+    "size": 211742,
+    "created": "2026-11-22T20:04:24.794+0700",
+    "issue": "KAN-57",
+    "owner": "Thiện Nguyễn",
+    "local_name": "10113",
+    "sha256": "b27bba926eab6b444a62e144e2d428634d4a2de19307bb6d2092e345ecf1aca2",
+    "bytes": 211742
+  },
+  {
+    "id": "10115",
+    "filename": "KAN-65.docx",
+    "size": 11211,
+    "created": "2026-11-23T20:32:26.421+0700",
+    "issue": "KAN-65",
+    "owner": "Tiết Trọng Khiêm",
+    "local_name": "10115",
+    "sha256": "817dd4ef234817d2eba6d9945ef5a6b4e8281974b192b5a416d2b40fd42b7e3a",
+    "bytes": 11211
+  },
+  {
+    "id": "10116",
+    "filename": "KAN71-Update-Detail.docx",
+    "size": 531923,
+    "created": "2026-11-24T15:27:12.574+0700",
+    "issue": "KAN-71",
+    "owner": "Nhan",
+    "local_name": "10116",
+    "sha256": "e0861727bc9444c2877a0e81969778a92c04f0455c96129029c2308f3620f440",
+    "bytes": 531923
+  },
+  {
+    "id": "10118",
+    "filename": "kan63_budget_planning_pytest_output.txt",
+    "size": 4659,
+    "created": "2026-11-24T22:04:21.474+0700",
+    "issue": "KAN-63",
+    "owner": "Nhan",
+    "local_name": "10118",
+    "sha256": "9e1b95596b5ed30515ccb175aa33f918c83f3b546485e35b2a5941a7edc86bf1",
+    "bytes": 4659
+  },
+  {
+    "id": "10119",
+    "filename": "full_regression_output.txt",
+    "size": 59636,
+    "created": "2026-11-24T22:04:21.470+0700",
+    "issue": "KAN-63",
+    "owner": "Nhan",
+    "local_name": "10119",
+    "sha256": "278cc22c185e337805e877da0581bb74cb384875ba52f5d5eec4aff2c2ad0c42",
+    "bytes": 59636
+  },
+  {
+    "id": "10120",
+    "filename": "Budget_Planning_Test_Plan_Validation_Scenarios_PA4_v1.2.docx",
+    "size": 403078,
+    "created": "2026-11-24T22:04:21.544+0700",
+    "issue": "KAN-63",
+    "owner": "Nhan",
+    "local_name": "10120",
+    "sha256": "7cf34d398b53c2b3c16e4e8d84eebec382d062cb2518076a49b409956a40fb33",
+    "bytes": 403078
+  },
+  {
+    "id": "10121",
+    "filename": "Budget_Planning_Test_Cases_PA4_v1.2.ods",
+    "size": 31172,
+    "created": "2026-11-24T22:04:21.563+0700",
+    "issue": "KAN-63",
+    "owner": "Nhan",
+    "local_name": "10121.ods",
+    "sha256": "2d7b926a946af52eed30a8768a884a6e4541f149e565bfe7b6e8f68c5cef4189",
+    "bytes": 31172
+  },
+  {
+    "id": "10122",
+    "filename": "KAN71-Verification-and-Test-Evidence.docx",
+    "size": 349455,
+    "created": "2026-11-24T22:20:13.617+0700",
+    "issue": "KAN-71",
+    "owner": "Nhan",
+    "local_name": "10122",
+    "sha256": "63d014e991f59625b2984035911795875aa0dc00f2f7d9cb985b678fbe32891f",
+    "bytes": 349455
+  },
+  {
+    "id": "10124",
+    "filename": "KAN-65-Pytest-Execution.txt",
+    "size": 6046,
+    "created": "2026-11-25T15:10:12.082+0700",
+    "issue": "KAN-65",
+    "owner": "Tiết Trọng Khiêm",
+    "local_name": "10124",
+    "sha256": "391dda4eabf32996846576d583563b119b7d416001158292fde410c4e87fdd9b",
+    "bytes": 6046
+  },
+  {
+    "id": "10125",
+    "filename": "KAN-65-Coverage-and-Report-Input.md",
+    "size": 2092,
+    "created": "2026-11-25T15:16:03.011+0700",
+    "issue": "KAN-65",
+    "owner": "Tiết Trọng Khiêm",
+    "local_name": "10125",
+    "sha256": "4ae2f26650d4285698ea6de50affc3211e3103bcc2c5635dbaa0c0c6577940cb",
+    "bytes": 2092
+  },
+  {
+    "local_name": "24127547_24127473_24127058_24127321_24127546_PROJECT-PLAN-v1.1.pdf",
+    "sha256": "0236edc9b1a948c256513fd8d638aaeab471756f7b02ff38c2c9a0c61e7cac53",
+    "bytes": 268200
+  },
+  {
+    "local_name": "24127547_24127473_24127058_24127321_24127546_USE-CASE-SPECS-v1.0.pdf",
+    "sha256": "ffd9ebc0d360149fd6c9cfe6d50335546878fa211d393c7ee68c86ffce3236b9",
+    "bytes": 874802
+  },
+  {
+    "local_name": "24127547_24127473_24127058_24127321_24127546_USE-CASE-SPECS-v1.1.pdf",
+    "sha256": "fd8fe8bba67c17e1c52df15ef4a1271c30dbf41c7378486b53cd3a4d37d2d856",
+    "bytes": 1060952
+  },
+  {
+    "local_name": "Changes.md",
+    "sha256": "13fb43db548893d48394343034636bb2caae5fbbbcd48a3016bcaaffcd701638",
+    "bytes": 5618
+  },
+  {
+    "local_name": "PA4.pdf",
+    "sha256": "8d83df92a4ff53fc49b2a62cb15ce1f14ce53b45df49f1f106c6b9f8e6c83099",
+    "bytes": 200646
+  }
+]

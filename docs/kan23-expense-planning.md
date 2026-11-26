@@ -1,5 +1,8 @@
 # KAN-23 — Expense Planning and Smart Check-in
 
+Historical integration context: the approved [Build 3 API contract](api-contracts.md)
+supersedes confirmation/scheduling and new-period planning-unit behavior below.
+
 The subsequent [Expense Calendar repair](expense-calendar-integration.md)
 documents the confirmation redirect, schedule diagnostics, daily expense
 visibility and continuing-period indicators. Scheduler and financial contracts

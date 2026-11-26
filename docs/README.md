@@ -1,5 +1,9 @@
 # Documentation index
 
+- [Build 3 verification](build3-verification.md) — Current candidate, actual tests, screenshots and unresolved gates.
+- [Build 2 retrospective](build2-retrospective.md) — Source milestone history; no backdated Release.
+- [PA4 coverage matrix](pa4-test-coverage-matrix.md) — 27 use cases, owner case IDs, evidence and gaps.
+- [Changelog](../CHANGELOG.md) — Builds 1, 2 and 3.
 - [Build 1 verification and limitations](build1-verification.md) — Final acceptance, schema/startup checks, completed and partial scope.
 - `architecture.md` — Architecture and module boundaries.
 - `database-design.md` — KAN-19 schema, migration and service rules.

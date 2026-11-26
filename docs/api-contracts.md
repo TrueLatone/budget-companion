@@ -6,6 +6,9 @@ canonical database, authenticated session and global CSRF protection.
 
 ## Build 1 status and boundaries
 
+This section records the earlier baseline. The final section below defines the
+approved Build 3 changes and takes precedence for the current candidate.
+
 Budget setup/three-plan confirmation, explicit Expense scheduling/check-ins,
 and the monthly Dashboard are implemented core flows. Recommendation analysis
 is implemented with the original F18 gate; financial adjustment is disabled.
@@ -73,7 +76,7 @@ never authorize access. Every POST uses global Flask-WTF CSRF protection.
 | POST | `/budget/<uuid:month_id>/expenses/<uuid:expense_id>/delete` | Remove an expense before confirmation |
 | POST | `/budget/<uuid:month_id>/plans/generate` | Persist Saving, Balanced and Lifestyle alternatives |
 | GET | `/budget/<uuid:month_id>/plans/<uuid:plan_id>` | Read a saved plan and allocations from SQLAlchemy |
-| POST | `/budget/<uuid:month_id>/plans/<uuid:plan_id>/confirm` | Revalidate and confirm the stored plan; repeated confirmation is harmless |
+| POST | `/budget/<uuid:month_id>/plans/<uuid:plan_id>/confirm` | Revalidate, confirm and atomically schedule the stored plan; matching retries preserve tasks |
 
 Expense fields: `expense_name`, `category_id` OR `category_name`, `priority`,
 `estimated_amount`, `minimum_amount`, `allocation_frequency`, `is_recurring`,
@@ -90,10 +93,11 @@ drafts with tasks cannot be replaced. Confirmation accepts no allocation edits:
 only saved allocations, savings, current funds and current expense rules count.
 See [KAN-21 integration contract](kan21-budget-planning.md) for the Expense handoff.
 
-Successful confirmation now redirects to the owned month's Expense calendar,
-where the user explicitly POSTs **Create spending schedule**. Confirmation
-itself still creates no tasks. Scheduling errors preserve the confirmed plan
-and allow retry; no GET creates financial records.
+Successful Build 3 confirmation creates the schedule within the same transaction
+and redirects to the owned month's Expense calendar. Scheduling errors roll back
+confirmation and task creation together. The explicit schedule POST remains
+available for legacy confirmed months and repeat-safe verification. No GET
+creates financial records.
 
 Suggested setup fields: repeated `suggestion` keys from `rent`, `electricity`,
 `water`, `internet`, `food`, `transportation`, plus optional
@@ -231,5 +235,51 @@ remain proposals.
   These guarantees do not make every form (such as account registration) an
   arbitrary idempotency-token endpoint.
 - GETs may update the selected month/language in the session but create no
-  financial records. Confirmation redirects to an explicit CSRF-protected
-  schedule POST; refreshing the calendar alone never creates tasks.
+  financial records. Build 3 confirmation atomically confirms and creates its
+  schedule, then redirects to the Expense month. Refreshing alone creates no tasks.
+
+## Verified Build 3 contract — KAN-70 / KAN-68, 26 November 2026
+
+The project lead explicitly approved **automatic scheduling at confirmation**
+and **threshold-based incomplete-transaction handling** for Build 3 on
+26 November. These override G10-UCS-v1.1 §2.10/11's separate schedule action and
+§2.25's mandatory no-incomplete gate for this candidate. They do not change the
+27-use-case coverage denominator. The lead must reconcile the submitted
+requirements; the SAD was not edited by this task.
+
+`POST /budget/<month_id>/plans/<plan_id>/confirm` retains authenticated ownership,
+CSRF, saved allocations and MANUAL snapshot checks. `confirm_and_schedule()`
+uses the existing locked month transaction to confirm and schedule together.
+Task insertion/conflict failures roll back all confirmation/task writes. Retries
+reuse matching task IDs, original/current limits, transactions and check-ins;
+conflicts return 409. Success redirects to `/expenses?budget_month_id=...&view=month`.
+The internal `confirm_plan()` remains a confirmation-only service, useful for
+legacy callers/tests. The explicit Expense schedule POST remains a repeat-safe
+repair/verification action for already confirmed budgets.
+
+New months default to `planning_unit=1000`; budget funding, estimates, minima,
+custom allocations and schedule splits must respect that unit. Existing migrated
+months use `1`, preserving one-VND allocations. Actual purchase amounts continue
+to accept positive integer VND, including `12785`. Migration `19a01e000003`
+does not recalculate `available_vnd`. Funds editing is blocked once plans exist.
+New custom forms may omit category controls: the server derives the category
+name from the expense name; supplied category IDs still undergo validation and
+ownership checks. The explicit owned month-deletion POST requires
+`confirm_month=<month_id>` and deletes that month's related data transactionally.
+
+F18 retains **10 valid transactions, 3 categories, 30 inclusive transaction-date
+coverage days, and >=80% completeness**, plus confirmed-plan, complete-schedule,
+tracking-start and no-overdue/inconsistent-task gates. Incomplete transactions
+are excluded from valid evidence, included in the denominator and shown as issues.
+`checks.no_incomplete_transactions` remains diagnostic, not a mandatory gate;
+personalization is allowed only when every other gate passes. Missing check-ins
+are never assumed zero. F19's reliable totals still require complete valid data.
+
+Recommendations remain financially read-only. ACCEPT of a safe current snapshot
+updates status only; stale evidence or unsafe legacy changes return 409.
+REJECT remains repeat-safe. Feedback changes metadata only and preserves the
+selected as-of date in the HTML redirect. No allocation, savings or limit change
+is authorized by a recommendation decision.
+
+Verification and unresolved UI/report limitations are in
+[Build 3 verification](build3-verification.md).

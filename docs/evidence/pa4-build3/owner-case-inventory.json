@@ -1,0 +1,583 @@
+[
+  {
+    "attachment": "10103",
+    "count": 35,
+    "historical_totals": {
+      "Pass": 31,
+      "Failed": 4
+    },
+    "cases": [
+      {
+        "uc": "UC11",
+        "id": "UI01",
+        "name": "Generate schedule successfully for Confirmed BudgetPlan (DAILY, WEEKLY, MONTHLY)",
+        "historical_status": "Pass"
+      },
+      {
+        "uc": "UC11",
+        "id": "UI02",
+        "name": "Block schedule generation when month has NO confirmed budget plan",
+        "historical_status": "Pass"
+      },
+      {
+        "uc": "UC11",
+        "id": "UI03",
+        "name": "Prevent duplicate task generation on repeated or replayed request",
+        "historical_status": "Pass"
+      },
+      {
+        "uc": "UC11",
+        "id": "UI04",
+        "name": "Detect data conflict between existing schedule and confirmed allocation",
+        "historical_status": "Pass"
+      },
+      {
+        "uc": "UC11",
+        "id": "UI05",
+        "name": "Schedule generation with mid-month tracking start date",
+        "historical_status": "Pass"
+      },
+      {
+        "uc": "UC12",
+        "id": "UI01",
+        "name": "View planned spending schedule with Food presentation breakdown",
+        "historical_status": "Failed"
+      },
+      {
+        "uc": "UC13",
+        "id": "UI01",
+        "name": "Display status and actual spending for current PENDING vs overdue tasks",
+        "historical_status": "Pass"
+      },
+      {
+        "uc": "UC13",
+        "id": "UI02",
+        "name": "Switch view modes between Day, Month, and Year",
+        "historical_status": "Pass"
+      },
+      {
+        "uc": "UC14",
+        "id": "UI01",
+        "name": "View task due dates and update bill PaymentStatus independently",
+        "historical_status": "Failed"
+      },
+      {
+        "uc": "UC15",
+        "id": "UI01",
+        "name": "Prevent early check-in for future scheduled tasks",
+        "historical_status": "Pass"
+      },
+      {
+        "uc": "UC16",
+        "id": "UI01",
+        "name": "Record planned expense using Planned Mode on empty task",
+        "historical_status": "Pass"
+      },
+      {
+        "uc": "UC16",
+        "id": "UI02",
+        "name": "Reject Planned Mode when task already has linked ExpenseRecord",
+        "historical_status": "Pass"
+      },
+      {
+        "uc": "UC16",
+        "id": "UI03",
+        "name": "Record planned expense using Actual Mode within budget limit",
+        "historical_status": "Pass"
+      },
+      {
+        "uc": "UC16",
+        "id": "UI04",
+        "name": "Record planned expense using Actual Mode exceeding budget limit (OVER_BUDGET)",
+        "historical_status": "Pass"
+      },
+      {
+        "uc": "UC16",
+        "id": "UI05",
+        "name": "Add multiple actual expense records to the same task",
+        "historical_status": "Pass"
+      },
+      {
+        "uc": "UC16",
+        "id": "UI06",
+        "name": "Validate expense input with negative, zero or non-integer amount",
+        "historical_status": "Pass"
+      },
+      {
+        "uc": "UC16",
+        "id": "UI07",
+        "name": "Prevent duplicate purchase record using Idempotency Key / Token",
+        "historical_status": "Pass"
+      },
+      {
+        "uc": "UC17",
+        "id": "UI01",
+        "name": "Confirm No Expense for empty PENDING task",
+        "historical_status": "Pass"
+      },
+      {
+        "uc": "UC17",
+        "id": "UI02",
+        "name": "Reject Confirm No Expense if task already has linked ExpenseRecords",
+        "historical_status": "Pass"
+      },
+      {
+        "uc": "UC17",
+        "id": "UI03",
+        "name": "Confirm No Expense on overdue UNRECORDED task",
+        "historical_status": "Pass"
+      },
+      {
+        "uc": "UC17",
+        "id": "UI04",
+        "name": "Transition task from NO_EXPENSE to RECORDED upon subsequent purchase",
+        "historical_status": "Pass"
+      },
+      {
+        "uc": "UC18",
+        "id": "UI01",
+        "name": "Record unexpected expense with valid inputs",
+        "historical_status": "Pass"
+      },
+      {
+        "uc": "UC18",
+        "id": "UI02",
+        "name": "Validate required fields and date range for unexpected expense",
+        "historical_status": "Pass"
+      },
+      {
+        "uc": "UC18",
+        "id": "UI03",
+        "name": "Exclude FUNDS_ADDED records from actual spending totals",
+        "historical_status": "Pass"
+      },
+      {
+        "uc": "UC18",
+        "id": "UI04",
+        "name": "Record unexpected expense with optional Budget Impact Scope (DAILY, WEEKLY, MONTHLY)",
+        "historical_status": "Failed"
+      },
+      {
+        "uc": "UC18",
+        "id": "UI05",
+        "name": "Record unexpected expense without selecting Budget Impact Scope (Optional field check)",
+        "historical_status": "Pass"
+      },
+      {
+        "uc": "UC19",
+        "id": "UI01",
+        "name": "Display expense history in chronological order and respect NO_EXPENSE integrity",
+        "historical_status": "Failed"
+      },
+      {
+        "uc": "UC20",
+        "id": "UI01",
+        "name": "Edit PLANNED expense record and verify task recalculation",
+        "historical_status": "Pass"
+      },
+      {
+        "uc": "UC20",
+        "id": "UI02",
+        "name": "Enforce immutability of record type, linked task and BudgetMonth during edit",
+        "historical_status": "Pass"
+      },
+      {
+        "uc": "UC21",
+        "id": "UI01",
+        "name": "Delete an expense record when multiple records exist on a task",
+        "historical_status": "Pass"
+      },
+      {
+        "uc": "UC21",
+        "id": "UI02",
+        "name": "Delete the only linked expense record of a task (State Rollback)",
+        "historical_status": "Pass"
+      },
+      {
+        "uc": "UC21",
+        "id": "UI03",
+        "name": "Prevent deleting NO_EXPENSE via Delete Record action",
+        "historical_status": "Pass"
+      },
+      {
+        "uc": "INT",
+        "id": "IT01",
+        "name": "End-to-End: Confirmed Allocation -> Schedule Generation -> Check-in -> Dashboard Sync",
+        "historical_status": "Pass"
+      },
+      {
+        "uc": "INT",
+        "id": "IT02",
+        "name": "Concurrency: Concurrent check-in requests on the same task",
+        "historical_status": "Pass"
+      },
+      {
+        "uc": "INT",
+        "id": "IT03",
+        "name": "Security & Access Control: User data isolation for tasks and records (N06)",
+        "historical_status": "Pass"
+      }
+    ]
+  },
+  {
+    "attachment": "10112",
+    "count": 8,
+    "historical_totals": {
+      "PASS": 8
+    },
+    "cases": [
+      {
+        "uc": "UC22",
+        "id": "DB01",
+        "name": "Confirmed monthly totals\nOpen the confirmed October budget on Dashboard.",
+        "historical_status": "PASS"
+      },
+      {
+        "uc": "UC22",
+        "id": "DB02",
+        "name": "Expense update reaches Dashboard\nAdd an unexpected expense of 100,000 VND dated 31 October, then return to Overview.",
+        "historical_status": "PASS"
+      },
+      {
+        "uc": "UC22",
+        "id": "DB03",
+        "name": "Expense summaries agree\nRead recent expenses, category breakdown and the View all dialog.",
+        "historical_status": "PASS"
+      },
+      {
+        "uc": "UC22",
+        "id": "DB04",
+        "name": "Month change and incomplete data\nSelect November and open the month.",
+        "historical_status": "PASS"
+      },
+      {
+        "uc": "UC22",
+        "id": "DB05",
+        "name": "No budget month state\nSign in as the empty test account and open Dashboard.",
+        "historical_status": "PASS"
+      },
+      {
+        "uc": "SUPPLEMENTAL",
+        "id": "WS01",
+        "name": "Workspace navigation preserves month\nNavigate Overview to My budget, Expenses and back to Overview.",
+        "historical_status": "PASS"
+      },
+      {
+        "uc": "SUPPLEMENTAL",
+        "id": "WS02",
+        "name": "Mobile Workspace menu\nAt 390 by 700, open the menu, close with Escape, reopen and select My budget.",
+        "historical_status": "PASS"
+      },
+      {
+        "uc": "SUPPLEMENTAL",
+        "id": "WS03",
+        "name": "Authentication protection\nSign out, then open the Dashboard URL.",
+        "historical_status": "PASS"
+      }
+    ]
+  },
+  {
+    "attachment": "10121.ods",
+    "count": 43,
+    "historical_totals": {
+      "PASS": 42,
+      "FAIL": 1
+    },
+    "cases": [
+      {
+        "uc": "UC05",
+        "id": "BP-01",
+        "name": "Create budget month",
+        "historical_status": "PASS"
+      },
+      {
+        "uc": "UC05",
+        "id": "BP-02",
+        "name": "Duplicate budget month",
+        "historical_status": "PASS"
+      },
+      {
+        "uc": "UC05",
+        "id": "BP-03",
+        "name": "Invalid period input",
+        "historical_status": "PASS"
+      },
+      {
+        "uc": "UC05",
+        "id": "BP-31",
+        "name": "Create leap-day period with zero funds",
+        "historical_status": "PASS"
+      },
+      {
+        "uc": "UC05",
+        "id": "BP-32",
+        "name": "Reject a non-unit funding amount",
+        "historical_status": "PASS"
+      },
+      {
+        "uc": "UC06",
+        "id": "BP-04",
+        "name": "Switch active month",
+        "historical_status": "PASS"
+      },
+      {
+        "uc": "UC06",
+        "id": "BP-33",
+        "name": "Open Budget without saved periods",
+        "historical_status": "PASS"
+      },
+      {
+        "uc": "UC06",
+        "id": "BP-34",
+        "name": "Refuse selection of another owner’s period",
+        "historical_status": "PASS"
+      },
+      {
+        "uc": "UC06",
+        "id": "BP-35",
+        "name": "Request a missing month",
+        "historical_status": "PASS"
+      },
+      {
+        "uc": "UC06",
+        "id": "BP-36",
+        "name": "Filter periods by year",
+        "historical_status": "PASS"
+      },
+      {
+        "uc": "UC08",
+        "id": "BP-05",
+        "name": "Save valid expense setup",
+        "historical_status": "FAIL"
+      },
+      {
+        "uc": "UC08",
+        "id": "BP-06",
+        "name": "Reject duplicate name",
+        "historical_status": "PASS"
+      },
+      {
+        "uc": "UC08",
+        "id": "BP-07",
+        "name": "Reject invalid amount",
+        "historical_status": "PASS"
+      },
+      {
+        "uc": "UC08",
+        "id": "BP-08",
+        "name": "Reject invalid priority/frequency",
+        "historical_status": "PASS"
+      },
+      {
+        "uc": "UC08",
+        "id": "BP-09",
+        "name": "Reject invalid due day",
+        "historical_status": "PASS"
+      },
+      {
+        "uc": "UC09",
+        "id": "BP-10",
+        "name": "Generate three proposals",
+        "historical_status": "PASS"
+      },
+      {
+        "uc": "UC09",
+        "id": "BP-11",
+        "name": "Verify amounts and conservation",
+        "historical_status": "PASS"
+      },
+      {
+        "uc": "UC09",
+        "id": "BP-12",
+        "name": "Reject missing mandatory P0",
+        "historical_status": "PASS"
+      },
+      {
+        "uc": "UC09",
+        "id": "BP-13",
+        "name": "Reject insufficient funds",
+        "historical_status": "PASS"
+      },
+      {
+        "uc": "UC09",
+        "id": "BP-37",
+        "name": "Regenerate unconfirmed alternatives",
+        "historical_status": "PASS"
+      },
+      {
+        "uc": "UC10",
+        "id": "BP-20",
+        "name": "Confirm generated plan",
+        "historical_status": "PASS"
+      },
+      {
+        "uc": "UC10",
+        "id": "BP-21",
+        "name": "Confirm saved MANUAL plan",
+        "historical_status": "PASS"
+      },
+      {
+        "uc": "UC10",
+        "id": "BP-22",
+        "name": "Reject second confirmation",
+        "historical_status": "PASS"
+      },
+      {
+        "uc": "UC10",
+        "id": "BP-23",
+        "name": "Lock confirmed month",
+        "historical_status": "PASS"
+      },
+      {
+        "uc": "UC10",
+        "id": "BP-38",
+        "name": "Review two alternatives without selecting one",
+        "historical_status": "PASS"
+      },
+      {
+        "uc": "UC27",
+        "id": "BP-14",
+        "name": "Save valid MANUAL proposal",
+        "historical_status": "PASS"
+      },
+      {
+        "uc": "UC27",
+        "id": "BP-15",
+        "name": "Reject P0 modification",
+        "historical_status": "PASS"
+      },
+      {
+        "uc": "UC27",
+        "id": "BP-16",
+        "name": "Reject P1 below minimum",
+        "historical_status": "PASS"
+      },
+      {
+        "uc": "UC27",
+        "id": "BP-17",
+        "name": "Reject allocations above funds",
+        "historical_status": "PASS"
+      },
+      {
+        "uc": "UC27",
+        "id": "BP-18",
+        "name": "Reject malformed MANUAL input",
+        "historical_status": "PASS"
+      },
+      {
+        "uc": "UC27",
+        "id": "BP-19",
+        "name": "Reject stale MANUAL edit",
+        "historical_status": "PASS"
+      },
+      {
+        "uc": "UC11",
+        "id": "BP-24",
+        "name": "Block schedule before confirmation",
+        "historical_status": "PASS"
+      },
+      {
+        "uc": "UC11",
+        "id": "BP-25",
+        "name": "Generate dated schedule",
+        "historical_status": "PASS"
+      },
+      {
+        "uc": "UC11",
+        "id": "BP-26",
+        "name": "Check dates, split and due days",
+        "historical_status": "PASS"
+      },
+      {
+        "uc": "UC11",
+        "id": "BP-27",
+        "name": "Repeat scheduling safely",
+        "historical_status": "PASS"
+      },
+      {
+        "uc": "UC11",
+        "id": "BP-39",
+        "name": "Confirm and schedule in one HTTP action",
+        "historical_status": "PASS"
+      },
+      {
+        "uc": "UC12",
+        "id": "BP-28",
+        "name": "View original day/week/month plan",
+        "historical_status": "PASS"
+      },
+      {
+        "uc": "UC12",
+        "id": "BP-40",
+        "name": "Open original schedule before confirmation",
+        "historical_status": "PASS"
+      },
+      {
+        "uc": "UC12",
+        "id": "BP-41",
+        "name": "Open a confirmed month with missing tasks",
+        "historical_status": "PASS"
+      },
+      {
+        "uc": "UC12",
+        "id": "BP-42",
+        "name": "Inspect the first partial week",
+        "historical_status": "PASS"
+      },
+      {
+        "uc": "UC12",
+        "id": "BP-43",
+        "name": "Inspect the full original monthly allocation",
+        "historical_status": "PASS"
+      },
+      {
+        "uc": "X",
+        "id": "BP-29",
+        "name": "Reject cross-user plan access",
+        "historical_status": "PASS"
+      },
+      {
+        "uc": "X",
+        "id": "BP-30",
+        "name": "Reject cross-user schedule access",
+        "historical_status": "PASS"
+      }
+    ]
+  },
+  {
+    "attachments": [
+      "10098",
+      "10115"
+    ],
+    "count": 26,
+    "distinct_ids": [
+      "F16-01",
+      "F16-02",
+      "F16-03",
+      "F16-04",
+      "F16-05",
+      "F16-06",
+      "F17-01",
+      "F17-02",
+      "F17-03",
+      "F17-04",
+      "F17-05",
+      "F17-06",
+      "F18-01",
+      "F18-02",
+      "F18-03",
+      "F18-04",
+      "F18-05",
+      "F18-06",
+      "F18-07",
+      "F19-01",
+      "F19-02",
+      "F19-03",
+      "F19-04",
+      "F19-05",
+      "F19-06",
+      "F19-07"
+    ],
+    "note": "Revisions retain the original ID; attached KAN-65 execution is not current integrated-source evidence."
+  }
+]

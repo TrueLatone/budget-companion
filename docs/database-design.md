@@ -4,6 +4,34 @@ The canonical schema contains 13 entities and 17 foreign-key relationships.
 Models live in `app/models/` and are exported through `app.models` for
 Flask-Migrate. See [the entity dictionary](entity-dictionary.md) for all attributes.
 
+## Build 3 planning-unit migration — 26 November 2026
+
+Verified head is `19a01e000003`, following `19a01e000002` on the single Alembic
+chain. `budget_months.planning_unit` is a required integer with Python/server
+default `1000`. Upgrade sets existing rows to `1` to preserve one-VND legacy
+distributions. The KAN-70 integration fix removes the feature migration's funding
+recalculation: no saved `available_vnd`, confirmed allocation, savings, task,
+purchase, ID or audit timestamp is inferred or rewritten. Disposable upgrade
+tests cover funding below/equal/above the original confirmed total, modified
+current limits and non-thousand legacy amounts. New-month defaults and repeated
+upgrades are checked. Live PostgreSQL remains untested; offline SQL compilation
+is not staging execution.
+
+This migration is still an integration candidate. A database already migrated
+with the original feature revision may already have had its funds changed;
+re-running upgrade at the same revision cannot undo that. An owner must compare
+its backup/audit evidence and approve any correction separately. Do not infer
+the original funds from allocations or run a blanket restoration on live data.
+
+New Budget plans and original schedule limits respect the month unit; purchases
+and later current limits can retain individual VND precision. Units are enforced
+by services, not a database enum/check constraint. Funds lock after any plan is
+generated. Confirmation and initial scheduling share one transaction under the
+approved [Build 3 contract](api-contracts.md). An explicit authorized deletion
+workflow now exists at `POST /budget-periods/<month_id>/delete`; it requires the
+matching month confirmation and deletes that month's financial children in
+dependency order. This is distinct from the database's FK restrictions.
+
 ## Tracking interval and existing data
 
 Tracking start is required and has the same calendar year/month as month_start.
@@ -35,8 +63,8 @@ activity requires a separate reviewed workflow.
 
 Preference/category owner FKs use CASCADE. The existing users-to-budget-months
 cascade remains unchanged. New financial FKs use RESTRICT to prevent silent
-loss of referenced history. Thus deleting a user/month with financial children
-is blocked pending an explicit deletion workflow; no deletion UI is introduced.
+loss of referenced history. Direct deletion of a user/month with financial children
+is blocked; the explicit Build 3 owned-month workflow above removes children first.
 ORM parent relationships defer restrictions to the database even when loaded.
 
 ## Rules that require services
@@ -85,9 +113,9 @@ payload comparison. Multiple planned transactions per task are summed; an
 explicit NO_EXPENSE check-in creates no zero-amount record and conflicts while
 spending exists. Deleting the last purchase restores PENDING, not NO_EXPENSE.
 Unknown check-ins/missing schedule periods keep comparison totals NULL.
-The existing schema and migration chain are unchanged. KAN-27 now derives
+The original KAN-27 integration did not change the schema. It derives
 read-only analysis from these confirmed tasks and actual transactions, persisting
-only Recommendation and optional MonthlyReview metadata. ACCEPT is disabled;
+only Recommendation and optional MonthlyReview metadata. Financial ACCEPT adjustments are disabled;
 BudgetAdjustment/Detail are not activated. Dashboard integration, funds additions
 and adjustment activation remain separate workflows. See the
 [KAN-27 contract](kan27-spending-analysis.md).
@@ -100,6 +128,7 @@ contracts.
 de12e989405f  existing foundation (unchanged)
     -> 19a01e000001  add nullable tracking_start_date
     -> 19a01e000002  backfill/enforce tracking; create 11 missing tables
+    -> 19a01e000003  preserve legacy planning unit 1; new-period default 1000
 ```
 
 For rolling deployment: expand, deploy writers supplying the tracking date, then
