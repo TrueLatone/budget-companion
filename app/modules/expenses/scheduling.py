@@ -50,7 +50,10 @@ def build_task_schedule(allocation, tracking_start_date):
             break
         cursor = period_end + timedelta(days=1)
     weights = [(finish - begin).days + 1 for begin, finish in periods]
-    amounts = split_integer(amount, weights)
+    unit = month.planning_unit
+    if amount % unit:
+        raise ValidationError("Enter multiples of 1,000 VND.")
+    amounts = [n * unit for n in split_integer(amount // unit, weights)]
     due = None
     if frequency == "MONTHLY" and expense.due_day is not None:
         due = date(start.year, start.month, min(expense.due_day, last_day))

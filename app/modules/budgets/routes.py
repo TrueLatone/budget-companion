@@ -1,3 +1,5 @@
+import calendar
+from datetime import date, timedelta
 from flask import Blueprint, abort, flash, g, redirect, render_template, request, url_for
 
 from app.modules.accounts.auth import login_required
@@ -7,7 +9,7 @@ from app.modules.budgets.forms import BudgetActionForm, ExpenseForm
 from app.modules.budgets.rules import BudgetError
 from app.modules.budgets.suggestions import SUGGESTED_EXPENSES
 from app.workspace import select_month
-from app.i18n import translate
+from app.i18n import get_ui_language, translate
 
 bp = Blueprint("budgets", __name__)
 
@@ -17,6 +19,17 @@ bp = Blueprint("budgets", __name__)
 def index():
     months = list_budget_months(g.current_user.id)
     month = select_month(g.current_user.id)
+    if request.args.get("view") == "year":
+        from app.modules.expenses.presentation import today_vn
+        year = request.args.get("year", type=int) or (month.month_start.year if month else today_vn().year)
+        periods = [m for m in months if m.month_start.year == year]
+        summaries = []
+        for m in periods:
+            plan = next((p for p in m.plans if p.status == "CONFIRMED"), None)
+            allocated = sum(a.allocated_amount for a in plan.allocations) if plan else 0
+            summaries.append((m, plan, allocated))
+        return render_template("budgets/year.html", month=month, months=months, year=year,
+                               years=sorted({year, *(m.month_start.year for m in months)}, reverse=True), summaries=summaries)
     return _workspace(month, months)
 
 
@@ -26,17 +39,19 @@ def month(month_id):
     return _workspace(services.get_month(g.current_user.id, month_id))
 
 
-def _workspace(month, months=None):
+def _workspace(month, months=None, *, setup_error=None, invalid_form=None):
     expenses = services.list_expenses(g.current_user.id, month.id) if month else []
     plans = services.list_plans(g.current_user.id, month.id) if month else []
-    form = ExpenseForm()
+    form = invalid_form or ExpenseForm()
     _category_choices(form)
     summary_plan = next((plan for plan in plans if plan.status == "CONFIRMED"), None)
-    summary_plan = summary_plan or next((plan for plan in plans if plan.plan_type == "BALANCED"), None)
+    signatures = [(p.planned_savings, sorted((str(a.budget_expense_id), a.allocated_amount)
+                  for a in p.allocations)) for p in plans if p.plan_type != "MANUAL"]
+    identical = len(signatures) == 3 and signatures.count(signatures[0]) == 3
     return render_template(
-        "budgets/index.html", month=month, expenses=expenses, plans=plans,
+        "budgets/index.html", identical=identical, setup_error=setup_error, invalid_form=invalid_form, month=month, expenses=expenses, plans=plans,
         months=months if months is not None else list_budget_months(g.current_user.id),
-        locked=any(plan.status == "CONFIRMED" for plan in plans), action_form=BudgetActionForm(),
+        locked=summary_plan is not None, action_form=BudgetActionForm(),
         expense_form=form, suggestions=SUGGESTED_EXPENSES,
         summary_plan=summary_plan,
         existing_names={expense.expense_name.strip().casefold() for expense in expenses},
@@ -64,9 +79,32 @@ def _expense_form(month_id, expense_id=None):
     if request.method == "GET" and expense:
         form.category_id.data = str(expense.category_id)
     if form.validate_on_submit():
-        services.save_expense(g.current_user.id, month.id, form.data, expense_id=expense_id)
+        data = form.data
+        if not expense_id and not data["category_id"] and not data["category_name"]:
+            data["category_name"] = data["expense_name"]
+        try:
+            services.save_expense(g.current_user.id, month.id, data, expense_id=expense_id)
+        except BudgetError as exc:
+            if expense_id:
+                raise
+            return _extra_error(month, form, exc)
         return redirect(url_for("budgets.month", month_id=month.id, _anchor="setup" if expense_id else "add-expense"))
+    if not expense_id and request.method == "POST":
+        return _workspace(month, invalid_form=form), 400
     return render_template("budgets/expense_form.html", month=month, form=form, expense=expense), 400 if request.method == "POST" else 200
+
+
+def _extra_error(month, form, error):
+    # Route a service validation failure back to the input that can correct it.
+    message = str(error)
+    for fragment, field in (("uplicate", "expense_name"), ("unique", "expense_name"),
+            ("expense name", "expense_name"), ("minimum", "minimum_amount"),
+            ("Minimum", "minimum_amount"), ("Due day", "due_day"),
+            ("Estimated amount", "estimated_amount"), ("category name", "expense_name")):
+        if fragment in message:
+            form[field].errors = [*form[field].errors, message]
+            return _workspace(month, invalid_form=form), 400
+    return _workspace(month, setup_error=message, invalid_form=form), 409 if isinstance(error, services.BudgetConflict) else 400
 
 
 def _category_choices(form):
@@ -80,7 +118,16 @@ def _category_choices(form):
 @login_required
 def apply_suggestions(month_id):
     _require_action()
-    values = {
+    values = _suggested_values()
+    created = services.apply_suggested_expenses(
+        g.current_user.id, month_id, request.form.getlist("suggestion"), values,
+    )
+    flash(f"Added {len(created)} suggested expenses. Existing expenses were kept unchanged.", "success")
+    return redirect(url_for("budgets.month", month_id=month_id, _anchor="setup"))
+
+
+def _suggested_values():
+    return {
         suggestion.key: {
             field: request.form.get(f"{suggestion.key}_{field}")
             for field in ("estimated_amount", "minimum_amount", "due_day")
@@ -89,11 +136,6 @@ def apply_suggestions(month_id):
         )}
         for suggestion in SUGGESTED_EXPENSES
     }
-    created = services.apply_suggested_expenses(
-        g.current_user.id, month_id, request.form.getlist("suggestion"), values,
-    )
-    flash(f"Added {len(created)} suggested expenses. Existing expenses were kept unchanged.", "success")
-    return redirect(url_for("budgets.month", month_id=month_id, _anchor="setup"))
 
 
 def _require_action():
@@ -113,7 +155,27 @@ def delete_expense(month_id, expense_id):
 @login_required
 def generate(month_id):
     _require_action()
-    services.generate_budget_plans(g.current_user.id, month_id)
+    month = services.get_month(g.current_user.id, month_id)
+    if any(p.status == "CONFIRMED" for p in services.list_plans(g.current_user.id, month.id)):
+        raise services.BudgetConflict("This budget month is already confirmed.")
+    form = ExpenseForm()
+    _category_choices(form)
+    try:
+        custom = None
+        if any(request.form.get(key) for key in ("expense_name", "category_name", "category_id",
+                "estimated_amount", "minimum_amount", "due_day", "is_recurring")):
+            if not form.validate_on_submit():
+                return _workspace(month, invalid_form=form), 400
+            custom = form.data
+            if not custom["category_id"] and not custom["category_name"]:
+                custom["category_name"] = custom["expense_name"]
+        services.generate_budget_plans(g.current_user.id, month_id,
+                                       selected=request.form.getlist("suggestion"),
+                                       values=_suggested_values(), custom=custom)
+    except BudgetError as exc:
+        if custom:
+            return _extra_error(month, form, exc)
+        return _workspace(month, setup_error=str(exc)), 409 if isinstance(exc, services.BudgetConflict) else 400
     return redirect(url_for("budgets.month", month_id=month_id, _anchor="compare"))
 
 
@@ -123,6 +185,7 @@ def plan(month_id, plan_id):
     saved_plan = services.get_plan(g.current_user.id, month_id, plan_id)
     return render_template(
         "budgets/plan.html", plan=saved_plan, month=saved_plan.budget_month,
+        locked=any(p.status == "CONFIRMED" for p in services.list_plans(g.current_user.id, month_id)),
         action_form=BudgetActionForm(),
         breakdown=services.plan_breakdown(g.current_user.id, month_id, plan_id),
         confirm_snapshot=services.plan_draft_fingerprint(saved_plan),
@@ -185,16 +248,81 @@ def confirm(month_id, plan_id):
         if len(snapshots) != 1 or not snapshots[0]:
             raise services.BudgetConflict("Review the latest manual plan before confirming.")
         snapshot = snapshots[0]
-    services.confirm_plan(g.current_user.id, month_id, plan_id, expected_fingerprint=snapshot)
-    flash("Budget plan confirmed. Create or verify its spending schedule below to display planned expenses.", "success")
+    services.confirm_and_schedule(g.current_user.id, month_id, plan_id, expected_fingerprint=snapshot)
+    flash("Đã xác nhận và tạo lịch chi tiêu." if get_ui_language()=="vi" else "Plan confirmed and scheduled.", "success")
     return redirect(url_for("expenses.index", budget_month_id=month_id, view="month"))
 
 
 @bp.errorhandler(services.BudgetNotFound)
 def not_found(error):
-    return "Budget resource not found.", 404
+    return render_template("budgets/error.html", message=str(error)), 404
 
 
 @bp.errorhandler(BudgetError)
 def invalid_budget(error):
     return render_template("budgets/error.html", message=str(error)), 409 if isinstance(error, services.BudgetConflict) else 400
+
+
+@bp.get("/budget/<uuid:month_id>/schedule")
+@login_required
+def schedule(month_id):
+    """Budget's read-only day/week/month planning view over canonical KAN-23 tasks.
+
+    No duplicate schedule generator or new tables. Assigned task limits are
+    counted once, on their assignment day; active periods are informational.
+    """
+    from app.modules.expenses import services as expense_services
+    from app.modules.expenses.presentation import today_vn
+
+    month = services.get_month(g.current_user.id, month_id)
+    confirmed = next((p for p in services.list_plans(g.current_user.id, month.id)
+                      if p.status == "CONFIRMED"), None)
+    if confirmed is None:
+        flash("Hãy xác nhận kế hoạch trước khi xem lịch." if get_ui_language() == "vi"
+              else "Confirm a plan before opening its schedule.", "warning")
+        return redirect(url_for("budgets.month", month_id=month.id))
+
+    view = request.args.get("view", "day")
+    if view not in {"day", "week", "month"}:
+        view = "day"
+    first = month.tracking_start_date
+    last = date(first.year, first.month, calendar.monthrange(first.year, first.month)[1])
+    today = today_vn()
+    default = today if first <= today <= last else first
+    try:
+        anchor = date.fromisoformat(request.args.get("date", "")) if request.args.get("date") else default
+    except ValueError:
+        anchor = default
+    if not first <= anchor <= last:
+        anchor = default
+    if view == "week":
+        start = max(first, anchor - timedelta(days=anchor.weekday()))
+        end = min(last, anchor + timedelta(days=6-anchor.weekday()))
+    elif view == "month":
+        start, end = first, last
+    else:
+        start = end = anchor
+    state = expense_services.get_schedule_state(g.current_user.id, month.id)
+    tasks = expense_services.list_tasks(g.current_user.id, month.tracking_start_date, last) if state.code == "READY" else []
+    assigned = [task for task in tasks if start <= task.assigned_date <= end]
+    continuing = [task for task in tasks if task.assigned_date < start <= task.period_end or
+                  (task.payment_due_date is not None and start <= task.payment_due_date <= end
+                   and task.assigned_date < start)] if view != "month" else []
+    # Budget Planning's initial schedule is an immutable allocation snapshot.
+    # Current limits/check-in statuses belong to Expense Planning and may later
+    # change; they must not alter the initial plan displayed on this page.
+    total = sum(task.original_limit for task in assigned)
+    from app.modules.budgets.rules import meal_breakdown
+    initial_meals = {task.id: meal_breakdown(task.original_limit, month.planning_unit)
+                     for task in assigned
+                     if task.title.strip().casefold() == "food" and task.schedule_tag == "DAILY"}
+    prev_day = start - timedelta(days=1) if start > first else None
+    next_day = end + timedelta(days=1) if end < last else None
+    return render_template("budgets/schedule.html", month=month, plan=confirmed,
+                           view=view, anchor=anchor, start=start, end=end, last=last,
+                           assigned=assigned, continuing=continuing, total=total,
+                           initial_meals=initial_meals,
+                           prev_day=prev_day,
+                           next_day=next_day,
+                           state=state, month_total=sum(a.allocated_amount for a in confirmed.allocations),
+                           allocations=confirmed.allocations)

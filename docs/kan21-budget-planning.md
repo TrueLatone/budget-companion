@@ -1,5 +1,8 @@
 # KAN-21: Budget Planning integration
 
+Historical integration context: the approved [Build 3 API contract](api-contracts.md)
+supersedes confirmation/scheduling and new-period planning-unit behavior below.
+
 The subsequent [Budget core parity restoration](budget-core-parity.md) adds
 explicit suggested setup, optional example loading, inline expense entry,
 saved-plan comparisons and presentation-only daily Food meal guidance. The

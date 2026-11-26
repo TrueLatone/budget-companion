@@ -12,7 +12,7 @@ from app.models import (
     AssignedExpenseTask, BudgetAllocation, BudgetExpense, BudgetMonth,
     BudgetPlan, ExpenseCategory,
 )
-from app.modules.budgets.rules import BudgetError, ExpenseInput, generate_plans, money, validate_allocations
+from app.modules.budgets.rules import BudgetError, ExpenseInput, check_unit, generate_plans, money, validate_allocations
 from app.modules.budgets.suggestions import SUGGESTED_EXPENSES
 
 
@@ -208,6 +208,8 @@ def _save_expense(month, data, *, expense_id=None):
             raise BudgetError("Expense names must be unique within the month.")
     estimate = money(data.get("estimated_amount"), "Estimated amount", optional=True)
     minimum = money(data.get("minimum_amount"), "Minimum amount", optional=True, positive=True)
+    check_unit(estimate, month.planning_unit)
+    check_unit(minimum, month.planning_unit)
     if minimum is not None and priority != "P1":
         raise BudgetError("Only P1 expenses may specify a minimum.")
     due_day = data.get("due_day")
@@ -256,32 +258,37 @@ def apply_suggested_expenses(user_id, month_id, selected_keys, values=None):
     """
     with _write_month(user_id, month_id) as month:
         _assert_editable(month)
-        known = {item.key: item for item in SUGGESTED_EXPENSES}
-        if (not isinstance(selected_keys, (list, tuple)) or not selected_keys
-                or any(not isinstance(key, str) or key not in known for key in selected_keys)
-                or len(set(selected_keys)) != len(selected_keys)):
-            raise BudgetError("Select at least one valid suggested expense, once each.")
-        if values is not None and not isinstance(values, dict):
-            raise BudgetError("Invalid suggested expense values.")
-        values = values or {}
-        existing = {e.expense_name.strip().casefold() for e in list_expenses(user_id, month.id)}
-        created = []
-        for key in selected_keys:
-            suggestion = known[key]
-            if suggestion.name.casefold() in existing:
-                continue
-            fields = values.get(key, {})
-            if not isinstance(fields, dict):
-                raise BudgetError("Invalid suggested expense fields.")
-            created.append(_save_expense(month, {
-                "expense_name": suggestion.name, "priority": suggestion.priority,
-                "category_name": suggestion.category,
-                "estimated_amount": fields.get("estimated_amount"),
-                "minimum_amount": fields.get("minimum_amount"),
-                "allocation_frequency": fields.get("allocation_frequency", suggestion.frequency),
-                "due_day": fields.get("due_day"),
-            }))
-            existing.add(suggestion.name.casefold())
+        return _add_suggestions(month, selected_keys, values)
+
+
+def _add_suggestions(month, selected_keys, values):
+    user_id = month.user_id
+    known = {item.key: item for item in SUGGESTED_EXPENSES}
+    if (not isinstance(selected_keys, (list, tuple)) or not selected_keys
+            or any(not isinstance(key, str) or key not in known for key in selected_keys)
+            or len(set(selected_keys)) != len(selected_keys)):
+        raise BudgetError("Select at least one valid suggested expense, once each.")
+    if values is not None and not isinstance(values, dict):
+        raise BudgetError("Invalid suggested expense values.")
+    values = values or {}
+    existing = {e.expense_name.strip().casefold() for e in list_expenses(user_id, month.id)}
+    created = []
+    for key in selected_keys:
+        suggestion = known[key]
+        if suggestion.name.casefold() in existing:
+            continue
+        fields = values.get(key, {})
+        if not isinstance(fields, dict):
+            raise BudgetError("Invalid suggested expense fields.")
+        created.append(_save_expense(month, {
+            "expense_name": suggestion.name, "priority": suggestion.priority,
+            "category_name": suggestion.category,
+            "estimated_amount": fields.get("estimated_amount"),
+            "minimum_amount": fields.get("minimum_amount"),
+            "allocation_frequency": fields.get("allocation_frequency", suggestion.frequency),
+            "due_day": fields.get("due_day"),
+        }))
+        existing.add(suggestion.name.casefold())
     return created
 
 
@@ -299,10 +306,14 @@ def _inputs(user_id, month_id):
     return [ExpenseInput(e.id, e.expense_name, e.priority, e.estimated_amount, e.minimum_amount) for e in expenses]
 
 
-def generate_budget_plans(user_id, month_id):
+def generate_budget_plans(user_id, month_id, *, selected=(), values=None, custom=None):
     with _write_month(user_id, month_id) as month:
         _assert_editable(month)
-        proposals = generate_plans(month.available_vnd, _inputs(user_id, month.id))
+        if selected:
+            _add_suggestions(month, selected, values)
+        if custom:
+            _save_expense(month, custom)
+        proposals = generate_plans(month.available_vnd, _inputs(user_id, month.id), month.planning_unit)
         _discard_drafts(month)
         plans = []
         for proposal in proposals:
@@ -402,6 +413,8 @@ def save_manual_plan(user_id, month_id, source_plan_id, editable_amounts, *, exp
             raise BudgetError("Submit exactly one amount for each P1 and P2 expense.")
         values = {str(key): money(value, "Allocation", positive=True)
                   for key, value in editable_amounts.items()}
+        for amount in values.values():
+            check_unit(amount, month.planning_unit)
         allocations = [(a.budget_expense_id,
                         a.allocated_amount if a.budget_expense.priority == "P0"
                         else values[str(a.budget_expense_id)]) for a in original]
@@ -445,24 +458,42 @@ def save_manual_plan(user_id, month_id, source_plan_id, editable_amounts, *, exp
 
 def confirm_plan(user_id, month_id, plan_id, *, expected_fingerprint=None):
     with _write_month(user_id, month_id) as month:
-        plan = get_plan(user_id, month.id, plan_id)
-        if plan.status == "CONFIRMED":
-            return plan  # A retry never rewrites the original confirmed snapshot.
-        _assert_editable(month)
-        if plan.status != "GENERATED":
-            raise BudgetConflict("Only a generated plan can be confirmed.")
-        # A MANUAL draft can be edited in a second tab while its confirmation
-        # page stays open. The route requires a token only for MANUAL plans;
-        # generated-strategy confirmation retains its existing API contract.
-        if (plan.plan_type == "MANUAL" and expected_fingerprint is not None and
-                plan_draft_fingerprint(plan) != expected_fingerprint):
-            raise BudgetConflict("The manual plan changed in another tab. Review the latest amounts before confirming.")
-        validate_allocations(
-            month.available_vnd, _inputs(user_id, month.id),
-            [(a.budget_expense_id, a.allocated_amount) for a in plan.allocations],
-            plan.planned_savings,
-        )
-        if any(a.tasks for a in plan.allocations):
-            raise BudgetConflict("Tasks must be scheduled after confirmation.")
-        plan.status = "CONFIRMED"
+        return _confirm_locked(user_id, month, plan_id, expected_fingerprint)
+
+
+def confirm_and_schedule(user_id, month_id, plan_id, expected_fingerprint=None):
+    from app.modules.expenses.services import schedule_locked_month
+    from app.modules.expenses.validators import ValidationError
+
+    with _write_month(user_id, month_id) as month:
+        plan = _confirm_locked(user_id, month, plan_id, expected_fingerprint)
+        db.session.flush()
+        try:
+            schedule_locked_month(month)
+        except ValidationError as error:
+            raise BudgetConflict(str(error)) from error
+        return plan
+
+
+def _confirm_locked(user_id, month, plan_id, expected_fingerprint):
+    plan = get_plan(user_id, month.id, plan_id)
+    if plan.status == "CONFIRMED":
+        return plan  # A retry never rewrites the original confirmed snapshot.
+    _assert_editable(month)
+    if plan.status != "GENERATED":
+        raise BudgetConflict("Only a generated plan can be confirmed.")
+    # A MANUAL draft can be edited in a second tab while its confirmation
+    # page stays open. The route requires a token only for MANUAL plans;
+    # generated-strategy confirmation retains its existing API contract.
+    if (plan.plan_type == "MANUAL" and expected_fingerprint is not None and
+            plan_draft_fingerprint(plan) != expected_fingerprint):
+        raise BudgetConflict("The manual plan changed in another tab. Review the latest amounts before confirming.")
+    validate_allocations(
+        month.available_vnd, _inputs(user_id, month.id),
+        [(a.budget_expense_id, a.allocated_amount) for a in plan.allocations],
+        plan.planned_savings,
+    )
+    if any(a.tasks for a in plan.allocations):
+        raise BudgetConflict("Tasks must be scheduled after confirmation.")
+    plan.status = "CONFIRMED"
     return plan

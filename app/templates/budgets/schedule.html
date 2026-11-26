@@ -1,0 +1,25 @@
+{% extends 'workspace_base.html' %}
+{% set vi = ui_locale == 'vi' %}
+{% block title %}{{ 'Lịch phân bổ ban đầu' if vi else 'Original spending schedule' }}{% endblock %}
+{% block extra_styles %}{{ super() }}<link rel="stylesheet" href="{{ url_for('static',filename='css/budget-planning.css') }}">{% endblock %}
+{% block workspace_content %}
+<section class="ws-card bp-panel">
+<a href="{{ url_for('budgets.plan',month_id=month.id,plan_id=plan.id) }}">← {{ t('live_review_budget') }}</a>
+<h1 class="ws-page-title">{{ self.title() }}</h1>
+<p>{{ month.month_start.strftime('%m/%Y') }}</p>
+{% if state.code == 'READY' %}
+<nav aria-label="{{ self.title() }}">{% for mode,label in [('day','Ngày' if vi else 'Day'),('week','Tuần' if vi else 'Week'),('month','Tháng' if vi else 'Month')] %}
+<a class="ws-button" {% if mode==view %}aria-current="page"{% endif %} href="{{ url_for('budgets.schedule',month_id=month.id,view=mode,date=anchor) }}">{{ label }}</a>{% endfor %}</nav>
+{% if view != 'month' %}
+<nav>{% if prev_day %}<a href="{{ url_for('budgets.schedule',month_id=month.id,view=view,date=prev_day) }}">← {{ 'Trước' if vi else 'Previous' }}</a>{% endif %}
+<form method="get"><input type="hidden" name="view" value="{{ view }}"><input aria-label="{{ 'Ngày' if vi else 'Date' }}" type="date" name="date" value="{{ anchor }}" min="{{ month.tracking_start_date }}" max="{{ last }}"><button class="ws-button">{{ 'Xem' if vi else 'View' }}</button></form>
+{% if next_day %}<a href="{{ url_for('budgets.schedule',month_id=month.id,view=view,date=next_day) }}">{{ 'Sau' if vi else 'Next' }} →</a>{% endif %}</nav>
+<h2 class="ws-card-title">{{ start.strftime('%d/%m/%Y') }}{% if end != start %} – {{ end.strftime('%d/%m/%Y') }}{% endif %}</h2>
+<p>{{ 'Phân bổ mới trong kỳ' if vi else 'Allocations starting in this period' }} · <strong>{{ money(total) }} VND</strong></p>
+{% for item in assigned %}<div class="bp-block"><div class="bp-line"><strong>{{ item.title }}</strong><span>{{ money(item.original_limit) }} VND</span></div><small>{{ item.assigned_date }} – {{ item.period_end }}</small>{% if item.id in initial_meals %}<details><summary>{{ 'Gợi ý theo bữa' if vi else 'Meal breakdown' }}</summary>{% for meal,amount in initial_meals[item.id].items() %}<span>{{ {'Breakfast':'Sáng','Lunch':'Trưa','Dinner':'Tối'}[meal] if vi else meal }} · {{ money(amount) }} VND </span>{% endfor %}</details>{% endif %}</div>{% endfor %}
+{% if continuing %}<details><summary>{{ 'Khoản đang áp dụng hoặc đến hạn' if vi else 'Continuing or due in this period' }}</summary>{% for item in continuing %}<p>{{ item.title }} · {{ item.assigned_date }} – {{ item.period_end }} · {{ money(item.original_limit) }} VND{% if item.payment_due_date %} · {{ t('ui_due_day') }} {{ item.payment_due_date }}{% endif %}</p>{% endfor %}</details>{% endif %}
+{% else %}<h2 class="ws-card-title">{{ t('live_plan_total') }} · {{ money(month_total) }} VND</h2>
+{% for a in allocations|sort(attribute='budget_expense.expense_name') %}{% set ex=a.budget_expense %}<div class="bp-block"><div class="bp-line"><strong>{{ ex.expense_name }}</strong><span>{{ money(a.allocated_amount) }} VND</span></div><small>{{ t('live_frequency_' ~ ex.allocation_frequency) }}{% if ex.due_day %} · {{ t('ui_due_day') }} {{ ex.due_day }}{% endif %}</small></div>{% endfor %}{% endif %}
+{% else %}<p>{{ 'Lịch chưa sẵn sàng. Hãy kiểm tra kế hoạch đã xác nhận.' if vi else 'The schedule is not ready. Review the confirmed plan.' }}</p>{% endif %}
+<a class="ws-button mt-3" href="{{ url_for('expenses.index',budget_month_id=month.id,view='day') }}">{{ t('live_open_checkin') }}</a>
+</section>{% endblock %}

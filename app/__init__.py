@@ -43,4 +43,28 @@ def create_app(test_config=None):
     from app.workspace import register_workspace
     register_workspace(app)
 
+    from werkzeug.exceptions import HTTPException
+    from flask import request, render_template
+    from app.i18n import get_ui_language
+
+    @app.errorhandler(HTTPException)
+    def localized_http_error(error):
+        if get_ui_language() != "vi" or request.path.startswith("/api/"):
+            return error
+        messages = {400:"Biểu mẫu không hợp lệ hoặc đã hết hạn. Hãy tải lại trang và thử lại.",
+                    403:"Bạn không có quyền thực hiện thao tác này.", 404:"Không tìm thấy trang hoặc dữ liệu.",
+                    405:"Thao tác này không được hỗ trợ."}
+        return render_template("pages/request_error.html", message=messages.get(error.code, "Không thể thực hiện yêu cầu.")), error.code
+
+    @app.cli.command("complete-schedules")
+    def complete_schedules():
+        """Fill schedules for budgets confirmed before automatic scheduling."""
+        from app.models import BudgetPlan, BudgetMonth
+        from app.modules.expenses.services import get_schedule_state, ensure_tasks_for_month
+        months = db.session.execute(db.select(BudgetMonth.user_id, BudgetMonth.id).join(
+            BudgetPlan, BudgetPlan.budget_month_id == BudgetMonth.id
+        ).where(BudgetPlan.status == "CONFIRMED")).all()
+        for user_id, month_id in months:
+            if get_schedule_state(user_id, month_id).code in ("NOT_SCHEDULED", "INCOMPLETE"):
+                ensure_tasks_for_month(user_id, month_id)
     return app

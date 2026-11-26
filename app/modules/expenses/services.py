@@ -94,38 +94,43 @@ def _write_month(user_id, month_id):
 def ensure_tasks_for_month(user_id, month_id):
     """Repeat-safe scheduling; never overwrite actuals, adjustments or statuses."""
     with _write_month(user_id, month_id) as month:
-        allocations = budgets.get_confirmed_allocations(user_id, month.id)
-        if not allocations:
-            raise ValidationError("Confirm a budget plan before creating its spending schedule.")
-        tasks = []
-        for allocation in allocations:
-            expected = build_task_schedule(allocation, month.tracking_start_date)
-            existing = list(db.session.scalars(db.select(AssignedExpenseTask).where(
-                AssignedExpenseTask.allocation_id == allocation.id,
-            ).execution_options(populate_existing=True)))
-            by_date = {task.assigned_date: task for task in existing}
-            if set(by_date) - {item.assigned_date for item in expected}:
-                raise ExpenseConflict("Existing task dates differ from this confirmed schedule.")
-            for item in expected:
-                task = by_date.get(item.assigned_date)
-                if task is not None:
-                    if (task.period_end, task.original_limit, task.payment_due_date) != (
-                        item.period_end, item.original_limit, item.payment_due_date,
-                    ):
-                        raise ExpenseConflict("Existing task limits or periods differ; original schedules cannot be overwritten.")
-                else:
-                    task = AssignedExpenseTask(
-                        allocation_id=allocation.id, assigned_date=item.assigned_date,
-                        period_end=item.period_end, original_limit=item.original_limit,
-                        current_limit=item.original_limit, task_status="PENDING",
-                        payment_due_date=item.payment_due_date,
-                        payment_status="UNPAID" if item.payment_due_date else None,
-                    )
-                    db.session.add(task)
-                tasks.append(task)
-            if sum(item.original_limit for item in expected) != allocation.allocated_amount:
-                raise ExpenseConflict("The schedule must conserve its complete monthly allocation.")
-        db.session.flush()
+        return schedule_locked_month(month)
+
+
+def schedule_locked_month(month):
+    """Create missing tasks inside the caller's locked transaction."""
+    allocations = budgets.get_confirmed_allocations(month.user_id, month.id)
+    if not allocations:
+        raise ValidationError("Confirm a budget plan before creating its spending schedule.")
+    tasks = []
+    for allocation in allocations:
+        expected = build_task_schedule(allocation, month.tracking_start_date)
+        existing = list(db.session.scalars(db.select(AssignedExpenseTask).where(
+            AssignedExpenseTask.allocation_id == allocation.id,
+        ).execution_options(populate_existing=True)))
+        by_date = {task.assigned_date: task for task in existing}
+        if set(by_date) - {item.assigned_date for item in expected}:
+            raise ExpenseConflict("Existing task dates differ from this confirmed schedule.")
+        for item in expected:
+            task = by_date.get(item.assigned_date)
+            if task is not None:
+                if (task.period_end, task.original_limit, task.payment_due_date) != (
+                    item.period_end, item.original_limit, item.payment_due_date,
+                ):
+                    raise ExpenseConflict("Existing task limits or periods differ; original schedules cannot be overwritten.")
+            else:
+                task = AssignedExpenseTask(
+                    allocation_id=allocation.id, assigned_date=item.assigned_date,
+                    period_end=item.period_end, original_limit=item.original_limit,
+                    current_limit=item.original_limit, task_status="PENDING",
+                    payment_due_date=item.payment_due_date,
+                    payment_status="UNPAID" if item.payment_due_date else None,
+                )
+                db.session.add(task)
+            tasks.append(task)
+        if sum(item.original_limit for item in expected) != allocation.allocated_amount:
+            raise ExpenseConflict("The schedule must conserve its complete monthly allocation.")
+    db.session.flush()
     return tasks
 
 

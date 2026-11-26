@@ -225,10 +225,21 @@ def test_http_budget_flow(signed_client, app, budget):
     with app.app_context():
         plan_id = services.list_plans(budget["user"], budget["month"])[0].id
     url = f"{root}/plans/{plan_id}"
-    assert b"GENERATED" in signed_client.get(url).data
+    with app.app_context():
+        assert db.session.get(BudgetPlan, plan_id).status == "GENERATED"
+    detail = signed_client.get(url)
+    confirm_action = f'action="{url}/confirm"'
+    assert detail.status_code == 200
+    assert confirm_action in detail.text
+    assert "GENERATED" in detail.text
     # Submitted identity/allocation fields are never used by confirmation.
     assert signed_client.post(url + "/confirm", data={"user_id": str(budget["other"]), "allocated_amount": "1"}).status_code == 302
-    assert b"CONFIRMED" in signed_client.get(url).data
+    with app.app_context():
+        assert db.session.get(BudgetPlan, plan_id).status == "CONFIRMED"
+    detail = signed_client.get(url)
+    assert detail.status_code == 200
+    assert confirm_action not in detail.text
+    assert 'View original schedule' in detail.text
     assert signed_client.post(url + "/confirm").status_code == 302
     assert signed_client.post(root + "/expenses/new", data=data).status_code == 409
 

@@ -308,7 +308,7 @@ def test_f06_manual_confirm_requires_current_saved_snapshot(app, scenario, owner
     assert owner_client.post(path, data={"confirm_snapshot": new_snapshot}).status_code == 302
     with app.app_context():
         assert budget_service.get_plan(scenario["owner"], scenario["month"], manual_id).status == "CONFIRMED"
-        assert db.session.scalar(db.select(db.func.count(AssignedExpenseTask.id))) == 0
+        assert db.session.scalar(db.select(db.func.count(AssignedExpenseTask.id))) == 34
 
 def test_schedule_handoff_persists_only_confirmed_uuid_allocations_and_rounding(app, scenario):
     with app.app_context():
@@ -396,7 +396,7 @@ def test_f06_csrf_confirm_and_explicit_schedule_http_flow(app, scenario, owner_c
     with app.app_context():
         plan = budget_service.get_plan(scenario["owner"], scenario["month"], plan_id)
         values = _editable(plan)
-        values[_food_id(plan)] += 12_345
+        values[_food_id(plan)] += 12_000
     fields = {"allocation_" + key: str(amount) for key, amount in values.items()}
     fields["plan_snapshot"] = snapshot
     assert owner_client.post(path, data=fields).status_code == 400
@@ -413,7 +413,7 @@ def test_f06_csrf_confirm_and_explicit_schedule_http_flow(app, scenario, owner_c
     assert owner_client.get(detail + "/customize").status_code == 409
     assert owner_client.post(detail + "/customize", data=fields | {"csrf_token": csrf}).status_code == 409
     with app.app_context():
-        assert db.session.scalar(db.select(db.func.count(AssignedExpenseTask.id))) == 0
+        assert db.session.scalar(db.select(db.func.count(AssignedExpenseTask.id))) == 34
     schedule_url = f"/expenses/months/{scenario['month']}/schedule"
     assert owner_client.post(schedule_url).status_code == 400
     assert owner_client.post(schedule_url, data={"csrf_token": csrf}).status_code == 302
@@ -511,3 +511,38 @@ def test_f06_simultaneous_saves_and_restart_preserve_one_manual_draft(tmp_path):
         assert manual.status == "CONFIRMED"
         db.session.remove()
         db.engine.dispose()
+
+
+def test_t2_budget_schedule_displays_original_not_adjusted_limits(app, scenario, owner_client):
+    """The initial Budget plan must not absorb subsequent Expense-module changes."""
+    from flask import template_rendered
+
+    with app.app_context():
+        balanced = _generate(scenario)
+        budget_service.confirm_plan(scenario["owner"], scenario["month"], balanced.id)
+        tasks = expense_service.ensure_tasks_for_month(scenario["owner"], scenario["month"])
+        food = next(task for task in tasks if
+                    task.allocation.budget_expense.expense_name == "Food"
+                    and task.assigned_date == date(2026, 11, 6))
+        original_limit, task_id = food.original_limit, food.id
+        food.current_limit = original_limit + 17
+        db.session.commit()
+
+    context = {}
+    def capture(sender, template, context: dict, **kwargs):
+        if template.name == "budgets/schedule.html":
+            rendered_context.update(context)
+    rendered_context = context
+    with template_rendered.connected_to(capture, app):
+        page = owner_client.get(f"/budget/{scenario['month']}/schedule?view=day&date=2026-11-06")
+    assert page.status_code == 200
+    assert rendered_context["state"].code == "READY"
+    displayed_food = next(t for t in rendered_context["assigned"] if t.id == task_id)
+    assert displayed_food.original_limit == original_limit
+    assert displayed_food.current_limit == original_limit + 17
+    assert rendered_context["total"] == sum(t.original_limit for t in rendered_context["assigned"])
+    with app.app_context():
+        assert db.session.get(AssignedExpenseTask, task_id).current_limit == original_limit + 17
+        assert db.session.scalar(db.select(db.func.count(ExpenseRecord.id))) == 0
+
+

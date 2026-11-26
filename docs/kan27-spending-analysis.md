@@ -1,5 +1,9 @@
 # KAN-27: rule-based spending analysis integration
 
+Historical integration context: the approved [Build 3 API contract](api-contracts.md)
+supersedes the mandatory no-incomplete gate and earlier all-ACCEPT-disabled
+status behavior below. Financial adjustments remain disabled.
+
 Target: `integration/pa2-20261031`, base
 `5cb0b0a9dc61e398cb31e7476b24ddcd5ebb0ca0` (clean working tree).
 Fetched source: `feature/recommendations-f16-f19` at

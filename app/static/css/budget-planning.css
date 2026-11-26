@@ -1,0 +1,68 @@
+.bp-panel .bp-item, .bp-panel .bp-fields {
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,10rem),1fr));
+  align-items:start;gap:.65rem 1rem;padding:.8rem 0;border-bottom:1px solid #dde3df;
+}
+.bp-panel summary {cursor:pointer;padding:.45rem 0}
+.bp-panel label {display:block}
+.bp-panel .bp-line {display:flex;justify-content:space-between;gap:1rem;padding:.3rem 0}
+.bp-panel form > button {margin-top:.8rem}
+.bp-panel [aria-invalid=true] {border-color:#994238}
+.bp-panel small {color:#535f59}
+.bp-panel nav {display:flex;gap:.7rem;align-items:center;flex-wrap:wrap;margin:1rem 0}
+.bp-panel [aria-current=page] {font-weight:700;text-decoration:underline}
+.bp-panel .bp-block {border-bottom:1px solid #dce2df;padding:.75rem 0}
+
+.bp-panel .bp-item {grid-template-columns:minmax(6rem,1fr) repeat(4,minmax(0,1fr));align-items:end;padding:1rem 0}
+.bp-panel .bp-item label:first-child {align-self:center}
+.bp-panel .bp-item label {font-size:.82rem}
+.bp-panel .bp-item .form-control,.bp-panel .bp-item .form-select {margin-top:.3rem}
+.bp-actions {display:inline-flex;align-items:center;gap:.8rem;white-space:nowrap}
+.bp-actions form,.bp-actions form > button {margin:0}
+#bp-customize {max-width:52rem}
+#bp-customize .bp-block {padding:1rem 0}
+#bp-customize .form-control {max-width:24rem;margin-top:.45rem}
+#bp-customize p {margin-top:1.25rem}
+@media(max-width:1250px){.ws-budget-layout:has(.bp-panel){grid-template-columns:1fr}.bp-panel .bp-item {gap:.6rem}}
+@media(max-width:680px){.bp-panel .bp-item {grid-template-columns:repeat(2,minmax(0,1fr))}.bp-panel .bp-item label:first-child {grid-column:1/-1}}
+.bp-period,.year-head,.bp-ledger{display:flex;flex-wrap:wrap;gap:1rem;align-items:center}.bp-period{margin:0 0 1.2rem;gap:.25rem}.bp-period a{padding:.45rem 1rem;text-decoration:none;border-radius:.45rem}.bp-period [aria-current]{background:#eceafa;font-weight:650}.year-head{justify-content:space-between}.bp-saved{margin-top:1rem}.bp-funds{display:block;font-size:1.9rem}.bp-ledger>div{min-width:7rem}.bp-ledger dd{font-variant-numeric:tabular-nums}
+.bp-panel .bp-head,.bp-panel .bp-item{display:grid;grid-template-columns:minmax(9rem,1.35fr) minmax(7rem,1.2fr) minmax(7.8rem,1fr) minmax(6rem,.8fr) minmax(7rem,1fr);align-items:center;gap:1rem}.bp-head{font-size:.82rem;font-weight:600}.bp-caption{position:absolute;clip-path:inset(50%);width:1px;height:1px;overflow:hidden}.bp-panel .bp-item label,.bp-panel .bp-item select,.bp-panel .bp-item input{margin:0}.bp-fields [data-field=expense_name]{grid-area:name}.bp-fields [data-field=priority]{grid-area:priority}.bp-fields [data-field=estimated_amount]{grid-area:estimate}.bp-fields [data-field=minimum_amount]{grid-area:minimum}.bp-fields [data-field=allocation_frequency]{grid-area:frequency}.bp-fields [data-field=due_day]{grid-area:due}.bp-fields [data-field=is_recurring]{grid-area:repeat}.bp-panel .bp-fields{grid-template-columns:repeat(3,minmax(0,1fr));grid-template-areas:"name priority estimate" "frequency due minimum" "repeat repeat repeat";align-items:start}.bp-fields label{min-width:0}
+@media(max-width:980px){.bp-panel .bp-head{display:none}.bp-caption{position:static;clip-path:none;width:auto;height:auto;display:block}.bp-panel .bp-item{grid-template-columns:repeat(2,minmax(0,1fr));align-items:start}.bp-panel .bp-item label:first-child{grid-column:1/-1}}
+@media(max-width:650px){.bp-panel .bp-fields{grid-template-columns:1fr 1fr;grid-template-areas:"name name" "priority estimate" "frequency due" "minimum repeat"}}
+
+.bp-switch{position:relative;margin-inline-start:auto}.bp-switch>div{position:absolute;right:0;min-width:8rem;z-index:3;background:var(--bs-body-bg,#fff);border:1px solid #d8d9e4;border-radius:.5rem;padding:.35rem;box-shadow:0 .3rem 1rem #21213b12;max-height:16rem;overflow:auto}.bp-switch a{display:block}.bp-switch summary{cursor:pointer;padding:.4rem}
+.bp-ledger{gap:1rem 2rem;margin:1rem 0 1.5rem}.bp-confirmed,.bp-saved{padding:clamp(1rem,2.6vw,2rem)}.bp-ledger dt{font-size:.88rem}.bp-ledger dd{margin:.35rem 0 0;font-weight:600}.bp-head>span{white-space:nowrap}
+.bp-panel input.form-control,.bp-panel select.form-select,.bp-panel select.form-control{display:block;width:100%;min-width:0;min-height:2.6rem;border:1px solid #d7dae4;border-radius:.45rem;padding:.42rem .65rem;background-color:white;color:inherit;box-sizing:border-box}
+.bp-panel input.form-control:disabled,.bp-panel select:disabled{background-color:#eff0f4}.bp-saved .table{width:100%;border-collapse:collapse}.bp-saved th,.bp-saved td{padding:.75rem .65rem;text-align:left;border-bottom:1px solid #e5e6ed}.bp-saved .table-responsive{overflow-x:auto}.bp-saved .table th{white-space:nowrap}.bp-saved h2{margin-bottom:1rem}
+
+/* Reserve room for monthly totals beside the form, or place them first. */
+.ws-budget-layout:has(#setup) {
+  grid-template-columns: minmax(0, 1fr) clamp(16rem, 24%, 21rem);
+  grid-template-areas: "editor summary";
+  gap: 1rem;
+}
+.ws-budget-layout:has(#setup) .ws-budget-editor { grid-area: editor; min-width: 0; }
+.ws-budget-layout:has(#setup) .ws-budget-summary { grid-area: summary; }
+#setup .bp-item { padding-block: .48rem; column-gap: .75rem; }
+#setup .bp-item :is(.form-control,.form-select) { margin: 0; min-height: 2.25rem; padding-block: .3rem; }
+@media (max-width: 1330px) {
+  .ws-budget-layout:has(#setup) {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: "summary" "editor";
+  }
+  .ws-budget-layout:has(#setup) .ws-summary-card { padding: 1rem 1.25rem; }
+}
+
+.period-toolbar { display:flex; align-items:center; flex-wrap:wrap; gap:.5rem .9rem; margin-bottom:1.2rem; }
+.period-tabs { display:inline-flex; padding:.18rem; border:1px solid #dedfec; border-radius:.6rem; background:white; }
+.period-tabs a, .period-value, .period-menu summary { display:inline-flex; align-items:center; justify-content:center; min-height:2.25rem; padding:0 .8rem; }
+.period-tabs a { color:inherit; text-decoration:none; border-radius:.42rem; }
+.period-tabs a[aria-current], .period-menu a[aria-current] { background:#eeecfb; color:#48429a; font-weight:600; }
+.period-menu { position:relative; }
+.period-menu summary { list-style:none; cursor:pointer; background:white; border:1px solid #dedfec; border-radius:.5rem; gap:.7rem; font-variant-numeric:tabular-nums; }
+.period-menu summary::-webkit-details-marker { display:none; }
+.period-menu summary::after { content:""; width:.48rem; height:.48rem; border:solid currentColor; border-width:0 1.5px 1.5px 0; transform:translateY(-.12rem) rotate(45deg); }
+.period-menu>div { position:absolute; z-index:5; inset-inline-start:0; top:calc(100% + .25rem); min-width:100%; max-height:15rem; overflow:auto; background:white; padding:.25rem; border:1px solid #dedfec; border-radius:.5rem; box-shadow:0 .25rem .8rem #26253e18; }
+.period-menu a { display:block; text-decoration:none; padding:.35rem .65rem; border-radius:.3rem; }
+.period-manage { margin-inline-start:auto; }
+.budget-year .table { width:100%; margin-top:1rem; }
+.budget-year :is(td,th):not(:first-child) { text-align:right; font-variant-numeric:tabular-nums; }

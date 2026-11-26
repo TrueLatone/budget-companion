@@ -126,22 +126,35 @@ def _completeness(data):
         "confirmed_plan": bool(data.allocations), "complete_schedule": data.schedule_state.code == "READY",
         "tracking_started": data.as_of >= data.month.tracking_start_date,
     })
-    descriptions = {
-        "minimum_complete_transactions": f"Need at least 10 complete actual transactions; found {result['complete_transaction_count']}.",
-        "minimum_categories": f"Need at least 3 categories with actual transactions; found {result['category_count']}.",
-        "minimum_coverage_days": f"Need at least 30 calendar days between first and last actual transactions; found {result['coverage_days']}.",
-        "minimum_completeness_rate": f"Need at least 80% completeness; observed {result['completeness_rate'] * 100:.2f}%.",
-        "no_unresolved_tasks": "Completed periods have missing or inconsistent check-ins; resolve them without inventing spending.",
-        "no_incomplete_transactions": "Some transactions have incomplete or invalid required data.",
-        "confirmed_plan": "A confirmed Budget plan with allocations is required.",
-        "complete_schedule": data.schedule_state.message,
-        "tracking_started": "Tracking has not started for this month.",
+    schedule_messages = {
+        "NO_EXPENSES": "Chưa có khoản chi hoặc kế hoạch ngân sách. Hãy thêm khoản chi trong phần thiết lập ngân sách.",
+        "NO_PLAN": "Chưa có kế hoạch ngân sách. Hãy tạo kế hoạch trong phần thiết lập ngân sách.",
+        "UNCONFIRMED": "Chưa có kế hoạch ngân sách được xác nhận. Hãy xem lại và xác nhận một kế hoạch đã lưu.",
+        "NO_ALLOCATIONS": "Kế hoạch đã xác nhận chưa có khoản phân bổ. Hãy kiểm tra lại kế hoạch đã lưu.",
+        "NOT_SCHEDULED": "Kế hoạch đã xác nhận nhưng chưa có lịch chi tiêu. Hãy tạo lịch để theo dõi.",
+        "CONFLICT": "Ngày hoặc hạn mức của một số kỳ chi khác với kế hoạch đã xác nhận. Hãy kiểm tra lại kế hoạch.",
+        "INCOMPLETE": "Lịch chi tiêu còn thiếu một số kỳ. Hãy kiểm tra và bổ sung lịch.",
     }
-    sufficient = all(result["checks"].values())
+    descriptions = {
+        "minimum_complete_transactions": f"Cần ít nhất 10 giao dịch thực tế hợp lệ; hiện có {result['complete_transaction_count']}.",
+        "minimum_categories": f"Cần có giao dịch thực tế ở ít nhất 3 danh mục; hiện có {result['category_count']}.",
+        "minimum_coverage_days": f"Cần dữ liệu trải dài ít nhất 30 ngày giữa giao dịch đầu tiên và cuối cùng; hiện có {result['coverage_days']} ngày.",
+        "minimum_completeness_rate": f"Cần tỷ lệ đầy đủ ít nhất 80%; hiện tại {result['completeness_rate'] * 100:.2f}%.",
+        "no_unresolved_tasks": "Có kỳ chi đã kết thúc nhưng chưa được xác nhận hoặc thông tin xác nhận không khớp. Hãy kiểm tra, không tự suy đoán khoản chi.",
+        "no_incomplete_transactions": "Một số giao dịch thiếu hoặc sai thông tin bắt buộc.",
+        "confirmed_plan": "Cần có kế hoạch ngân sách đã xác nhận.",
+        "complete_schedule": schedule_messages.get(data.schedule_state.code, data.schedule_state.message),
+        "tracking_started": "Chưa đến ngày bắt đầu theo dõi của tháng.",
+    }
+    sufficient = rules.is_sufficient(result["checks"])
+    insufficient_reasons = [
+        descriptions[key] for key, passed in result["checks"].items()
+        if not passed and key != "no_incomplete_transactions"
+    ]
     result.update({
         "status": "SUFFICIENT" if sufficient else "INSUFFICIENT",
         "guidance_mode": "PERSONALIZED_GUIDANCE" if sufficient else "BASELINE_GUIDANCE",
-        "insufficient_reasons": [descriptions[key] for key, passed in result["checks"].items() if not passed],
+        "insufficient_reasons": insufficient_reasons,
         "month": data.month.month_start.strftime("%Y-%m"), "as_of": data.as_of.isoformat(),
         "schedule_state": data.schedule_state.code,
     })
@@ -615,6 +628,13 @@ def decide_recommendation(user_id, recommendation_id, decision, as_of_value=None
             if not isinstance(proposal, dict) or proposal.get("mode") != "READ_ONLY" or proposal.get("changes") != []:
                 raise RecommendationServiceError(
                     "This legacy proposal is read-only and cannot be accepted. Refresh recommendations from current data.", 409
+                )
+            current = _analysis(_load(
+                user_id, item.budget_month.month_start.strftime("%Y-%m"), as_of_value
+            ))
+            if proposal.get("analysis_key") != current["analysis_key"]:
+                raise RecommendationServiceError(
+                    "This recommendation is stale. Refresh recommendations from current data before deciding.", 409
                 )
         if item.status not in {"PENDING", "REJECTED"}:
             raise RecommendationServiceError("This recommendation has already been decided", 409)

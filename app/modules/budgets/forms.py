@@ -1,12 +1,12 @@
 """HTML forms use the application's existing Flask-WTF CSRF protection."""
 
-from flask_wtf import FlaskForm
+from app.forms import LocalizedForm
 from wtforms import BooleanField, SelectField, StringField, SubmitField
 from wtforms.validators import InputRequired, Length, Optional
 from app.i18n import translate
 
 
-class ExpenseForm(FlaskForm):
+class ExpenseForm(LocalizedForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         for field in self:
@@ -16,7 +16,7 @@ class ExpenseForm(FlaskForm):
         self.allocation_frequency.choices = [(key, translate("live_frequency_" + key)) for key in ("DAILY", "WEEKLY", "MONTHLY")]
 
     expense_name = StringField("Expense name", validators=[InputRequired(), Length(max=120)], filters=[lambda value: value.strip() if value else value])
-    category_id = SelectField("Existing category", choices=[])
+    category_id = SelectField("Existing category", choices=[], default="")
     category_name = StringField("Or new category", validators=[Optional(), Length(max=100)])
     priority = SelectField("Priority", choices=[("P0", "P0 — mandatory"), ("P1", "P1 — essential"), ("P2", "P2 — flexible")])
     # WTForms also filters values loaded from obj=expense. Stored VND amounts
@@ -29,5 +29,5 @@ class ExpenseForm(FlaskForm):
     submit = SubmitField("Save expense")
 
 
-class BudgetActionForm(FlaskForm):
+class BudgetActionForm(LocalizedForm):
     submit = SubmitField("Continue")

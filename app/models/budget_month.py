@@ -23,6 +23,7 @@ class BudgetMonth(db.Model):
     tracking_start_date = db.Column(
         db.Date, nullable=False, default=_default_tracking_start_date,
     )
+    planning_unit = db.Column(db.Integer, nullable=False, default=1000, server_default="1000")
     available_vnd = db.Column(db.BigInteger, nullable=False)
     created_at = db.Column(
         db.DateTime(timezone=True),

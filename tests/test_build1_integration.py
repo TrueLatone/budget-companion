@@ -101,7 +101,7 @@ def test_build1_models_routes_and_single_migration_head(build_app):
 
     config = Config("migrations/alembic.ini")
     config.set_main_option("script_location", "migrations")
-    assert ScriptDirectory.from_config(config).get_heads() == ["19a01e000002"]
+    assert ScriptDirectory.from_config(config).get_heads() == ["19a01e000003"]
     with application.app_context():
         mappers = list(db.Model.registry.mappers)
         assert len(mappers) == len(db.metadata.tables) == 13
@@ -111,7 +111,7 @@ def test_build1_models_routes_and_single_migration_head(build_app):
             for column in mapper.columns:
                 if column.primary_key or column.foreign_keys:
                     assert isinstance(column.type, sa.Uuid) and column.type.as_uuid
-        assert db.session.scalar(sa.text("SELECT version_num FROM alembic_version")) == "19a01e000002"
+        assert db.session.scalar(sa.text("SELECT version_num FROM alembic_version")) == "19a01e000003"
         assert db.session.scalar(sa.text("PRAGMA foreign_keys")) == 1
         with db.engine.connect() as connection, warnings.catch_warnings():
             warnings.filterwarnings("ignore", message=".*expression-based index.*")
@@ -185,7 +185,7 @@ def test_build1_registration_to_recommendation_survives_replay_and_restart(build
         assert count(BudgetExpense) == 6
         assert db.session.scalar(db.select(BudgetExpense).where(BudgetExpense.expense_name == "Food")).estimated_amount is None
     assert client.post(root + "/plans/generate", data={"csrf_token": csrf}).status_code == 302
-    assert b"Compare saved plans" in client.get(root).data
+    assert b"Compare plans" in client.get(root).data
     with application.app_context():
         plans = list(db.session.scalars(db.select(BudgetPlan)))
         assert {plan.plan_type for plan in plans} == {"SAVING", "BALANCED", "LIFESTYLE"}
@@ -195,9 +195,9 @@ def test_build1_registration_to_recommendation_survives_replay_and_restart(build
         plan_id = next(plan.id for plan in plans if plan.plan_type == "BALANCED")
     assert client.post(f"{root}/plans/{plan_id}/confirm", data={"csrf_token": csrf, "allocated_amount": "1"}).status_code == 302
     with application.app_context():
-        assert count(AssignedExpenseTask) == 0
+        assert count(AssignedExpenseTask) == 40
         assert db.session.get(BudgetPlan, plan_id).status == "CONFIRMED"
-    assert b"schedule has not been created" in client.get(f"/expenses?budget_month_id={month_id}&view=month").data
+    assert b'data-schedule-state="READY"' in client.get(f"/expenses?budget_month_id={month_id}&view=month").data
     assert client.post(f"/expenses/months/{month_id}/schedule", data={"csrf_token": csrf}).status_code == 302
     calendar, context = page(application, client, f"/expenses?budget_month_id={month_id}&view=month")
     cells = {cell.day: cell for week in context["calendar"] for cell in week if cell}
@@ -286,7 +286,7 @@ def test_build1_registration_to_recommendation_survives_replay_and_restart(build
                    for r in db.session.scalars(db.select(ExpenseRecord)))
 
     read_paths = [root, f"{root}/plans/{plan_id}", f"{root}/expenses/new", f"{root}/expenses/{expense_id}/edit",
-        "/account", "/budget-periods", f"/budget-periods/{month_id}/edit",
+        "/account", "/budget-periods",
         f"/expenses?budget_month_id={month_id}&view=month", "/expenses?view=day&date=2026-10-01",
         "/expenses?view=year&year=2026", "/expenses/history?start=2026-10-01&end=2026-10-31",
         f"/dashboard?budget_month_id={month_id}", f"/recommendations?budget_month_id={month_id}",

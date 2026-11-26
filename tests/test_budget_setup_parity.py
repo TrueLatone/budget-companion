@@ -47,8 +47,8 @@ def setup(app, client):
         other = User(email="parity-other@example.com", password_hash="test-only")
         db.session.add_all([owner, other])
         db.session.commit()
-        month = create_budget_month(owner.id, "2026-10", 5_000_000, date(2026, 10, 1))
-        foreign_month = create_budget_month(other.id, "2026-10", 5_000_000, date(2026, 10, 1))
+        month = create_budget_month(owner.id, "2026-10", 5_000_000, date(2026, 10, 1), planning_unit=1)
+        foreign_month = create_budget_month(other.id, "2026-10", 5_000_000, date(2026, 10, 1), planning_unit=1)
         data = {"user": owner.id, "other": other.id, "month": month.id, "foreign_month": foreign_month.id}
     with client.session_transaction() as session:
         session["user_id"] = str(data["user"])
@@ -111,7 +111,10 @@ def test_gets_show_unsaved_suggestions_without_seeding(app, client, setup):
         assert estimate.get("value", "") == ""
         check = next(f for f in fields if f.get("name") == "suggestion" and f["value"] == item.key)
         assert ("checked" in check) == item.selected
-    assert b"Load Example amounts" in response.data
+    assert b"Setup options" not in response.data
+    assert b"load-budget-example" not in response.data
+    assert b'id="add-expense"' in response.data
+    assert (root(setup) + "/plans/generate").encode() in response.data
     assert b"budget-setup.js" in response.data
     with app.app_context():
         assert snapshot() == before
@@ -227,7 +230,7 @@ def test_example_setup_generates_three_unchanged_algorithms_and_breakdowns(app, 
             assert sum(totals.values()) == 5_000_000
         before = snapshot()
     markup = client.get(root(setup)).data
-    assert b"Compare saved plans" in markup and b"P0" in markup and b"P1" in markup and b"P2" in markup
+    assert b"Compare plans" in markup and b"P0" in markup and b"P1" in markup and b"P2" in markup
     with app.app_context():
         assert snapshot() == before
 
@@ -309,7 +312,7 @@ def test_meal_guidance_does_not_turn_unknown_or_invalid_data_into_zero(amount):
 def test_food_meals_sum_to_original_schedule_without_creating_financial_rows(app, setup, month, start, days):
     with app.app_context():
         if month != "2026-10":
-            period = create_budget_month(setup["user"], month, 5_000_000, date.fromisoformat(month + f"-{start:02d}"))
+            period = create_budget_month(setup["user"], month, 5_000_000, date.fromisoformat(month + f"-{start:02d}"), planning_unit=1)
             setup = setup | {"month": period.id}
         else:
             services.get_month(setup["user"], setup["month"]).tracking_start_date = date(2026, 10, start)
@@ -400,3 +403,36 @@ def test_zero_food_allowance_is_guidance_not_a_zero_spending_checkin(app, setup)
             assert ExpenseTaskAdapter(task).meal_guidance == {"Breakfast": 0, "Lunch": 0, "Dinner": 0}
             assert task.task_status == "PENDING" and task.records == []
         assert snapshot() == before
+
+
+def test_generate_from_visible_setup_is_atomic(client, app, setup):
+    path = root(setup) + "/plans/generate"
+    data = suggestion_data(example=True) | {
+        "expense_name": "Books", "priority": "P2", "allocation_frequency": "MONTHLY",
+        "estimated_amount": "100000", "category_id": "", "category_name": "",
+    }
+    with app.app_context():
+        before = snapshot()
+    invalid = client.post(path, data=data | {"minimum_amount": "1"})
+    assert invalid.status_code == 400
+    assert b"Books" in invalid.data
+    with app.app_context():
+        assert snapshot() == before
+    assert client.post(path, data=data).status_code == 302
+    with app.app_context():
+        plans = services.list_plans(setup["user"], setup["month"])
+        assert len(plans) == 3
+        assert all(any(a.budget_expense.expense_name == "Books" for a in p.allocations) for p in plans)
+
+
+def test_vietnamese_errors_stay_on_budget_page_and_hide_category(client, setup):
+    client.set_cookie("bc_language", "vi")
+    result = client.post(root(setup) + "/expenses/new", data={"expense_name": ""})
+    assert result.status_code == 400
+    assert 'id="add-expense" open' in result.text
+    assert "This field is required" not in result.text
+    assert 'name="category_name"' not in result.text
+    result = client.post(root(setup) + "/plans/generate", data=suggestion_data(example=True) |
+                         {"rent_due_day": "15", "rent_allocation_frequency": "WEEKLY"})
+    assert result.status_code == 400
+    assert "Ngày đến hạn chỉ áp dụng" in result.text

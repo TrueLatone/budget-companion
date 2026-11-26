@@ -1,0 +1,26 @@
+{% set annual = year is defined %}
+{% set vi = ui_locale == 'vi' %}
+{% set return_month = summaries[0][0] if annual and summaries and (not month or month.month_start.year != year) else month %}
+<nav class="period-toolbar" aria-label="{{ 'Kỳ xem ngân sách' if vi else 'Budget period' }}">
+  <div class="period-tabs">
+    <a href="{{ url_for('budgets.month', month_id=return_month.id) if return_month else url_for('budgets.index') }}" {% if not annual %}aria-current="page"{% endif %}>{{ 'Tháng' if vi else 'Month' }}</a>
+    <a href="{{ url_for('budgets.index', view='year', year=year if annual else month.month_start.year if month else none, budget_month_id=month.id if month else none) }}" {% if annual %}aria-current="page"{% endif %}>{{ 'Năm' if vi else 'Year' }}</a>
+  </div>
+  {% set value = year if annual else month.month_start.strftime('%m/%Y') if month else '' %}
+  {% if (annual and years|length > 1) or (not annual and months|length > 1) %}
+    <details class="period-menu"><summary>{{ value }}</summary>
+      <div>
+        {% if annual %}
+          {% for y in years %}
+            <a href="{{ url_for('budgets.index', view='year', year=y, budget_month_id=month.id if month else none) }}" {% if y==year %}aria-current="true"{% endif %}>{{ y }}</a>
+          {% endfor %}
+        {% else %}
+          {% for m in months %}
+            <a href="{{ url_for('budgets.month',month_id=m.id) }}" {% if month and m.id==month.id %}aria-current="true"{% endif %}>{{ m.month_start.strftime('%m/%Y') }}</a>
+          {% endfor %}
+        {% endif %}
+      </div>
+    </details>
+  {% elif value %}<span class="period-value">{{ value }}</span>{% endif %}
+  <a class="period-manage" href="{{ url_for('budget_periods.index') }}">{{ t('manage_budget_months') }}</a>
+</nav>

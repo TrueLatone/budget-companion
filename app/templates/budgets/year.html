@@ -1,0 +1,5 @@
+{% extends 'workspace_base.html' %}{% set vi=ui_locale=='vi' %}
+{% block extra_styles %}{{ super() }}<link rel="stylesheet" href="{{ url_for('static',filename='css/budget-planning.css') }}">{% endblock %}
+{% block workspace_content %}{% include 'budgets/_period.html' %}
+<section class="ws-card bp-panel budget-year"><h1 class="ws-page-title">{{ 'Ngân sách năm' if vi else 'Annual budget' }}</h1>
+<div class="table-responsive"><table class="table"><thead><tr>{% for t in (['Tháng','Nguồn tiền','Phân bổ đã chốt','Tiết kiệm dự kiến'] if vi else ['Month','Funds','Confirmed allocations','Planned savings']) %}<th scope="col">{{ t }}{% if not loop.first %} (₫){% endif %}</th>{% endfor %}</tr></thead><tbody>{% for m,p,a in summaries %}<tr><td><a href="{{ url_for('budgets.month',month_id=m.id) }}">{{ m.month_start.strftime('%m/%Y') }}</a></td><td>{{ money(m.available_vnd) }}</td><td>{{ money(a) if p else '—' }}</td><td>{{ money(p.planned_savings) if p else '—' }}</td></tr>{% else %}<tr><td colspan="4">{{ 'Chưa có tháng ngân sách.' if vi else 'No budget months.' }}</td></tr>{% endfor %}</tbody></table></div></section>{% endblock %}

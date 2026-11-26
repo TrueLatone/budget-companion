@@ -1,0 +1,103 @@
+[
+  {
+    "check": "environment",
+    "source_sha": "bdb4825f193b691a226ede2254434cd843eccb32",
+    "date": "2026-11-26",
+    "browser": "158.0.8127.38",
+    "timezone": "Asia/Bangkok",
+    "database": "disposable SQLite"
+  },
+  {
+    "check": "desktop actual registration, period, custom expense, generation",
+    "result": "PASS"
+  },
+  {
+    "check": "customization, automatic schedule, mobile actual check-in and History persistence",
+    "result": "PASS"
+  },
+  {
+    "check": "/budget en 1440x1000",
+    "result": "PASS",
+    "overflow": false
+  },
+  {
+    "check": "/expenses en 1440x1000",
+    "result": "PASS",
+    "overflow": false
+  },
+  {
+    "check": "/dashboard en 1440x1000",
+    "result": "PASS",
+    "overflow": false
+  },
+  {
+    "check": "/recommendations en 1440x1000",
+    "result": "PASS",
+    "overflow": false
+  },
+  {
+    "check": "/budget vi 1440x1000",
+    "result": "PASS",
+    "overflow": false
+  },
+  {
+    "check": "/expenses vi 1440x1000",
+    "result": "PASS",
+    "overflow": false
+  },
+  {
+    "check": "/dashboard vi 1440x1000",
+    "result": "PASS",
+    "overflow": false
+  },
+  {
+    "check": "/recommendations vi 1440x1000",
+    "result": "PASS",
+    "overflow": false
+  },
+  {
+    "check": "/budget en 390x844",
+    "result": "PASS",
+    "overflow": false
+  },
+  {
+    "check": "/expenses en 390x844",
+    "result": "PASS",
+    "overflow": false
+  },
+  {
+    "check": "/dashboard en 390x844",
+    "result": "PASS",
+    "overflow": false
+  },
+  {
+    "check": "/recommendations en 390x844",
+    "result": "PASS",
+    "overflow": false
+  },
+  {
+    "check": "/budget vi 390x844",
+    "result": "PASS",
+    "overflow": false
+  },
+  {
+    "check": "/expenses vi 390x844",
+    "result": "PASS",
+    "overflow": false
+  },
+  {
+    "check": "/dashboard vi 390x844",
+    "result": "PASS",
+    "overflow": false
+  },
+  {
+    "check": "/recommendations vi 390x844",
+    "result": "PASS",
+    "overflow": false
+  },
+  {
+    "check": "browser JavaScript runtime",
+    "result": "PASS",
+    "errors": []
+  }
+]

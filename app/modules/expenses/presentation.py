@@ -302,7 +302,7 @@ class ExpenseTaskAdapter:
         """Optional display subdivisions of this Food task, never new tasks."""
         expense = self._task.allocation.budget_expense
         if expense.expense_name.strip().casefold() == "food" and expense.allocation_frequency == "DAILY":
-            return meal_breakdown(self._task.current_limit)
+            return meal_breakdown(self._task.current_limit, self._task.allocation.plan.budget_month.planning_unit)
         return None
 
     @property

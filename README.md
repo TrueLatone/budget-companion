@@ -1,14 +1,24 @@
 # Budget Companion — Group 10
 
 **Project:** Responsive web application for student renters to plan and monitor living expenses.  
-**Source:** Vision v1.0 and Software Development Plan v1.0, 18 October 2026.  
-**Status:** Build 1 integration on `integration/pa2-20261031`, verified 3 November 2026.
-KAN-21, KAN-23, KAN-27 and KAN-25 share the authenticated application and database.
-See the [final verification and limitations](docs/build1-verification.md) before deployment.
+**Status (26 November 2026):** Build 3 integration candidate on
+`integration/pa4-build3`; verified runtime source `bdb4825`. Main merge and Beta
+Release are pending review and owner follow-up. All **564 automated tests pass**;
+PA4 designed-case coverage remains incomplete.
+
+| Build | Verified source/history | Status |
+|---|---|---|
+| Build 1 | `3d742a9`, merged through PR #7 on 3 November | Earlier integrated baseline; [original evidence](docs/build1-verification.md) |
+| Build 2 Core Alpha | Main `871aee6`, 7 November; planned milestone 15 November | [Retrospective](docs/build2-retrospective.md), no published Release |
+| Build 3 Beta candidate | `bdb4825`, 26 November; PA4 due 29 November | [Verification, limitations and screenshots](docs/build3-verification.md); not a published Beta |
+
+KAN-21/23/25/27 plus KAN-71/63 and KAN-59 share authenticated ownership and
+the canonical database. See the [changelog](CHANGELOG.md) and
+[PA4 coverage matrix](docs/pa4-test-coverage-matrix.md).
 
 ## Technical stack
 
-- Backend: Python 3.11+, Flask, Flask Blueprints / Application Factory.
+- Backend: Python 3.11+, Flask, Flask Blueprints / Application Factory; current verification uses Python 3.13.14.
 - Frontend: Jinja2 + Bootstrap 5 + vanilla JavaScript.
 - ORM: Flask-SQLAlchemy; migrations: Flask-Migrate.
 - Database: PostgreSQL managed by Supabase (`DATABASE_URL`).
@@ -19,7 +29,8 @@ See the [final verification and limitations](docs/build1-verification.md) before
 
 ### 1. Prerequisites
 
-Install Python 3.11+, Git and an editor. Clone the repository:
+Install Python 3.11+, Git and an editor. If an existing virtual environment points
+to a removed interpreter, create a new environment. Clone the repository:
 
 ```bash
 git clone https://github.com/TrueLatone/budget-companion.git
@@ -59,34 +70,42 @@ For first boot, the example uses **local SQLite only**. For PostgreSQL, set
 ### 3. Migrate and run application
 
 ```bash
-flask --app app db upgrade
-flask --app app run --debug
+python -m flask --app app db heads
+python -m flask --app app db upgrade
+python -m flask --app app run --debug
 ```
 
 Visit `http://127.0.0.1:5000`. Run migrations against the intended database before
 startup; application startup does not create tables or seed financial records.
+The candidate has one migration head, `19a01e000003`. It assigns legacy months
+`planning_unit=1` and defaults new periods to `1000`, preserving saved funds,
+plans, tasks and transactions. Verify migrations on disposable SQLite or an
+authorized PostgreSQL staging database before deployment. Never use the live
+team database for test resets/seeds. `run-local.cmd` also invokes a bulk schedule
+completion command; the explicit commands above provide the reviewed setup path.
 
 ### 4. Basic verification
 
 ```bash
 python -m pytest -q
+python -m pytest -q tests/test_pa4_integration.py tests/test_migrations.py tests/test_build1_integration.py
 ```
 
 The suite uses disposable databases. The Build 1 acceptance test also migrates a
 fresh file, exercises authenticated forms with CSRF enabled, restarts the factory
 against that file and verifies record preservation. It never resets live data.
 
-## Build 1 implementation status
+## Current implementation status
 
 | Area | Status | Available behavior / boundary |
 |---|---|---|
-| Accounts and months | Completed core | Register, login, owned UUID month selection, integer VND funding input |
-| Budget (KAN-21) | Completed core | Explicit suggested/custom expenses, optional examples, three plans, immutable confirmation |
-| Expenses (KAN-23) | Completed core | Explicit schedule creation, calendar, actual/unexpected purchases, NO_EXPENSE, corrections and replay protection |
-| Recommendations (KAN-27) | Partial product scope | Real-data F18 analysis and explainable read-only guidance; ACCEPT financial adjustments disabled |
+| Accounts and months | Core available | Register/login/logout, owned UUID periods, new-period 1,000-VND planning increments, funds locked after generating plans |
+| Budget (KAN-21/KAN-71) | Core verified | Suggested/custom entries, three plans, separate MANUAL draft, immutable confirmation with atomic automatic scheduling; actual purchases remain integer VND |
+| Expenses (KAN-23) | Core verified; UI limitations | Calendar, actual/unexpected purchases, NO_EXPENSE, corrections and replay protection; payment/scope controls and history ordering need owner work |
+| Recommendations (KAN-27/KAN-59) | Partial product scope | F18 10/3/30/80% gates; incomplete records reported/excluded; sufficient valid evidence can personalize; ACCEPT changes status only |
 | Workspace and Dashboard (KAN-25) | Completed core | Shared owned-month navigation, confirmed plan/savings, observed spending and completeness-aware remaining allocation |
 | EN/VI | Partial | Shared navigation, Dashboard and Budget translated; some Expense/Recommendation/validation prose remains mixed |
-| Prototype examples | Illustrative only | Load Example fills unsaved inputs; optional meals subdivide Food without extra records; no live financial localStorage/ui_demo |
+| Prototype examples | Illustrative only | Suggested expense estimates start blank; optional meals subdivide Food without extra records; no live financial localStorage/ui_demo |
 | Later functions | Not implemented | Funds additions, automatic reallocation, alerts, cross-month reports/copying, LLM advice, bank integration and Help |
 
 Available:
@@ -109,17 +128,16 @@ shared database. Open **Plan budget** from a budget month to begin. See the
 [KAN-21 integration contract](docs/kan21-budget-planning.md) for rules and the
 Expense Planning handoff.
 
-Budget setup now offers explicit suggested expenses and optional **Load Example**
-amounts, inline custom expense entry, and P0/P1/P2/Savings plan comparison.
-Examples are never saved automatically. Confirmed daily Food tasks offer optional
-30/40/30 meal guidance without adding transactions or duplicating limits. See
-the [before/after Budget parity audit](docs/budget-core-parity.md).
+Select suggested expenses, enter amounts, and optionally add a custom expense.
+**Generate three plans** saves the entries and opens the plan comparison.
+See the [earlier Budget parity audit](docs/budget-core-parity.md) for background.
 
-After confirming a Budget plan, open **Expenses & check-in for this month** and
-choose **Create / verify spending schedule**. Monthly totals are distributed
-across eligible dates without duplication. Record positive purchases or explicitly
-confirm **NO_EXPENSE**; missing check-ins remain Unknown. See the
-[KAN-23 contract](docs/kan23-expense-planning.md) for scheduling and retry rules.
+Confirmation creates the initial spending schedule and opens Expense Planning
+for the selected month. Record purchases or explicitly confirm **NO_EXPENSE**.
+Repeat confirmation preserves task IDs and recorded activity; a scheduling
+failure rolls back confirmation. The explicit schedule POST remains available
+for verification/completion of legacy confirmed months. See the
+[current API contract](docs/api-contracts.md) for the approved Build 3 behavior.
 
 Confirming a plan now opens its Expense month with explicit schedule-state
 guidance. Daily expenses appear in the calendar/month list; weekly/monthly
@@ -130,7 +148,11 @@ Open **Spending analysis** after recording real expenses. KAN-27 preserves F18's
 10-transaction / 3-category / 30-day / 80% thresholds and explains insufficient
 data with baseline guidance. Eligible comparisons use completed scheduled periods.
 Guidance can be saved or dismissed; financial ACCEPT adjustments are disabled.
-See the [KAN-27 contract](docs/kan27-spending-analysis.md) for JSON routes and limits.
+Invalid transactions still appear in completeness issues and its denominator;
+other readiness gates must pass. F19 reliable month-end totals have stricter
+completion rules than personalized readiness. See the
+[current API contract](docs/api-contracts.md); older integration reports retain
+their historical context.
 
 The [KAN-25 Workspace integration](docs/kan25-workspace-dashboard.md) preserves
 Thien's responsive design across Dashboard → Budget → Expenses → Recommendations.
@@ -145,12 +167,16 @@ No financial localStorage prototype or ui_demo data is used by live pages.
 - [Entity dictionary — 13 shared entities](docs/entity-dictionary.md)
 - [API contracts — implemented routes and separate proposals](docs/api-contracts.md)
 - [Build 1 verification and limitations](docs/build1-verification.md)
+- [Build 2 retrospective](docs/build2-retrospective.md)
+- [Build 3 verification and screenshots](docs/build3-verification.md)
+- [PA4 case coverage and owner handoff](docs/pa4-test-coverage-matrix.md)
+- [Changelog](CHANGELOG.md)
 - [Architecture Decision](docs/decisions/tech_stack.md)
 - [Team contribution rules](CONTRIBUTING.md)
 
 ## Functional scope
 
-Build 1 supports monthly budget setup, P0 mandatory bills, P1 essentials, P2
+The integrated candidate supports monthly budget setup, P0 mandatory bills, P1 essentials, P2
 flexible spending, manual expense/check-in, plan versus observed actual and
 rule-based guidance. Unknown is not zero. Planned savings are not verified bank
 savings, and available funds are user-entered funding rather than a bank balance.
@@ -165,7 +191,8 @@ See `CONTRIBUTING.md`. Integrate via Jira tickets and code-reviewed Pull Request
 - 18/10/2026: Vision & Project Plan v1.0.
 - 20/10/2026: KAN-14 repository setup.
 - 31/10/2026: Integration deadline.
-- 03/11/2026: Build 1 integration verification; merge remains subject to review.
-- 15/11/2026: Alpha (planned).
-- 29/11/2026: Beta (planned).
+- 03/11/2026: Build 1 integrated through PR #7.
+- 15/11/2026: Core Alpha planned milestone, documented retrospectively.
+- 26/11/2026: Build 3 candidate verified; review/Release pending.
+- 29/11/2026: PA4 due; Beta planned.
 - 13/12/2026: Final product (planned).

@@ -44,8 +44,8 @@ def setup(app, client, monkeypatch):
         other = User(email="other-analysis@example.com", password_hash="test-only")
         db.session.add_all([owner, other])
         db.session.commit()
-        month = create_budget_month(owner.id, "2026-10", 5_000_000, date(2026, 10, 1))
-        foreign_month = create_budget_month(other.id, "2026-09", 5_000_000)
+        month = create_budget_month(owner.id, "2026-10", 5_000_000, date(2026, 10, 1), planning_unit=1)
+        foreign_month = create_budget_month(other.id, "2026-09", 5_000_000, planning_unit=1)
         data = dict(user=owner.id, other=other.id, month=month.id, foreign_month=foreign_month.id)
         budgets.apply_suggested_expenses(owner.id, month.id, [s.key for s in SUGGESTED_EXPENSES if s.selected], {
             s.key: {"estimated_amount": s.example_amount} for s in SUGGESTED_EXPENSES
@@ -107,6 +107,32 @@ def test_f18_exact_thresholds_and_coverage_are_not_silently_lowered():
     for changed in (records[:-1], [SimpleNamespace(**(vars(r) | {"category_id": categories[0]})) for r in records],
                     [SimpleNamespace(**(vars(r) | {"expense_date": date(2026, 10, 2)})) for r in records]):
         assert rules.build_completeness_result(changed, [], date(2026, 10, 31))["status"] == "INSUFFICIENT"
+
+
+def test_incomplete_transaction_is_reported_but_does_not_override_the_80_percent_gate():
+    categories = [uuid4(), uuid4(), uuid4()]
+    records = [record(category_id=categories[i % 3], expense_date=date(2026, 10, 1 if i < 9 else 30))
+               for i in range(10)]
+    records.append(record(amount=None, category_id=None))
+    data = SimpleNamespace(
+        records=records, tasks=[], as_of=date(2026, 10, 31), closed=False,
+        allocations=[object()],
+        schedule_state=SimpleNamespace(code="READY", message="Ready"),
+        month=SimpleNamespace(month_start=date(2026, 10, 1), tracking_start_date=date(2026, 10, 1)),
+    )
+
+    rules_result = rules.build_completeness_result(records, [], date(2026, 10, 31))
+    service_result = services._completeness(data)
+
+    assert rules_result["incomplete_transaction_count"] == 1
+    assert rules_result["completeness_rate"] == round(10 / 11, 4)
+    assert all(rules.is_complete_expense_record(item) for item in records[:10])
+    assert not rules.is_complete_expense_record(records[-1])
+    assert any(issue["type"] == "INCOMPLETE_TRANSACTION" for issue in rules_result["issues"])
+    assert rules_result["checks"]["no_incomplete_transactions"] is False
+    assert rules_result["status"] == "SUFFICIENT"
+    assert service_result["status"] == "SUFFICIENT"
+    assert service_result["insufficient_reasons"] == []
 
 
 def test_completeness_denominator_does_not_count_contradictory_no_expense_as_zero():
@@ -185,6 +211,51 @@ def test_real_persisted_spending_readiness_and_analysis_do_not_write(app, client
     assert "GỢI Ý CÁ NHÂN HÓA".encode() in client.get("/recommendations").data
     with app.app_context():
         assert row_count(Recommendation) == 0 and financial_snapshot() == before
+
+
+@pytest.mark.parametrize("cutoff, expected_count, expected_status", [
+    ("2026-10-30", 8, "SKIPPED_INSUFFICIENT_DATA"),
+    ("2026-10-31", 10, "GENERATED"),
+])
+def test_f16_01_generation_respects_cutoff_and_excludes_funds_added(
+    app, client, seeded, cutoff, expected_count, expected_status
+):
+    with app.app_context():
+        db.session.add(ExpenseRecord(
+            budget_month_id=seeded["month"], amount=100_000,
+            expense_date=date(2026, 10, 15), record_type="FUNDS_ADDED",
+        ))
+        db.session.commit()
+        before = financial_snapshot()
+
+    response = client.post("/recommendations/generate", json={
+        "month": "2026-10", "as_of": cutoff,
+    })
+    result = response.json
+
+    assert response.status_code == (201 if expected_status == "GENERATED" else 200)
+    assert result["status"] == expected_status
+    assert result["as_of"] == cutoff
+    assert result["completeness"]["complete_transaction_count"] == expected_count
+    if cutoff == "2026-10-31":
+        assert result["completeness"]["status"] == "SUFFICIENT"
+        assert result["completeness"]["category_count"] == 3
+        assert result["completeness"]["coverage_days"] == 31
+        assert result["review"]["recorded_expense_total"] == 1_608_000
+        assert len(result["recommendations"]) == 3
+        food_evidence = []
+        for recommendation in result["recommendations"]:
+            detail = client.get(f"/recommendations/{recommendation['id']}").json
+            assert detail["status"] == "PENDING"
+            assert detail["reason"] and detail["expected_impact"]
+            if detail["proposed_changes"]["category_name"] == "Food":
+                food_evidence = detail["proposed_changes"]["evidence"]
+        assert len(food_evidence) == 8
+    else:
+        assert result["completeness"]["coverage_days"] < 31
+        assert not result["recommendations"]
+    with app.app_context():
+        assert financial_snapshot() == before
 
 
 def test_insufficient_data_returns_baseline_without_inventing_transactions(app, client, setup):
@@ -288,6 +359,29 @@ def test_accept_and_reject_only_change_recommendation_status(app, client, seeded
         assert financial_snapshot() == before
 
 
+def test_stale_recommendation_cannot_be_accepted_after_source_expense_changes(app, client, seeded):
+    with app.app_context():
+        generated = generate(seeded)
+        recommendation_id = generated["recommendations"][0]["id"]
+        food = db.session.scalar(db.select(ExpenseRecord).where(
+            ExpenseRecord.title == "Food", ExpenseRecord.expense_date == date(2026, 10, 1)
+        ))
+        expenses.update_record(seeded["user"], food.id, dict(
+            amount="2000000", expense_date="2026-10-01", category="Food"
+        ))
+        before_decision = financial_snapshot()
+
+    response = client.post(
+        f"/recommendations/{recommendation_id}/decision", json={"decision": "ACCEPT"}
+    )
+
+    assert response.status_code == 409
+    assert "refresh" in response.json["error"].lower()
+    with app.app_context():
+        assert db.session.get(Recommendation, UUID(recommendation_id)).status == "PENDING"
+        assert financial_snapshot() == before_decision
+
+
 def test_unsafe_legacy_proposal_cannot_be_accepted_or_change_financial_data(app, client, seeded):
     with app.app_context():
         budgets.apply_suggested_expenses(seeded["other"], seeded["foreign_month"], [s.key for s in SUGGESTED_EXPENSES if s.selected], {
@@ -359,7 +453,7 @@ def test_missing_schedule_and_missing_checkins_are_never_known_zero(app, seeded)
 
 def test_short_month_and_midmonth_history_do_not_reduce_coverage_threshold(app, setup):
     with app.app_context():
-        period = create_budget_month(setup["user"], "2026-09", 100, date(2026, 9, 15))
+        period = create_budget_month(setup["user"], "2026-09", 100, date(2026, 9, 15), planning_unit=1)
         category = budgets.list_categories(setup["user"])[0]
         for index in range(10):
             expenses.create_unexpected_record(setup["user"], dict(budget_month_id=str(period.id), title="Test purchase", category=category.category_name,
@@ -484,7 +578,7 @@ def test_unauthenticated_html_redirects_and_json_returns_401(app, client, setup)
 
 def test_future_month_and_empty_account_produce_no_fabricated_history(app, client, setup):
     with app.app_context():
-        create_budget_month(setup["user"], "2026-12", 5000000)
+        create_budget_month(setup["user"], "2026-12", 5000000, planning_unit=1)
         result = services.analyze_spending(setup["user"], "2026-12")
         assert not result["completeness"]["checks"]["tracking_started"] and not result["findings"]
         before = financial_snapshot()
@@ -595,7 +689,7 @@ def test_recommendation_persistence_on_migrated_schema(tmp_path, monkeypatch):
             owner = User(email="migrated-analysis@example.com", password_hash="test-only")
             db.session.add(owner)
             db.session.commit()
-            month = create_budget_month(owner.id, "2026-10", 5_000_000)
+            month = create_budget_month(owner.id, "2026-10", 5_000_000, planning_unit=1)
             data = dict(user=owner.id, month=month.id)
             budgets.apply_suggested_expenses(owner.id, month.id, [s.key for s in SUGGESTED_EXPENSES if s.selected], {
                 s.key: {"estimated_amount": s.example_amount} for s in SUGGESTED_EXPENSES

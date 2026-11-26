@@ -98,3 +98,12 @@ a.bc-calendar-day:focus-visible {
   .bc-calendar-weekday { font-size: 0.62rem; }
 
 }
+
+.schedule-heading,.schedule-heading nav,.schedule-totals div,.calendar-key {display:flex;align-items:center;justify-content:space-between;gap:.7rem;flex-wrap:wrap}
+.schedule-heading {margin:1.6rem 0}.schedule-heading h1{font-size:2rem;margin:0}.schedule-heading p,.schedule-list small{color:#555f70}
+.calendar-key {justify-content:flex-start;font-size:.76rem;margin:1rem 0}.bc-dot-due{background:#b86420}
+.schedule-totals{border-top:1px solid #dce1e7;margin-top:1rem;padding-top:.8rem}.schedule-totals dt{font-weight:400}.schedule-totals dd{margin:.2rem 0}
+.schedule-list h2{font-size:1.4rem}.schedule-list h3{font-size:.88rem;margin:1.3rem 0 .4rem}
+.schedule-row{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:.8rem;border-top:1px solid #e4e7eb;padding:.95rem 0;align-items:center}.schedule-row small{display:block}.schedule-row details{font-size:.82rem}.schedule-row dl{display:grid;grid-template-columns:1fr auto;gap:.2rem .6rem}
+.schedule-value{text-align:right;font-variant-numeric:tabular-nums}.schedule-notice{padding:.75rem 1rem;border-left:3px solid #8a85b1}.schedule-actions{display:grid}
+@media(max-width:520px){.schedule-row{grid-template-columns:1fr auto}.schedule-actions{grid-column:2}.schedule-heading h1{font-size:1.6rem}}

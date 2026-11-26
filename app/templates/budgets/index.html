@@ -4,30 +4,22 @@
 {% for message in get_flashed_messages() %}<p class="alert alert-success" role="status">{{ message }}</p>{% endfor %}
 
 {% if month %}
-<nav aria-label="Budget planning steps" class="mb-3"><ol class="d-flex flex-wrap gap-4">
-  <li><a href="#setup">{{ t('ui_setup') }}</a></li><li><a href="#compare">{{ t('ui_compare') }}</a></li>
-  <li>{{ t('ui_confirm') }}</li><li><a href="{{ url_for('expenses.index', budget_month_id=month.id, view='month') }}">{{ t('ui_schedule') }}</a></li>
-</ol></nav>
-<section id="setup" aria-label="Budget setup">
-<h2>{{ month_name(month.month_start) }}</h2>
-<p>{{ t('live_available') }}: {{ money(month.available_vnd) }} VND · {{ t('live_tracking') }} {{ month.tracking_start_date }}</p>
-<p><a href="{{ url_for('expenses.index', budget_month_id=month.id) }}">{{ t('live_open_checkin') }}</a></p>
-{% if locked %}<p role="status">{{ t('ui_locked') }}</p>{% else %}
-<p>{{ t('ui_required') }}</p>
-<p>{{ t('ui_unknown_rule') }}</p>
-<p>{{ t('ui_ratios') }}</p>
+<section class="bp-panel" id="setup">
+<h3>{{ month.month_start.strftime('%m/%Y') }}</h3>
+{% if locked %}<p role="status">{{ t('ui_locked') }}</p>
+{% else %}
+{% if setup_error %}<p class="text-danger" role="alert">{{ setup_error|ui_error }}</p>{% endif %}
+<form method="post" action="{{ url_for('budgets.generate', month_id=month.id) }}" id="suggested-expenses" novalidate>
+{{ action_form.hidden_tag() }}
 {% include 'budgets/_suggestions.html' %}
-<details class="card mb-3" id="add-expense"><summary class="card-header">{{ t('ui_custom') }}</summary>
-  <form class="card-body" method="post" action="{{ url_for('budgets.create_expense', month_id=month.id) }}">
-    {{ expense_form.hidden_tag() }}
-    <div class="row">{% for field in expense_form if field.type not in ('CSRFTokenField', 'SubmitField') %}
-      <div class="col-md-4 mb-3">{{ field.label(class_='form-label') }} {{ field(class_='form-check-input' if field.type == 'BooleanField' else 'form-control') }}</div>
-    {% endfor %}</div>
-    <button class="btn btn-primary" type="submit">{{ t('ui_save_another') }}</button>
-  </form>
+<details id="add-expense" {% if invalid_form or request.form.get('expense_name') %}open{% endif %}><summary>{{ t('ui_custom') }}</summary>
+<div class="bp-fields">{% for field in expense_form if field.type not in ('CSRFTokenField','SubmitField') and field.name not in ('category_name','category_id') %}
+<label data-field="{{ field.name }}">{{ ('Tối thiểu P1' if ui_locale=='vi' else 'P1 minimum') if field.name=='minimum_amount' else ('Ngày đến hạn' if ui_locale=='vi' else 'Due day') if field.name=='due_day' else field.label.text }} {{ field(class_='form-check-input' if field.type == 'BooleanField' else 'form-control') }}{% for error in field.errors %}<small role="alert" class="text-danger">{{ error|ui_error }}</small>{% endfor %}</label>{% endfor %}</div>
+<button type="submit" class="ws-button" formaction="{{ url_for('budgets.create_expense',month_id=month.id) }}">{{ t('ui_save_another') }}</button>
 </details>
-<p>{{ t('ui_draft_replace') }}</p>
-{% endif %}
+<button class="ws-button ws-button-primary" type="submit">{{ t('ui_generate') }}</button>
+</form>{% endif %}
+{% if expenses %}<details><summary>{{ 'Khoản chi đã lưu' if ui_locale=='vi' else 'Saved expenses' }} ({{ expenses|length }})</summary>
 <div class="table-responsive"><table class="table">
   <thead><tr><th>{{ t('ui_name') }}</th><th>{{ t('ui_category') }}</th><th>{{ t('ui_priority') }}</th><th>{{ t('ui_estimate') }}</th><th>{{ t('ui_minimum') }}</th><th>{{ t('ui_frequency') }}</th><th>{{ t('ui_actions') }}</th></tr></thead>
   <tbody>{% for expense in expenses %}<tr>
@@ -35,28 +27,26 @@
     <td>{{ t('live_unknown') if expense.estimated_amount is none else money(expense.estimated_amount) }}</td>
     <td>{{ t('ui_not_specified') if expense.minimum_amount is none else money(expense.minimum_amount) }}</td>
     <td>{{ t('live_frequency_' ~ expense.allocation_frequency) }}{% if expense.due_day %} · {{ t('ui_due_day') }} {{ expense.due_day }}{% endif %}</td>
-    <td>{% if not locked %}<a href="{{ url_for('budgets.edit_expense', month_id=month.id, expense_id=expense.id) }}">{{ t('ui_edit') }}</a>
+    <td>{% if not locked %}<div class="bp-actions"><a href="{{ url_for('budgets.edit_expense', month_id=month.id, expense_id=expense.id) }}">{{ t('ui_edit') }}</a>
       <form method="post" action="{{ url_for('budgets.delete_expense', month_id=month.id, expense_id=expense.id) }}">
-        {{ action_form.hidden_tag() }}<button class="btn btn-sm btn-outline-danger" type="submit">{{ t('ui_remove') }}</button>
-      </form>{% endif %}</td>
+        {{ action_form.hidden_tag() }}<button class="btn btn-sm btn-outline-danger" type="submit">{{ 'Xóa' if ui_locale=='vi' else 'Delete' }}</button>
+      </form></div>{% endif %}</td>
   </tr>{% else %}<tr><td colspan="7">{{ t('ui_no_expenses') }}</td></tr>{% endfor %}</tbody>
-</table></div>
+</table></div></details>{% endif %}
 </section>
 {% else %}<p>{{ t('ui_no_month') }}</p>{% endif %}
 {% endblock %}
-{% block budget_comparison %}{% if month %}<section class="ws-card mt-3" id="compare" aria-label="Plan comparison">
-{% if not locked %}<form method="post" action="{{ url_for('budgets.generate', month_id=month.id) }}">
-  {{ action_form.hidden_tag() }}<button class="btn btn-primary" type="submit">{{ t('ui_generate') }}</button>
-</form>{% endif %}
+{% block budget_comparison %}{% if month and plans %}<section class="ws-card mt-3 bp-panel" id="compare" aria-label="Plan comparison">
 <h2 class="mt-4">{{ t('ui_compare_saved') }}</h2>
-<p>{{ t('ui_compare_help') }}</p>
+{% if identical %}<p>{{ 'Ba phương án có cùng phân bổ.' if ui_locale=='vi' else 'All three strategies have the same allocation.' }}</p>{% endif %}
 <div class="row g-3">{% for plan in plans %}{% set totals = breakdowns[plan.id] %}<article class="col-md-4"><div class="card h-100"><div class="card-body">
-  <h3 class="h5">{{ plan.plan_type }}</h3><p>{{ plan.status }}</p>
-  <dl>{% for label, amount in totals.items() %}<dt>{{ label }}</dt><dd>{{ money(amount) }} VND</dd>{% endfor %}
-    <dt>Plan total</dt><dd>{{ money(totals.values()|sum) }} VND</dd></dl>
-  <a class="btn btn-outline-primary" href="{{ url_for('budgets.plan', month_id=month.id, plan_id=plan.id) }}">Review {{ plan.plan_type }}{% if not locked %} / Confirm{% endif %}</a>
-  {% if not locked %}<a class="btn btn-link" href="{{ url_for('budgets.customize', month_id=month.id, plan_id=plan.id) }}">Customize {{ plan.plan_type }}</a>{% endif %}
+  <h3 class="h5">{{ t('plan_' ~ plan.plan_type) }}</h3>
+  <p><strong>{{ money(totals.Savings) }} VND</strong> · {{ t('live_savings') }}</p>
+  {% for key in ('P0','P1','P2') %}<div class="bp-line"><span>{{ key }} · {{ t('group_' ~ key|lower) }}</span><span>{{ money(totals[key]) }}</span></div>{% endfor %}
+  <a class="ws-button mt-3" href="{{ url_for('budgets.plan',month_id=month.id,plan_id=plan.id) }}">{{ t('live_review_budget') }}</a>
+{% if not locked %}<a class="ms-2" href="{{ url_for('budgets.customize',month_id=month.id,plan_id=plan.id) }}">{{ 'Điều chỉnh' if ui_locale=='vi' else 'Customize' }}</a>{% endif %}
 </div></div></article>{% else %}<p>{{ t('ui_no_saved') }}</p>{% endfor %}</div>
 </section>
 {% endif %}{% endblock %}
 {% block workspace_scripts %}<script src="{{ url_for('static', filename='js/budget-setup.js') }}" defer></script>{% endblock %}
+{% block extra_styles %}{{ super() }}<link rel="stylesheet" href="{{ url_for('static',filename='css/budget-planning.css') }}">{% endblock %}
