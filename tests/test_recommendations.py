@@ -732,3 +732,720 @@ def test_new_account_has_functional_page_without_creating_financial_data(app, cl
     assert response.status_code == 200 and "Tạo tháng ngân sách".encode() in response.data
     with app.app_context():
         assert financial_snapshot() == before
+
+
+# KAN-65: expanded UC23-UC26 cases. Existing KAN-59 tests above stay intact.
+@pytest.fixture
+def kan65_month(app, client, monkeypatch, request):
+    """Real confirmed Budget/Expense inputs, with a controllable test clock."""
+    options = getattr(request, "param", {})
+    month_value = options.get("month", "2026-10")
+    today = options.get("today", date(2026, 11, 3))
+    monkeypatch.setattr(services, "today_vn", lambda: today)
+    monkeypatch.setattr(expenses, "today_vn", lambda: today)
+    with app.app_context():
+        owner = User(email="kan65@example.com", password_hash="test-only")
+        db.session.add(owner)
+        db.session.commit()
+        month = create_budget_month(owner.id, month_value, 5_000_000)
+        for index in range(3):
+            budgets.save_expense(owner.id, month.id, dict(
+                expense_name=f"KAN65 {index}", category_name=f"KAN65 category {index}",
+                priority=options.get("priority", "P1") if index == 0 else "P1",
+                estimated_amount=100_000,
+                allocation_frequency=options.get("frequency", "MONTHLY") if index == 0 else "MONTHLY",
+            ))
+        for index, name in enumerate(("Rent", "Electricity", "Water")):
+            budgets.save_expense(owner.id, month.id, dict(
+                expense_name=name, category_name=f"KAN65 category {index}",
+                priority="P0", estimated_amount=100_000, allocation_frequency="MONTHLY",
+            ))
+        plan = budgets.generate_budget_plans(owner.id, month.id)[1]
+        budgets.confirm_plan(owner.id, month.id, plan.id)
+        scheduled = expenses.ensure_tasks_for_month(owner.id, month.id)
+        # Test a known current limit while retaining the confirmed allocations
+        # and original schedule limits used by schedule-readiness validation.
+        for item in scheduled:
+            item.current_limit = 100_000
+        db.session.commit()
+        for item in scheduled:
+            if item.assigned_date <= today:
+                expenses.checkin_task(owner.id, item.id, action="no_expense")
+        assert expenses.get_schedule_state(owner.id, month.id).code == "READY"
+        data = dict(user=owner.id, month=month.id, month_value=month_value, plan=plan.id,
+                    tasks=[item.id for item in scheduled])
+    with client.session_transaction() as session:
+        session["user_id"] = str(data["user"])
+    return data
+
+
+def _kan65_add_history(data, count=10, categories=3, coverage_days=30):
+    """Add distinct purchases; all three monthly tasks are resolved explicitly."""
+    scheduled = sorted(
+        (db.session.get(AssignedExpenseTask, item_id) for item_id in data["tasks"]),
+        key=lambda item: item.allocation.budget_expense.expense_name,
+    )
+    selected_categories = sorted({item.allocation.budget_expense.category.category_name for item in scheduled})[:categories]
+    eligible = [item for item in scheduled if item.allocation.budget_expense.category.category_name in selected_categories]
+    start = db.session.get(BudgetMonth, data["month"]).month_start
+    for index in range(count):
+        when = start.replace(day=coverage_days) if index == count - 1 else start
+        expenses.checkin_task(
+            data["user"], eligible[index % len(eligible)].id,
+            action="actual", amount_raw="1000", expense_date_raw=when.isoformat(),
+            idempotency_key=uuid4().hex,
+        )
+
+
+def test_kan65_f16_02_nine_purchases_allow_only_provisional_guidance(app, client, kan65_month):
+    """UC23 AF2: insufficient history does not suppress valid early observations."""
+    with app.app_context():
+        _kan65_add_history(kan65_month, count=9, coverage_days=31)
+        before = financial_snapshot()
+    result = client.post("/recommendations/generate", json={
+        "month": "2026-10", "as_of": "2026-10-31",
+    }).json
+    assert result["status"] == "SKIPPED_INSUFFICIENT_DATA"
+    assert result["completeness"]["complete_transaction_count"] == 9
+    assert result["completeness"]["category_count"] == 3
+    assert result["completeness"]["coverage_days"] == 31
+    assert result["baseline_guidance"] and result["completeness"]["insufficient_reasons"]
+    assert any(item["kind"] == "EARLY_SIGNAL" for item in result["suggestions"])
+    assert all(not item["personalized"] for item in result["suggestions"])
+    assert not result["recommendations"]
+    with app.app_context():
+        assert row_count(Recommendation) == 0 and financial_snapshot() == before
+
+
+@pytest.mark.parametrize("kan65_month", [{"priority": "P0"}, {"priority": "P1"}, {"priority": "P2"}], indirect=True)
+@pytest.mark.parametrize("actual, direction", [
+    (79_999, "REVIEW_UNDER_BUDGET"), (80_000, "REVIEW_UNDER_BUDGET"),
+    (80_001, None), (109_999, None),
+    (110_000, "REVIEW_OVER_BUDGET"), (110_001, "REVIEW_OVER_BUDGET"),
+])
+def test_kan65_f16_05_completed_period_boundaries_and_p0(app, client, kan65_month, actual, direction):
+    """UC23 BF4: inclusive thresholds, with P0 excluded from variance signals."""
+    with app.app_context():
+        target = next(db.session.get(AssignedExpenseTask, item_id) for item_id in kan65_month["tasks"]
+                      if db.session.get(AssignedExpenseTask, item_id).allocation.budget_expense.expense_name == "KAN65 0")
+        priority = target.allocation.budget_expense.priority
+        category_id = str(target.allocation.budget_expense.category_id)
+        expenses.checkin_task(kan65_month["user"], target.id, action="actual", amount_raw=str(actual),
+                              expense_date_raw="2026-10-31", idempotency_key=uuid4().hex)
+        before = financial_snapshot()
+    response = client.get("/recommendations/analysis?month=2026-10&as_of=2026-10-31")
+    assert response.status_code == 200
+    findings = [f for f in response.json["findings"] if f["category_id"] == category_id]
+    if priority == "P0" or direction is None:
+        assert findings == []
+    else:
+        assert len(findings) == 1
+        assert findings[0]["direction"] == direction
+        assert findings[0]["planned_amount"] == 100_000 and findings[0]["actual_amount"] == actual
+    with app.app_context():
+        assert financial_snapshot() == before
+
+
+@pytest.mark.parametrize("kan65_month", [{"frequency": "DAILY", "today": date(2026, 10, 15)}], indirect=True)
+@pytest.mark.parametrize("actual, open_direction", [(110_000, "REVIEW_OVER_BUDGET"), (80_000, None)])
+def test_kan65_f16_06_open_period_signal_waits_for_low_spend_closure(
+    app, client, kan65_month, monkeypatch, actual, open_direction
+):
+    """UC23 BF4-5: open overrun is evidence; low spending must wait for closure."""
+    with app.app_context():
+        tasks = [db.session.get(AssignedExpenseTask, item_id) for item_id in kan65_month["tasks"]]
+        target = next(item for item in tasks if item.allocation.budget_expense.expense_name == "KAN65 0"
+                      and item.assigned_date == date(2026, 10, 15))
+        monthly = sorted((item for item in tasks if item.allocation.budget_expense.expense_name in {"KAN65 1", "KAN65 2"}),
+                         key=lambda item: item.allocation.budget_expense.expense_name)
+        for item, day in [(monthly[0], 6), (monthly[0], 8), (monthly[1], 10), (monthly[1], 12)]:
+            expenses.checkin_task(kan65_month["user"], item.id, action="actual", amount_raw="1000",
+                                  expense_date_raw=f"2026-10-{day:02d}", idempotency_key=uuid4().hex)
+        expenses.checkin_task(kan65_month["user"], target.id, action="actual", amount_raw=str(actual),
+                              expense_date_raw="2026-10-15", idempotency_key=uuid4().hex)
+        record_id = str(target.records[0].id)
+        before = financial_snapshot()
+
+    def directions_containing_purchase(result):
+        return {finding["direction"] for finding in result["findings"]
+                if any(item["record_id"] == record_id for item in finding["evidence"])}
+
+    result = client.post("/recommendations/generate", json={
+        "month": "2026-10", "as_of": "2026-10-15",
+    }).json
+    assert result["status"] == "SKIPPED_INSUFFICIENT_DATA"
+    assert result["completeness"]["complete_transaction_count"] == 5
+    assert result["completeness"]["category_count"] == 3
+    assert directions_containing_purchase(result) == ({open_direction} if open_direction else set())
+    assert not result["recommendations"]
+    assert all(not item["personalized"] for item in result["suggestions"])
+    if open_direction:
+        assert any(item["code"] == open_direction and item["kind"] == "EARLY_SIGNAL"
+                   for item in result["suggestions"])
+    else:
+        monkeypatch.setattr(services, "today_vn", lambda: date(2026, 10, 16))
+        closed = client.get("/recommendations/analysis?month=2026-10&as_of=2026-10-15").json
+        assert "REVIEW_UNDER_BUDGET" in directions_containing_purchase(closed)
+    with app.app_context():
+        assert row_count(Recommendation) == 0 and financial_snapshot() == before
+
+
+def test_kan65_f17_04_legacy_changes_are_withheld_and_refused(app, client, seeded):
+    """UC24 AF2: unvalidated legacy task edits cannot become an action API."""
+    with app.app_context():
+        target_id = db.session.scalar(db.select(AssignedExpenseTask.id))
+        proposal = Recommendation(budget_month_id=seeded["month"], reason="Legacy",
+                                  expected_impact="Read-only legacy proposal",
+                                  proposed_changes={"changes": [{"task_id": str(target_id), "new_limit": 100}]})
+        db.session.add(proposal)
+        db.session.commit()
+        item_id = str(proposal.id)
+        before = financial_snapshot()
+    detail = client.get(f"/recommendations/{item_id}").json
+    assert detail["proposed_changes"] == {"mode": "READ_ONLY", "changes": [], "legacy_proposal_withheld": True}
+    response = client.post(f"/recommendations/{item_id}/decision", json={"decision": "ACCEPT"})
+    assert response.status_code == 409 and "refresh" in response.json["error"].lower()
+    with app.app_context():
+        assert db.session.get(Recommendation, UUID(item_id)).status == "PENDING"
+        assert financial_snapshot() == before
+
+
+def test_kan65_f17_05_repeated_decisions_preserve_finances(app, client, seeded):
+    """UC24 AF3: dismissal is idempotent; an accepted item is terminal."""
+    with app.app_context():
+        rejected_id, accepted_id = [item["id"] for item in generate(seeded)["recommendations"][:2]]
+        before = financial_snapshot()
+    for _ in range(2):
+        response = client.post(f"/recommendations/{rejected_id}/decision", json={"decision": "REJECT"})
+        assert response.status_code == 200 and response.json["status"] == "REJECTED"
+    first_accept = client.post(f"/recommendations/{accepted_id}/decision", json={"decision": "ACCEPT"})
+    assert first_accept.status_code == 200 and first_accept.json["status"] == "ACCEPTED"
+    assert first_accept.json["financial_adjustment_applied"] is False
+    for decision in ("ACCEPT", "REJECT"):
+        assert client.post(f"/recommendations/{accepted_id}/decision", json={"decision": decision}).status_code == 409
+    assert client.get(f"/recommendations/{accepted_id}").json["status"] == "ACCEPTED"
+    assert client.get(f"/recommendations/{rejected_id}").json["status"] == "REJECTED"
+    with app.app_context():
+        assert financial_snapshot() == before
+
+
+@pytest.mark.parametrize("id_kind", ["foreign", "missing"])
+def test_kan65_f17_06_foreign_and_missing_recommendations_are_hidden(app, client, seeded, id_kind):
+    """UC24 AF4: lookup and both decisions must enforce ownership."""
+    with app.app_context():
+        foreign = Recommendation(budget_month_id=seeded["foreign_month"], reason="Private owner evidence",
+                                 expected_impact="Private impact",
+                                 proposed_changes={"mode": "READ_ONLY", "changes": []})
+        db.session.add(foreign)
+        db.session.commit()
+        foreign_id = foreign.id
+        item_id = str(foreign_id) if id_kind == "foreign" else str(uuid4())
+        before = financial_snapshot()
+    responses = [client.get(f"/recommendations/{item_id}")]
+    responses.extend(client.post(f"/recommendations/{item_id}/decision", json={"decision": decision})
+                     for decision in ("ACCEPT", "REJECT"))
+    assert all(response.status_code == 404 for response in responses)
+    assert all(b"Private owner evidence" not in response.data for response in responses)
+    with app.app_context():
+        assert db.session.get(Recommendation, foreign_id).status == "PENDING"
+        assert financial_snapshot() == before
+
+
+def test_kan65_f18_01_incomplete_transaction_is_reported_without_blocking_valid_history(app, kan65_month):
+    """Report and exclude invalid spending; evaluate readiness using the configured gates."""
+    with app.app_context():
+        _kan65_add_history(kan65_month)
+        data = services._load(kan65_month["user"], "2026-10", "2026-10-31")
+        # Canonical storage rejects NULL amounts; inject the malformed input at
+        # the recommendation boundary to test its completeness handling.
+        invalid = record(amount=None, category_id=data.records[0].category_id)
+        invalid.priority = "P1"
+        data.records.append(invalid)
+        before = financial_snapshot()
+        result = services._completeness(data)
+        assert result["complete_transaction_count"] == 10 and result["incomplete_transaction_count"] == 1
+        assert result["category_count"] == 3 and result["coverage_days"] == 30
+        assert result["completeness_rate"] == .9091
+        assert any(issue["type"] == "INCOMPLETE_TRANSACTION" for issue in result["issues"])
+        assert result["checks"]["no_incomplete_transactions"] is False
+        assert result["insufficient_reasons"] == []
+        assert sum(item.amount for item in data.records if rules.is_complete_expense_record(item)) == 10_000
+        assert financial_snapshot() == before
+        assert result["status"] == "SUFFICIENT"
+        analysis = services._analysis(data)
+        assert analysis["review"]["recorded_expense_total"] == 10_000
+        assert analysis["completeness"]["status"] == "SUFFICIENT"
+        assert financial_snapshot() == before
+
+
+def test_kan65_f18_02_overdue_active_and_no_expense_counters():
+    """UC25 AF2/4: exact three-period fixture, rather than monthly-review output."""
+    overdue = task(end=date(2026, 10, 14))
+    active = task(end=date(2026, 10, 20))
+    no_expense = task("NO_EXPENSE", end=date(2026, 10, 14))
+    result = rules.build_completeness_result([], [overdue, active, no_expense], date(2026, 10, 15))
+    assert result["unrecorded_task_count"] == 1 and result["no_expense_task_count"] == 1
+    assert result["complete_transaction_count"] == result["category_count"] == result["coverage_days"] == 0
+    assert len(result["issues"]) == 1
+    assert result["issues"][0]["type"] == "UNRECORDED_TASK"
+    assert result["issues"][0]["task_id"] == str(overdue.id)
+    assert result["status"] == "INSUFFICIENT"
+
+
+@pytest.mark.parametrize("count,categories,days,failed_gate", [
+    (10, 3, 30, None), (9, 3, 30, "minimum_complete_transactions"),
+    (10, 2, 30, "minimum_categories"), (10, 3, 29, "minimum_coverage_days"),
+])
+def test_kan65_f18_05_exact_readiness_thresholds(app, client, kan65_month, count, categories, days, failed_gate):
+    """UC25 AF1: one below each readiness threshold must block personalization."""
+    with app.app_context():
+        _kan65_add_history(kan65_month, count=count, categories=categories, coverage_days=days)
+        before = financial_snapshot()
+    result = client.get("/recommendations/completeness?month=2026-10&as_of=2026-10-31").json
+    assert result["complete_transaction_count"] == count and result["category_count"] == categories
+    assert result["coverage_days"] == days
+    assert result["status"] == ("INSUFFICIENT" if failed_gate else "SUFFICIENT")
+    if failed_gate:
+        assert result["checks"][failed_gate] is False and result["insufficient_reasons"]
+    with app.app_context():
+        assert financial_snapshot() == before
+
+
+@pytest.mark.parametrize("invalid_count,rate,rate_gate", [(3, .8, True), (4, .75, False)])
+def test_kan65_f18_05_rate_gate_includes_invalid_records_in_denominator(app, kan65_month, invalid_count, rate, rate_gate):
+    """Invalid rows are reported; 80% passes and 75% fails when other gates pass."""
+    with app.app_context():
+        _kan65_add_history(kan65_month, count=12)
+        data = services._load(kan65_month["user"], "2026-10", "2026-10-31")
+        data.records.extend(record(amount=None, category_id=data.records[0].category_id) for _ in range(invalid_count))
+        before = financial_snapshot()
+        result = services._completeness(data)
+        assert result["no_expense_task_count"] == 0
+        assert result["complete_transaction_count"] == 12 and result["incomplete_transaction_count"] == invalid_count
+        assert result["completeness_rate"] == rate and result["checks"]["minimum_completeness_rate"] is rate_gate
+        assert financial_snapshot() == before
+        assert result["checks"]["no_incomplete_transactions"] is False
+        assert len([issue for issue in result["issues"] if issue["type"] == "INCOMPLETE_TRANSACTION"]) == invalid_count
+        assert result["status"] == ("SUFFICIENT" if rate_gate else "INSUFFICIENT")
+        assert bool(result["insufficient_reasons"]) is not rate_gate
+        assert sum(item.amount for item in data.records if rules.is_complete_expense_record(item)) == 12_000
+
+
+@pytest.mark.parametrize("prerequisite,gate", [
+    ("plan", "confirmed_plan"), ("schedule", "complete_schedule"), ("tracking", "tracking_started"),
+])
+def test_kan65_f18_06_prerequisites_explain_insufficient_data(app, client, kan65_month, monkeypatch, prerequisite, gate):
+    """UC25 AF5: prerequisites remain independent of numerical thresholds."""
+    with app.app_context():
+        if prerequisite == "plan":
+            db.session.get(BudgetPlan, kan65_month["plan"]).status = "GENERATED"
+            db.session.commit()
+        elif prerequisite == "schedule":
+            db.session.delete(db.session.get(AssignedExpenseTask, kan65_month["tasks"][0]))
+            db.session.commit()
+        else:
+            monkeypatch.setattr(services, "today_vn", lambda: date(2026, 9, 30))
+        before = financial_snapshot()
+    result = client.get("/recommendations/completeness?month=2026-10").json
+    assert result["status"] == "INSUFFICIENT" and result["checks"][gate] is False
+    assert result["insufficient_reasons"]
+    with app.app_context():
+        assert row_count(Recommendation) == 0 and financial_snapshot() == before
+
+
+@pytest.mark.parametrize("kan65_month", [{"month": "2027-02", "today": date(2027, 3, 1)}], indirect=True)
+def test_kan65_f18_07_february_does_not_lower_coverage_requirement(app, client, kan65_month):
+    """UC25 AF6: month-scoped analysis cannot invent the missing two days."""
+    with app.app_context():
+        _kan65_add_history(kan65_month, coverage_days=28)
+        before = financial_snapshot()
+    result = client.get("/recommendations/completeness?month=2027-02&as_of=2027-02-28").json
+    assert result["complete_transaction_count"] == 10 and result["category_count"] == 3
+    assert result["coverage_days"] == 28 and result["thresholds"]["coverage_days"] == 30
+    assert result["checks"]["minimum_coverage_days"] is False and result["status"] == "INSUFFICIENT"
+    with app.app_context():
+        assert financial_snapshot() == before
+
+
+def test_kan65_f19_06_closed_no_expense_month_is_complete_without_personalization(app, client, kan65_month):
+    """UC26 AF4/5: resolved zero spending can be known while F18 remains insufficient."""
+    with app.app_context():
+        before = financial_snapshot()
+    review = client.get("/recommendations/monthly-review?month=2026-10&as_of=2026-10-31").json
+    completeness = client.get("/recommendations/completeness?month=2026-10&as_of=2026-10-31").json
+    assert review["review_status"] == "COMPLETE"
+    assert review["recorded_expense_total"] == 0 and review["recorded_expense_count"] == 0
+    assert review["planned_task_total"] == review["remaining_vs_plan"] == 600_000
+    assert completeness["status"] == "INSUFFICIENT"
+    assert completeness["complete_transaction_count"] == completeness["category_count"] == completeness["coverage_days"] == 0
+    with app.app_context():
+        assert row_count(MonthlyReview) == 0 and financial_snapshot() == before
+
+
+def test_kan65_f19_07_last_day_is_not_a_closed_month(app, client, kan65_month, monkeypatch):
+    """UC26 AF3: the exact month-end date remains provisional until the next day."""
+    with app.app_context():
+        _kan65_add_history(kan65_month, coverage_days=31)
+        before = financial_snapshot()
+    monkeypatch.setattr(services, "today_vn", lambda: date(2026, 10, 31))
+    open_review = client.get("/recommendations/monthly-review?month=2026-10&as_of=2026-10-31").json
+    assert open_review["review_status"] == "INCOMPLETE_DATA"
+    assert open_review["recorded_expense_total"] == 10_000
+    assert open_review["planned_task_total"] is open_review["remaining_vs_plan"] is None
+    assert all(row["variance"] is None for row in open_review["category_review"])
+    monkeypatch.setattr(services, "today_vn", lambda: date(2026, 11, 1))
+    closed_review = client.get("/recommendations/monthly-review?month=2026-10&as_of=2026-10-31").json
+    assert closed_review["review_status"] == "COMPLETE"
+    assert closed_review["planned_task_total"] == 600_000 and closed_review["remaining_vs_plan"] == 590_000
+    assert all(row["variance"] is not None for row in closed_review["category_review"])
+    with app.app_context():
+        assert financial_snapshot() == before
+
+
+def test_kan74_incomplete_data_is_visible_without_blocking_sufficient_history(app, client, seeded, monkeypatch):
+    """Invalid input stays visible while valid history can still support read-only guidance."""
+    with app.app_context():
+        data = services._load(seeded["user"], "2026-10", "2026-10-31")
+        invalid = record(amount=None, category_id=data.records[0].category_id)
+        invalid.priority = "P1"
+        data.records.append(invalid)
+        before = financial_snapshot()
+        monkeypatch.setattr(services, "_load", lambda *args, **kwargs: data)
+
+        response = client.get("/recommendations?month=2026-10&as_of=2026-10-31")
+        assert response.status_code == 200
+        page = response.get_data(as_text=True)
+        assert "Đủ điều kiện phân tích cá nhân hóa" in page
+        assert "Thông tin cần kiểm tra" in page
+        result = client.post("/recommendations/generate", json={
+            "month": "2026-10", "as_of": "2026-10-31",
+        }).json
+        assert result["status"] == "GENERATED"
+        assert result["completeness"]["incomplete_transaction_count"] == 1
+        assert result["completeness"]["insufficient_reasons"] == []
+        assert result["review"]["recorded_expense_total"] == 1_608_000
+        assert result["recommendations"] and row_count(Recommendation) == len(result["recommendations"])
+        review = services._review(data, result["completeness"])
+        assert review["review_status"] == "INCOMPLETE_DATA" and review["remaining_vs_plan"] is None
+        assert financial_snapshot() == before
+
+
+def test_kan74_missing_expense_date_keeps_analysis_available(app, client, seeded, monkeypatch):
+    """Malformed input at the service boundary is flagged without crashing the analysis page."""
+    with app.app_context():
+        data = services._load(seeded["user"], "2026-10", "2026-10-31")
+        invalid = record(amount=1000, category_id=data.records[0].category_id, expense_date=None)
+        invalid.priority = "P1"
+        data.records.append(invalid)
+        before = financial_snapshot()
+        monkeypatch.setattr(services, "_load", lambda *args, **kwargs: data)
+        response = client.get("/recommendations?month=2026-10&as_of=2026-10-31")
+        assert response.status_code == 200
+        page = response.get_data(as_text=True)
+        assert "Đủ điều kiện phân tích cá nhân hóa" in page
+        assert "Thông tin cần kiểm tra" in page
+        assert services._completeness(data)["incomplete_transaction_count"] == 1
+        assert financial_snapshot() == before
+
+
+def test_kan74_html_offers_dismissal_without_accepting_budget_changes(app, client, seeded):
+    """UC24: HTML only offers dismissal; generated guidance remains financially read-only."""
+    with app.app_context():
+        generated = generate(seeded)
+        item_id = generated["recommendations"][0]["id"]
+        before = financial_snapshot()
+    page = client.get("/recommendations?month=2026-10").get_data(as_text=True)
+    assert "Ẩn gợi ý" in page
+    assert "Chấp nhận đề xuất" not in page
+    assert 'value="ACCEPT"' not in page
+    assert client.post(f"/recommendations/{item_id}/dismiss").status_code == 302
+    with app.app_context():
+        assert db.session.get(Recommendation, UUID(item_id)).status == "REJECTED"
+        assert financial_snapshot() == before
+
+
+# Complete KAN-65 coverage: one named case for every ID in the standalone document.
+def test_kan65_f16_01_sufficient_recorded_expenses_generate_explained_guidance(app, client, seeded):
+    with app.app_context():
+        db.session.add(ExpenseRecord(budget_month_id=seeded["month"], record_type="FUNDS_ADDED",
+                                    amount=100_000, expense_date=date(2026, 10, 15)))
+        db.session.commit()
+        before = financial_snapshot()
+    response = client.post("/recommendations/generate", json={"month": "2026-10", "as_of": "2026-10-31"})
+    assert response.status_code == 201
+    result = response.json
+    assert result["status"] == "GENERATED" and len(result["recommendations"]) == 3
+    assert result["completeness"]["complete_transaction_count"] == 10
+    assert result["completeness"]["category_count"] == 3 and result["completeness"]["coverage_days"] == 31
+    assert result["review"]["recorded_expense_total"] == 1_608_000
+    food = next(item for item in result["recommendations"] if item["proposed_changes"]["category_name"] == "Food")
+    detail = client.get(f"/recommendations/{food['id']}").json
+    assert detail["reason"] and detail["expected_impact"] and detail["status"] == "PENDING"
+    assert len(detail["proposed_changes"]["evidence"]) == 8
+    with app.app_context():
+        assert financial_snapshot() == before
+
+
+def test_kan65_f16_03_no_confirmed_plan_blocks_personalization(app, client, setup):
+    with app.app_context():
+        for index in range(10):
+            expenses.create_unexpected_record(setup["user"], dict(
+                budget_month_id=str(setup["month"]), title="Recorded purchase",
+                category=f"Actual category {index % 3}", priority="P1", amount="1000",
+                expense_date="2026-10-30" if index == 9 else "2026-10-01",
+                idempotency_key=uuid4().hex,
+            ))
+        before = financial_snapshot()
+    result = client.post("/recommendations/generate", json={"month": "2026-10", "as_of": "2026-10-31"}).json
+    assert result["status"] == "SKIPPED_INSUFFICIENT_DATA"
+    assert result["completeness"]["complete_transaction_count"] == 10
+    assert result["completeness"]["checks"]["confirmed_plan"] is False
+    assert result["completeness"]["insufficient_reasons"] and not result["recommendations"]
+    assert all(not item["personalized"] for item in result["suggestions"])
+    assert result["review"]["remaining_vs_plan"] is None
+    with app.app_context():
+        assert row_count(Recommendation) == 0 and financial_snapshot() == before
+
+
+def test_kan65_f16_04_on_budget_history_requires_no_action(app, client, setup):
+    with app.app_context():
+        plan = budgets.generate_budget_plans(setup["user"], setup["month"])[1]
+        budgets.confirm_plan(setup["user"], setup["month"], plan.id)
+        for item in expenses.ensure_tasks_for_month(setup["user"], setup["month"]):
+            expenses.checkin_task(setup["user"], item.id, action="planned", idempotency_key=uuid4().hex)
+        before = financial_snapshot()
+    result = client.post("/recommendations/generate", json={"month": "2026-10", "as_of": "2026-10-31"}).json
+    assert result["completeness"]["status"] == "SUFFICIENT"
+    assert result["status"] == "NO_ACTION_REQUIRED" and not result["findings"] and not result["recommendations"]
+    with app.app_context():
+        assert row_count(Recommendation) == 0 and financial_snapshot() == before
+
+
+def test_kan65_f17_01_explanation_and_rejection_are_read_only(app, client, seeded):
+    with app.app_context():
+        item = next(item for item in generate(seeded)["recommendations"]
+                    if item["proposed_changes"]["category_name"] == "Food")
+        before = financial_snapshot()
+    detail = client.get(f"/recommendations/{item['id']}").json
+    assert detail["reason"] and detail["expected_impact"] and detail["snapshot_notice"]
+    assert detail["status"] == "PENDING" and len(detail["proposed_changes"]["evidence"]) == 8
+    response = client.post(f"/recommendations/{item['id']}/decision", json={"decision": "REJECT"})
+    assert response.status_code == 200 and response.json["status"] == "REJECTED"
+    assert client.get(f"/recommendations/{item['id']}").json["status"] == "REJECTED"
+    with app.app_context():
+        assert financial_snapshot() == before
+
+
+def test_kan65_f17_02_accept_records_only_the_decision(app, client, seeded):
+    with app.app_context():
+        item_id = generate(seeded)["recommendations"][0]["id"]
+        before = financial_snapshot()
+    response = client.post(f"/recommendations/{item_id}/decision", json={"decision": "ACCEPT", "as_of": "2026-10-31"})
+    assert response.status_code == 200 and response.json["status"] == "ACCEPTED"
+    assert response.json["adjustments_enabled"] is False and response.json["financial_adjustment_applied"] is False
+    assert client.get(f"/recommendations/{item_id}").json["status"] == "ACCEPTED"
+    with app.app_context():
+        assert financial_snapshot() == before
+
+
+def test_kan65_f17_03_changed_source_refuses_stale_acceptance(app, client, seeded):
+    with app.app_context():
+        item_id = generate(seeded)["recommendations"][0]["id"]
+        food = db.session.scalar(db.select(ExpenseRecord).where(
+            ExpenseRecord.title == "Food", ExpenseRecord.expense_date == date(2026, 10, 1)))
+        expenses.update_record(seeded["user"], food.id, dict(amount="2000000", expense_date="2026-10-01", category="Food"))
+        before = financial_snapshot()
+    response = client.post(f"/recommendations/{item_id}/decision", json={"decision": "ACCEPT", "as_of": "2026-10-31"})
+    assert response.status_code == 409
+    assert client.get(f"/recommendations/{item_id}").json["status"] == "PENDING"
+    with app.app_context():
+        assert financial_snapshot() == before
+
+
+def test_kan65_f18_03_no_expense_is_not_purchase_history(app, client, kan65_month):
+    with app.app_context():
+        before = financial_snapshot()
+    result = client.post("/recommendations/generate", json={"month": "2026-10", "as_of": "2026-10-31"}).json
+    completeness = result["completeness"]
+    assert completeness["complete_transaction_count"] == completeness["category_count"] == completeness["coverage_days"] == 0
+    assert completeness["no_expense_task_count"] == 6 and completeness["status"] == "INSUFFICIENT"
+    assert result["baseline_guidance"] and not result["recommendations"]
+    assert all(not item["personalized"] for item in result["suggestions"])
+    with app.app_context():
+        assert row_count(Recommendation) == 0 and financial_snapshot() == before
+
+
+def test_kan65_f18_04_contradictory_no_expense_is_not_zero(app, client, kan65_month):
+    with app.app_context():
+        _kan65_add_history(kan65_month)
+        target = db.session.get(AssignedExpenseTask, kan65_month["tasks"][0])
+        assert target.records
+        target.task_status = "NO_EXPENSE"
+        db.session.commit()
+        before = financial_snapshot()
+    completeness = client.get("/recommendations/completeness?month=2026-10&as_of=2026-10-31").json
+    assert completeness["inconsistent_task_count"] == 1 and completeness["no_expense_task_count"] == 0
+    assert any(issue["type"] == "INCONSISTENT_CHECKIN" for issue in completeness["issues"])
+    assert completeness["status"] == "INSUFFICIENT"
+    review = client.get("/recommendations/monthly-review?month=2026-10&as_of=2026-10-31").json
+    assert review["review_status"] == "INCOMPLETE_DATA" and review["remaining_vs_plan"] is None
+    with app.app_context():
+        assert financial_snapshot() == before
+
+
+def test_kan65_f19_01_closed_resolved_month_has_supported_totals(app, client, seeded):
+    with app.app_context():
+        db.session.add(ExpenseRecord(budget_month_id=seeded["month"], record_type="FUNDS_ADDED",
+                                    amount=100_000, expense_date=date(2026, 10, 15)))
+        db.session.commit()
+        before = financial_snapshot()
+    review = client.get("/recommendations/monthly-review?month=2026-10&as_of=2026-10-31").json
+    assert review["review_status"] == "COMPLETE" and review["recorded_expense_count"] == 10
+    assert review["recorded_expense_total"] == 1_608_000 and review["planned_task_total"] == 4_360_000
+    assert review["remaining_vs_plan"] == 2_752_000
+    assert all(row["variance"] == row["planned_amount"] - row["actual_amount"] for row in review["category_review"])
+    with app.app_context():
+        assert financial_snapshot() == before
+
+
+@pytest.mark.parametrize("kan65_month", [{"frequency": "DAILY", "today": date(2026, 10, 15)}], indirect=True)
+def test_kan65_f19_02_missing_checkin_withholds_midmonth_balance(app, client, kan65_month):
+    with app.app_context():
+        tasks = [db.session.get(AssignedExpenseTask, item_id) for item_id in kan65_month["tasks"]]
+        overdue = next(item for item in tasks if item.assigned_date == date(2026, 10, 14))
+        overdue.task_status = "PENDING"
+        db.session.commit()
+        today_task = next(item for item in tasks if item.assigned_date == date(2026, 10, 15))
+        expenses.checkin_task(kan65_month["user"], today_task.id, action="actual", amount_raw="25000",
+                              expense_date_raw="2026-10-15", idempotency_key=uuid4().hex)
+        before = financial_snapshot()
+    completeness = client.get("/recommendations/completeness?month=2026-10&as_of=2026-10-15").json
+    assert completeness["unrecorded_task_count"] == 1
+    review = client.get("/recommendations/monthly-review?month=2026-10&as_of=2026-10-15").json
+    assert review["review_status"] == "INCOMPLETE_DATA" and review["recorded_expense_total"] == 25_000
+    assert review["planned_task_total"] is review["remaining_vs_plan"] is None
+    assert all(row["variance"] is None for row in review["category_review"])
+    with app.app_context():
+        assert financial_snapshot() == before
+
+
+def test_kan65_f19_03_no_plan_shows_only_observed_expenses(app, client, setup):
+    with app.app_context():
+        expenses.create_unexpected_record(setup["user"], dict(
+            budget_month_id=str(setup["month"]), title="Repair", category="Repairs", priority="P1",
+            amount="250000", expense_date="2026-10-10", idempotency_key=uuid4().hex))
+        before = financial_snapshot()
+    review = client.get("/recommendations/monthly-review?month=2026-10&as_of=2026-10-31").json
+    assert review["review_status"] == "INCOMPLETE_DATA" and review["recorded_expense_total"] == 250_000
+    assert review["planned_task_total"] is review["remaining_vs_plan"] is None
+    assert review["recorded_expense_count"] == 1
+    with app.app_context():
+        assert financial_snapshot() == before
+
+
+def test_kan65_f19_04_no_purchases_with_pending_periods_are_incomplete(app, client, kan65_month):
+    with app.app_context():
+        for item_id in kan65_month["tasks"]:
+            db.session.get(AssignedExpenseTask, item_id).task_status = "PENDING"
+        db.session.commit()
+        before = financial_snapshot()
+    completeness = client.get("/recommendations/completeness?month=2026-10&as_of=2026-10-31").json
+    assert completeness["unrecorded_task_count"] == 6
+    review = client.get("/recommendations/monthly-review?month=2026-10&as_of=2026-10-31").json
+    assert review["recorded_expense_count"] == 0 and review["recorded_expense_total"] == 0
+    assert review["review_status"] == "INCOMPLETE_DATA" and review["remaining_vs_plan"] is None
+    with app.app_context():
+        assert financial_snapshot() == before
+
+
+def test_kan65_f19_05_feedback_boundaries_preserve_valid_response(app, client, kan65_month):
+    with app.app_context():
+        before = financial_snapshot()
+    path = "/recommendations/monthly-review/feedback"
+    for rating in (1, 5):
+        response = client.post(path, json={"month": "2026-10", "rating": rating, "comment": "x" * 2000})
+        assert response.status_code == 200
+        review = client.get("/recommendations/monthly-review?month=2026-10").json
+        assert review["rating"] == rating and review["comment"] == "x" * 2000
+    for rating, comment in [(0, "bad"), (6, "bad"), (3, "x" * 2001)]:
+        assert client.post(path, json={"month": "2026-10", "rating": rating, "comment": comment}).status_code == 400
+        review = client.get("/recommendations/monthly-review?month=2026-10").json
+        assert review["rating"] == 5 and review["comment"] == "x" * 2000
+    with app.app_context():
+        assert row_count(MonthlyReview) == 1 and row_count(Recommendation) == 0
+        assert financial_snapshot() == before
+
+
+def test_kan65_ui_e2e_01_budget_expense_to_recommendations(app, client, monkeypatch):
+    """Submit the public HTML forms; analysis reads the saved purchase without financial edits."""
+    from app.modules.budget_periods import forms as period_forms
+
+    today = date(2026, 11, 26)
+    monkeypatch.setattr(period_forms, "today_vn", lambda: today)
+    monkeypatch.setattr(expenses, "today_vn", lambda: today)
+    monkeypatch.setattr(services, "today_vn", lambda: today)
+    monkeypatch.setattr(presentation, "now_utc", lambda: datetime(2026, 11, 26, 12))
+    with app.app_context():
+        owner = User(email="kan65-ui@example.com", password_hash=generate_password_hash("kan65-ui-password"))
+        db.session.add(owner)
+        db.session.commit()
+        owner_id = owner.id
+    login = client.post("/login", data={"email": "kan65-ui@example.com", "password": "kan65-ui-password"})
+    assert login.status_code == 302
+    created = client.post("/budget-periods/new", data={
+        "month": "11/2026", "tracking_start_day": "26", "available_vnd": "7000000",
+    })
+    assert created.status_code == 302
+    with app.app_context():
+        month = db.session.scalar(db.select(BudgetMonth).where(BudgetMonth.user_id == owner_id))
+        month_id = month.id
+    budget_path = f"/budget/{month_id}"
+    assert client.get(budget_path).status_code == 200
+    generated = client.post(f"{budget_path}/plans/generate", data={
+        "suggestion": ["rent", "electricity", "water", "food", "transportation"],
+        "rent_estimated_amount": "2000000", "electricity_estimated_amount": "200000",
+        "water_estimated_amount": "100000", "food_minimum_amount": "1200000",
+        "transportation_minimum_amount": "200000",
+    })
+    assert generated.status_code == 302
+    with app.app_context():
+        plan = db.session.scalar(db.select(BudgetPlan).where(
+            BudgetPlan.budget_month_id == month_id, BudgetPlan.plan_type == "BALANCED"))
+        plan_id = plan.id
+    confirmed = client.post(f"{budget_path}/plans/{plan_id}/confirm", data={})
+    assert confirmed.status_code == 302 and "/expenses?" in confirmed.location
+    expense_path = f"/expenses?budget_month_id={month_id}&view=day&date=2026-11-26"
+    assert client.get(expense_path).status_code == 200
+    with app.app_context():
+        tasks = list(db.session.scalars(db.select(AssignedExpenseTask).join(BudgetAllocation).where(
+            BudgetAllocation.plan_id == plan_id)))
+        food = next(t for t in tasks if t.allocation.budget_expense.expense_name == "Food"
+                    and t.assigned_date == today)
+        task_id = food.id
+        assert row_count(ExpenseRecord) == 0
+    checked = client.post(f"/expenses/tasks/{task_id}/checkin", data={
+        "action": "actual", "amount": "12785", "expense_date": "2026-11-26",
+        "submission_token": uuid4().hex, "budget_month_id": str(month_id), "view": "day",
+        "date": "2026-11-26",
+    })
+    assert checked.status_code == 302
+    history = client.get("/expenses/history?start=2026-11-01&end=2026-11-30")
+    assert history.status_code == 200 and 'value="12785"' in history.get_data(as_text=True)
+    with app.app_context():
+        before = financial_snapshot()
+    page = client.get(f"/recommendations?budget_month_id={month_id}&lang=vi")
+    assert page.status_code == 200
+    assert "Chưa đủ để đưa ra kết luận cá nhân hóa" in page.get_data(as_text=True)
+    analyzed = client.post("/recommendations/analyze", data={"month": "2026-11", "as_of": "2026-11-26"}, follow_redirects=True)
+    assert analyzed.status_code == 200
+    assert "12.785" in analyzed.get_data(as_text=True)
+    assert 'value="ACCEPT"' not in analyzed.get_data(as_text=True)
+    result = client.get("/recommendations/analysis?month=2026-11&as_of=2026-11-26").json
+    assert result["completeness"]["complete_transaction_count"] == 1
+    assert result["completeness"]["category_count"] == 1 and result["completeness"]["coverage_days"] == 1
+    assert result["completeness"]["status"] == "INSUFFICIENT" and not result["recommendations"]
+    assert result["review"]["recorded_expense_total"] == 12_785
+    assert result["review"]["review_status"] == "INCOMPLETE_DATA" and result["review"]["remaining_vs_plan"] is None
+    with app.app_context():
+        assert row_count(ExpenseRecord) == 1 and row_count(Recommendation) == 0
+        assert financial_snapshot() == before

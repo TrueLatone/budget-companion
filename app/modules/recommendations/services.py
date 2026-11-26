@@ -471,7 +471,7 @@ def _analysis(data):
                 "code": "CURRENT_DAY_STATUS",
                 "kind": "BASELINE_GUIDANCE",
                 "title": "Các khoản đã ghi nhận chưa vượt kế hoạch",
-                "message": f"Bạn đã ghi nhận chi tiêu ở {checked_transactions} giao dịch thuộc các kỳ đang diễn ra; hiện chưa có khoản nào vượt 110% mức dự kiến để cần báo sớm. Chi tiêu thấp hơn kế hoạch chỉ được đánh giá sau khi kỳ kết thúc.",
+                "message": f"Bạn đã ghi nhận chi tiêu ở {checked_transactions} giao dịch thuộc các kỳ đang diễn ra; hiện chưa có khoản nào đạt từ 110% mức dự kiến để cần báo sớm. Chi tiêu thấp hơn kế hoạch chỉ được đánh giá sau khi kỳ kết thúc.",
                 "basis": "Các giao dịch đã check-in được so với hạn mức của chính kỳ đang diễn ra.",
                 "personalized": False,
             }
@@ -498,7 +498,7 @@ def _analysis(data):
                 "code": "NO_EARLY_SIGNAL",
                 "kind": "BASELINE_GUIDANCE",
                 "title": "Chưa có khoản lệch đáng kể trong các kỳ đã xong",
-                "message": "Các kỳ đã hoàn tất chưa có khoản chi vượt 110% hoặc thấp hơn 80% mức dự kiến để tạo gợi ý điều chỉnh. Nếu chi tiêu hiện khớp kế hoạch thì đây là kết quả bình thường; hãy xem lại sau kỳ tiếp theo.",
+                "message": "Các kỳ đã hoàn tất chưa có khoản chi từ 110% trở lên hoặc từ 80% trở xuống so với mức dự kiến để tạo gợi ý điều chỉnh. Nếu chi tiêu hiện khớp kế hoạch thì đây là kết quả bình thường; hãy xem lại sau kỳ tiếp theo.",
                 "basis": "So sánh chỉ xét các kỳ đã kết thúc và được xác nhận.",
                 "personalized": False,
             }
@@ -516,7 +516,9 @@ def _analysis(data):
         "allocations": sorted((str(a.id), a.allocated_amount) for a in data.allocations),
         "tasks": sorted((str(t.id), t.task_status, t.original_limit, t.current_limit,
                          t.assigned_date.isoformat(), t.period_end.isoformat()) for t in data.tasks),
-        "records": sorted((str(r.id), r.amount, str(r.category_id), r.priority, r.expense_date.isoformat()) for r in data.records),
+        "records": sorted((str(r.id), r.amount, str(r.category_id), r.priority,
+                           r.expense_date.isoformat() if type(r.expense_date) is date else str(r.expense_date))
+                          for r in data.records),
         "findings": findings, "suggestions": suggestions, "completeness": completeness,
     }
     key = hashlib.sha256(json.dumps(fingerprint, sort_keys=True).encode()).hexdigest()
