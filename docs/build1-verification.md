@@ -12,7 +12,7 @@ branch with eight additional integration commits. Main contained the shared
 schema, not the completed Budget/Expense/Recommendation/Workspace integration.
 No checkout, reset, force-push, schema replacement or main merge was used.
 
-Integrated history includes Nhan's KAN-21 commit `5b31a1d`, Budget contract repair
+Integrated history includes the KAN-21 commit `5b31a1d`, Budget contract repair
 `3c1b55d`, KAN-23 `b4bdb9a`, restored Budget core `7326e2c`, Calendar handoff
 `5cb0b0a`, KAN-27 `e0e6813` and KAN-25 `f5c08dd`. The verification commit adds
 acceptance coverage, documentation and the narrow edit-form correction below.

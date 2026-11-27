@@ -1,9 +1,0 @@
-node --check E:\repo\budget-companion\app\static\js\app.js: exit 0
-node --check E:\repo\budget-companion\app\static\js\budget-day.js: exit 0
-node --check E:\repo\budget-companion\app\static\js\budget-preview.js: exit 0
-node --check E:\repo\budget-companion\app\static\js\budget-setup.js: exit 0
-node --check E:\repo\budget-companion\app\static\js\dashboard.js: exit 0
-node --check E:\repo\budget-companion\app\static\js\expenses.js: exit 0
-node --check E:\repo\budget-companion\app\static\js\workspace.js: exit 0
-git diff --check: exit 0
-git ls-files -u count: 0

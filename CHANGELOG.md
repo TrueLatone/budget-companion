@@ -5,11 +5,11 @@ imply that a GitHub Release or tag was published.
 
 ## Build 3 integration candidate — 26 November 2026
 
-- Preserve Nhân's original `1656fc9` (KAN-71) and `d6cc3f1` (KAN-63), submitted
+- Integrated `1656fc9` (KAN-71) and `d6cc3f1` (KAN-63), submitted
   in [PR #14](https://github.com/TrueLatone/budget-companion/pull/14): revised
   Budget setup, whole-thousand planning for new periods, customization, original
   schedule views, automatic confirmation/scheduling and Budget tests.
-- Preserve Khiêm's `eaa30bd`, submitted in
+- Integrated `eaa30bd`, submitted in
   [PR #12](https://github.com/TrueLatone/budget-companion/pull/12): F18 sufficiency
   gating, stale ACCEPT protection and monthly feedback presentation. Merge
   `3092548` retains both members' histories.

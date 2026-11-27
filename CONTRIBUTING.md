@@ -6,7 +6,7 @@
 - `main` is the stable branch used for demos. Do not push directly to `main` after the initial setup.
 - Every major change requires a Jira issue, a feature branch, and a Pull Request.
 - Do not commit passwords, `.env` files, real personal data, or Supabase credentials.
-- Discuss and update `docs/api-contracts.md` and `docs/database-design.md` before changing a shared schema or API.
+- Discuss and update `docs/architecture/api-contracts.md` and `docs/architecture/database-design.md` before changing a shared schema or API.
 
 ## 2. Branch and Commit Naming
 
@@ -26,17 +26,17 @@ git commit -m "feat(KAN-XX): describe change"
 git push -u origin feature/KAN-XX-short-description
 ```
 
-Open a Pull Request against `main`, link the Jira issue, and complete the PR template. Ask another team member to review it before merging. Configure branch protection or a ruleset if the GitHub repository supports it.
+Open a Pull Request against `main`, include a public issue reference when available, and complete the PR template. Keep internal Jira records in restricted project storage. Ask another team member to review it before merging. Configure branch protection or a ruleset if the GitHub repository supports it.
 
 ## 4. Responsibilities
 
-| Team member | Primary area |
+| Component | Area |
 |---|---|
-| Thịnh | Application factory, configuration, models/core, `modules/accounts`, integrations, and recurring bills |
-| Nhân | `modules/budgets` |
-| Tuấn Anh | `modules/expenses`, check-ins, and payment confirmation |
-| Thiện | `modules/dashboard`, `templates/components`, and shared static UI |
-| Khiêm | `modules/recommendations` |
+| Accounts and application core | Application factory, configuration, models/core, `modules/accounts`, integrations, and recurring bills |
+| Budget planning | `modules/budgets` |
+| Expenses and check-in | `modules/expenses`, check-ins, and payment confirmation |
+| Dashboard and shared UI | `modules/dashboard`, `templates/components`, and shared static UI |
+| Recommendations | `modules/recommendations` |
 
 Notify the relevant team members before merging changes to `app/models`, `app/__init__.py`, navigation, shared CSS, or API contracts.
 
