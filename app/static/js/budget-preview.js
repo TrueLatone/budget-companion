@@ -23,7 +23,12 @@ function preview() {
   const warning = document.getElementById("bp-warning");
   warning.textContent = !valid ? (vi ? "Kiểm tra khoản chi được đánh dấu." : "Check the highlighted amount.") :
     over ? (vi ? "Vượt ngân sách " : "Over budget by ") + format.format(spending - available) + " VND" : "";
-  return valid && !over;
+  const belowTarget = available - spending < BigInt(form.dataset.target || 0);
+  if (valid && !over && belowTarget) {
+    warning.textContent = vi ? "Số tiền tiết kiệm dự kiến phải đạt mục tiêu của tháng."
+      : "Planned savings must meet the monthly savings target.";
+  }
+  return valid && !over && !belowTarget;
 }
 form.addEventListener("input", preview);
 form.addEventListener("submit", event => { if (!preview()) event.preventDefault(); });

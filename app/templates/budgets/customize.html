@@ -1,4 +1,5 @@
 {% extends 'workspace_base.html' %}
+{% from 'budgets/_planning_hints.html' import target with context %}
 {% set vi=ui_locale=='vi' %}
 {% block title %}{{ 'Điều chỉnh kế hoạch' if vi else 'Customize plan' }}{% endblock %}
 {% block extra_styles %}{{ super() }}<link rel="stylesheet" href="{{ url_for('static',filename='css/budget-planning.css') }}">{% endblock %}
@@ -6,14 +7,15 @@
 <section class="ws-card bp-panel"><a href="{{ url_for('budgets.plan',month_id=month.id,plan_id=plan.id) }}">← {{ t('live_review_budget') }}</a>
 <h1 class="ws-page-title">{{ self.title() }}</h1><p>{{ month.month_start.strftime('%m/%Y') }} · {{ t('live_available') }} {{ money(month.available_vnd) }} VND</p>
 {% if validation_error %}<p role="alert" class="text-danger">{{ validation_error|ui_error }}</p><a href="{{ request.path }}">{{ 'Tải lại bản mới nhất' if vi else 'Reload current draft' }}</a>{% endif %}
-<form id="bp-customize" method="post" data-funds="{{ month.available_vnd }}" data-unit="{{ month.planning_unit }}">
+<form id="bp-customize" method="post" data-funds="{{ month.available_vnd }}" data-target="{{ month.savings_target or 0 }}" data-unit="{{ month.planning_unit }}">
 {{ action_form.hidden_tag() }}<input type="hidden" name="plan_snapshot" value="{{ plan_snapshot }}">
 {% for a in plan.allocations|sort(attribute='budget_expense.expense_name') %}{% set ex=a.budget_expense %}
-<div class="bp-block"><label><strong>{{ ex.expense_name }}</strong> · {{ ex.priority }}
+<div class="bp-block"><label><strong>{{ ex.expense_name|budget_label }}</strong> · {{ ex.priority }}
 {% if ex.priority=='P0' %}<span data-fixed="{{ a.allocated_amount }}">{{ money(a.allocated_amount) }} VND · {{ 'Cố định' if vi else 'Fixed' }}</span>
 {% else %}{% set name='allocation_' ~ ex.id %}<input class="form-control" type="text" inputmode="numeric" pattern="[0-9]+" data-minimum="{{ ex.minimum_amount or month.planning_unit }}" name="{{ name }}" value="{{ submitted_values.get(name,a.allocated_amount) }}" required>{% endif %}</label></div>
 {% endfor %}
 <p aria-live="polite">{{ t('live_savings') }} · <strong id="bp-savings">{{ money(plan.planned_savings) }} VND</strong></p>
+{{ target(month) }}
 <p id="bp-warning" role="status"></p><button class="ws-button ws-button-primary">{{ 'Lưu bản tùy chỉnh' if vi else 'Save custom draft' }}</button></form></section>
 {% endblock %}
 {% block workspace_scripts %}<script defer src="{{ url_for('static',filename='js/budget-preview.js') }}"></script>{% endblock %}

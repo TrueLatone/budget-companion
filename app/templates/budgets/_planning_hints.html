@@ -1,0 +1,9 @@
+{% macro reference(bounds) -%}
+  {% if bounds %}<small class="bp-reference">{{ t('bp_range') }} · {{ money(bounds[0]) }}–{{ money(bounds[1]) }} ₫</small>{% endif %}
+{%- endmacro %}
+
+{% macro target(month) -%}
+  {% if month.savings_target is not none %}
+    <p class="bp-target-summary">{{ t('bp_target') }} · <strong>{{ money(month.savings_target) }} ₫</strong></p>
+  {% endif %}
+{%- endmacro %}

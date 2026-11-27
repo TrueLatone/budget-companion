@@ -239,7 +239,7 @@ def test_http_budget_flow(signed_client, app, budget):
     detail = signed_client.get(url)
     assert detail.status_code == 200
     assert confirm_action not in detail.text
-    assert 'View original schedule' in detail.text
+    assert 'View original schedule' not in detail.text
     assert signed_client.post(url + "/confirm").status_code == 302
     assert signed_client.post(root + "/expenses/new", data=data).status_code == 409
 

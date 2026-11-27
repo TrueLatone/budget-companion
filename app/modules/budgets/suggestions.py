@@ -24,3 +24,10 @@ SUGGESTED_EXPENSES = (
     SuggestedExpense("food", "Food", "P1", "Food", "DAILY"),
     SuggestedExpense("transportation", "Transportation", "P1", "Transportation", "WEEKLY"),
 )
+
+# Illustrative monthly VND ranges from the PA1 Budget Setup mockup.
+P1_REFERENCE_RANGES = {"food": (1_200_000, 1_800_000), "transportation": (300_000, 600_000)}
+
+# Translate the built-in display names; the stored names drive existing budget rules.
+BUILTIN_LABELS = {item.name: "bp_exp_" + item.key for item in SUGGESTED_EXPENSES}
+BUILTIN_LABELS.update({"Housing": "bp_cat_housing", "Utilities": "bp_cat_utilities"})

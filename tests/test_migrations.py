@@ -102,7 +102,7 @@ def test_empty_new_tables_can_round_trip_without_replacing_foundation(migration_
         ))
     users_before = table_rows(table)
     legacy_month_columns = [c for c in db.metadata.tables["budget_months"].columns
-                            if c.name not in ("tracking_start_date", "planning_unit")]
+                            if c.name not in ("tracking_start_date", "planning_unit", "savings_target", "setup_reuse_mode")]
     with db.engine.connect() as connection:
         months_before = connection.execute(sa.select(*legacy_month_columns)).all()
     downgrade(revision="de12e989405f")
@@ -143,6 +143,6 @@ def test_postgresql_upgrade_sql_compiles_without_connecting():
 
 def test_append_only_migration_graph_has_one_head():
     scripts = ScriptDirectory("migrations")
-    assert scripts.get_heads() == ["19a01e000003"]
+    assert scripts.get_heads() == ["19a01e000004"]
     assert scripts.get_revision("19a01e000001").down_revision == "de12e989405f"
     assert scripts.get_revision("de12e989405f").down_revision is None

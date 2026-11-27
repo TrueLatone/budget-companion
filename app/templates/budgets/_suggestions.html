@@ -1,15 +1,29 @@
-{% for item in suggestions if item.name.lower() not in existing_names %}
-{% if loop.first %}<div class="bp-head" aria-hidden="true"><span>{{ t('ui_name') }}</span><span>{{ t('ui_estimate') }}</span><span>{{ t('ui_frequency') }}</span><span>{{ 'Ngày đến hạn' if ui_locale=='vi' else 'Due day' }}</span><span>{{ 'Tối thiểu P1' if ui_locale=='vi' else 'P1 minimum' }}</span></div>{% endif %}
-<div class="bp-item">
-  <label><input type="checkbox" name="suggestion" value="{{ item.key }}" {% if (item.key in request.form.getlist('suggestion') if request.method == 'POST' else item.selected) %}checked{% endif %}> <strong>{{ item.name }}</strong> <small>{{ item.priority }}</small></label>
-  <label><span class="bp-caption">{{ t('ui_estimate') }}</span>
-    <input class="form-control" name="{{ item.key }}_estimated_amount" inputmode="numeric" pattern="[0-9]*" value="{{ request.form.get(item.key ~ '_estimated_amount', '') }}">
-  </label>
-
-    <label><span class="bp-caption">{{ t('ui_frequency') }}</span><select class="form-select" name="{{ item.key }}_allocation_frequency">
-    {% for frequency in ('DAILY','WEEKLY','MONTHLY') %}<option value="{{ frequency }}" {% if frequency == request.form.get(item.key ~ '_allocation_frequency',item.frequency) %}selected{% endif %}>{{ t('live_frequency_' ~ frequency) }}</option>{% endfor %}</select></label>
-    <label><span class="bp-caption">{{ 'Ngày đến hạn' if ui_locale=='vi' else 'Due day' }}</span><input class="form-control" type="number" min="1" max="31" name="{{ item.key }}_due_day" value="{{ request.form.get(item.key ~ '_due_day','') }}"></label>
-
-  {% if item.priority == 'P1' %}<label><span class="bp-caption">{{ t('ui_minimum') }}</span><input class="form-control" inputmode="numeric" name="{{ item.key }}_minimum_amount" value="{{ request.form.get(item.key ~ '_minimum_amount','') }}"></label>{% endif %}
+{% set vi = ui_locale == 'vi' %}
+{% set due = 'Ngày đến hạn' if vi else 'Due day' %}
+{% set minimum = 'Tối thiểu P1' if vi else 'P1 minimum' %}
+{% set repeat = 'Lặp tháng sau' if vi else 'Repeat next month' %}
+{% for priority in ['P0','P1'] %}
+{% set available = suggestions|selectattr('priority','equalto',priority)|list %}
+{% for item in available if item.name.lower() not in existing_names %}
+{% if loop.first %}
+<section class="bp-setup-group">
+<h4>{{ (('Khoản bắt buộc' if vi else 'Mandatory expenses') if priority=='P0' else ('Sinh hoạt thiết yếu' if vi else 'Essentials')) }} · {{ priority }}</h4>
+<div class="bp-setup-grid bp-column-head" aria-hidden="true">{% for label in [t('ui_name'),t('ui_estimate'),t('ui_frequency'),due if priority=='P0' else minimum,repeat] %}<span>{{ label }}</span>{% endfor %}</div>
+{% endif %}
+{% set name = t('bp_exp_' ~ item.key) %}
+<div class="bp-setup-grid bp-setup-row">
+<label><input type="checkbox" name="suggestion" value="{{ item.key }}" {% if (item.key in request.form.getlist('suggestion') if request.method=='POST' else item.selected and (not month.setup_reuse_mode or priority=='P0')) %}checked{% endif %}> <strong>{{ name }}</strong></label>
+<label><span class="bp-caption">{{ t('ui_estimate') }}</span><input aria-label="{{ name }} · {{ t('ui_estimate') }}" class="form-control" inputmode="numeric" name="{{ item.key }}_estimated_amount" value="{{ request.form.get(item.key ~ '_estimated_amount','') }}"></label>
+<label><span class="bp-caption">{{ t('ui_frequency') }}</span><select aria-label="{{ name }} · {{ t('ui_frequency') }}" class="form-select" name="{{ item.key }}_allocation_frequency">{% for f in ['DAILY','WEEKLY','MONTHLY'] %}<option value="{{ f }}" {% if f==request.form.get(item.key ~ '_allocation_frequency',item.frequency) %}selected{% endif %}>{{ t('live_frequency_' ~ f) }}</option>{% endfor %}</select></label>
+<div>
+{% if priority=='P1' %}<label><span class="bp-caption">{{ minimum }}</span><input aria-label="{{ name }} · {{ minimum }}" class="form-control" inputmode="numeric" name="{{ item.key }}_minimum_amount" value="{{ request.form.get(item.key ~ '_minimum_amount','') }}"></label>{% endif %}
+<label {% if priority=='P1' %}class="bp-extra-day"{% endif %}><span class="{{ 'bp-caption' if priority=='P0' }}">{{ due }}</span><input aria-label="{{ name }} · {{ due }}" class="form-control" type="number" min="1" max="31" name="{{ item.key }}_due_day" value="{{ request.form.get(item.key ~ '_due_day','') }}"></label>
 </div>
+<label class="bp-repeat-cell"><input type="checkbox" aria-label="{{ name }} · {{ repeat }}" name="{{ item.key }}_is_recurring" {% if request.form.get(item.key ~ '_is_recurring') %}checked{% endif %}><span class="bp-caption">{{ repeat }}</span></label>
+</div>
+{% if loop.last %}
+{% if priority=='P1' %}<small>{{ t('bp_range') }}{% for ref in available if ref.name.lower() not in existing_names and ref.key in ranges %} · {{ t('bp_exp_' ~ ref.key) }} {{ money(ranges[ref.key][0]) }}–{{ money(ranges[ref.key][1]) }} ₫{% endfor %}</small>{% endif %}
+</section>
+{% endif %}
+{% endfor %}
 {% endfor %}

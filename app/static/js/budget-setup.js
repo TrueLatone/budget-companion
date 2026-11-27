@@ -25,3 +25,20 @@ if(priorityField){
  const sync=()=>{wrapper.hidden=priorityField.value!=="P1";wrapper.querySelector("input").disabled=wrapper.hidden;};
  priorityField.addEventListener("change", sync);sync();
 }
+
+for (const row of document.querySelectorAll(".bp-setup-row")) {
+  const include = row.querySelector('[name="suggestion"]');
+  const frequency = row.querySelector("select");
+  const due = row.querySelector('[name$="_due_day"]');
+  function updateRow() {
+    for (const field of row.querySelectorAll("input, select")) {
+      if (field !== include) field.disabled = !include.checked;
+    }
+    due.disabled = !include.checked || frequency.value !== "MONTHLY";
+    const extraDay = due.closest(".bp-extra-day");
+    if (extraDay) extraDay.hidden = frequency.value !== "MONTHLY";
+  }
+  include.addEventListener("change", updateRow);
+  frequency.addEventListener("change", updateRow);
+  updateRow();
+}

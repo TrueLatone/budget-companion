@@ -101,7 +101,7 @@ def test_build1_models_routes_and_single_migration_head(build_app):
 
     config = Config("migrations/alembic.ini")
     config.set_main_option("script_location", "migrations")
-    assert ScriptDirectory.from_config(config).get_heads() == ["19a01e000003"]
+    assert ScriptDirectory.from_config(config).get_heads() == ["19a01e000004"]
     with application.app_context():
         mappers = list(db.Model.registry.mappers)
         assert len(mappers) == len(db.metadata.tables) == 13
@@ -111,7 +111,7 @@ def test_build1_models_routes_and_single_migration_head(build_app):
             for column in mapper.columns:
                 if column.primary_key or column.foreign_keys:
                     assert isinstance(column.type, sa.Uuid) and column.type.as_uuid
-        assert db.session.scalar(sa.text("SELECT version_num FROM alembic_version")) == "19a01e000003"
+        assert db.session.scalar(sa.text("SELECT version_num FROM alembic_version")) == "19a01e000004"
         assert db.session.scalar(sa.text("PRAGMA foreign_keys")) == 1
         with db.engine.connect() as connection, warnings.catch_warnings():
             warnings.filterwarnings("ignore", message=".*expression-based index.*")

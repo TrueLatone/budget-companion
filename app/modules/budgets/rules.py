@@ -121,9 +121,15 @@ def meal_breakdown(daily_limit, unit=1):
     return dict(zip(MEAL_WEIGHTS, (n * step for n in split_integer(daily_limit // step, list(MEAL_WEIGHTS.values())))))
 
 
-def generate_plans(funds, expenses, unit=1):
+def generate_plans(funds, expenses, unit=1, *, savings_target=None):
+    target = money(savings_target, "Savings target", optional=True) or 0
+    check_unit(target, unit)
+    validate_setup(funds, expenses, unit)
+    protected = sum(e.estimated_amount if e.priority == "P0" else (e.minimum_amount or unit)
+                    for e in expenses)
+    if target > funds - protected:
+        raise BudgetError(f"Maximum savings with these expenses: {funds - protected:,} VND.")
     if unit != 1:
-        validate_setup(funds, expenses, unit)
         check_unit(funds, unit)
         scaled = []
         for e in expenses:
@@ -132,12 +138,11 @@ def generate_plans(funds, expenses, unit=1):
             scaled.append(ExpenseInput(e.id, e.name, e.priority,
                           e.estimated_amount // unit if e.estimated_amount is not None else None,
                           e.minimum_amount // unit if e.minimum_amount is not None else None))
-        plans = generate_plans(funds // unit, scaled)
+        plans = generate_plans(funds // unit, scaled, savings_target=target // unit)
         for plan in plans:
             plan["planned_savings"] *= unit
             plan["allocations"] = [(key, amount * unit) for key, amount in plan["allocations"]]
         return plans
-    validate_setup(funds, expenses)
     p0 = [e for e in expenses if e.priority == "P0"]
     p1 = [e for e in expenses if e.priority == "P1"]
     p2 = [e for e in expenses if e.priority == "P2"]
@@ -162,6 +167,12 @@ def generate_plans(funds, expenses, unit=1):
             p1_pool -= transfer
             savings -= needed - transfer
             p2_pool = p2_floor
+        if savings < target:
+            required = target - savings
+            from_flexible = min(required, p2_pool - p2_floor)
+            p2_pool -= from_flexible
+            p1_pool -= required - from_flexible
+            savings = target
         allocations = [(e.id, e.estimated_amount) for e in p0]
         for items, pool in ((p1, p1_pool), (p2, p2_pool)):
             bases = [e.minimum_amount or 1 for e in items]

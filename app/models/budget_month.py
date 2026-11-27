@@ -24,6 +24,8 @@ class BudgetMonth(db.Model):
         db.Date, nullable=False, default=_default_tracking_start_date,
     )
     planning_unit = db.Column(db.Integer, nullable=False, default=1000, server_default="1000")
+    savings_target = db.Column(db.BigInteger, nullable=True)
+    setup_reuse_mode = db.Column(db.String(12), nullable=True)
     available_vnd = db.Column(db.BigInteger, nullable=False)
     created_at = db.Column(
         db.DateTime(timezone=True),

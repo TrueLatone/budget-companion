@@ -59,8 +59,8 @@
         <input type="hidden" name="submission_token" value="{{ checkin_tokens[task.task_id] }}">
         <div class="modal-header">
           <div>
-            <h2 class="modal-title h5" id="checkinLabel{{ task.task_id }}">Check-in task</h2>
-            <div class="small text-secondary">{{ task.title or (task.plan_item.title if task.plan_item else '—') }} · {{ task.assigned_date|date_vn }}</div>
+            <h2 class="modal-title h5" id="checkinLabel{{ task.task_id }}">{{ 'Ghi nhận khoản chi' if ui_locale=='vi' else 'Check-in task' }}</h2>
+            <div class="small text-secondary">{{ (task.title or (task.plan_item.title if task.plan_item else '—'))|budget_label }} · {{ task.assigned_date|date_vn }}</div>
           </div>
           <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Đóng"></button>
         </div>
@@ -160,9 +160,9 @@
       {% for entry in day_items if ('assigned' if entry.assigned_in_period else 'due' if entry.due_in_period else 'ongoing') == kind %}
       {% if loop.first %}<h3>{{ heading }}</h3>{% endif %}
       {% set task=entry.task %}{% set record=summary.planned_by_task.get(task.task_id) %}
-      <article class="schedule-row"><div><strong>{{ task.title }}</strong><small>{{ task.assigned_date|date_vn }}{% if task.period_end!=task.assigned_date %} – {{ task.period_end|date_vn }}{% endif %}{% if task.payment_due_date %} · {{ 'Hạn' if ui_locale=='vi' else 'Due' }} {{ task.payment_due_date|date_vn }}{% endif %}</small>
+      <article class="schedule-row"><div><strong>{{ task.title|budget_label }}</strong><small>{{ task.assigned_date|date_vn }}{% if task.period_end!=task.assigned_date %} – {{ task.period_end|date_vn }}{% endif %}{% if task.payment_due_date %} · {{ 'Hạn' if ui_locale=='vi' else 'Due' }} {{ task.payment_due_date|date_vn }}{% endif %}</small>
       {{ render_meal_guidance(task) }}</div><div class="schedule-value"><strong>{{ task.planned_amount|vnd }}</strong><small>{{ task.display_status|status_label }}{% if record %} · {{ record.amount|vnd }}{% endif %}</small></div>
-      <div class="schedule-actions"><button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#checkin{{ task.task_id }}">Check-in</button>
+      <div class="schedule-actions"><button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#checkin{{ task.task_id }}">{{ 'Ghi nhận' if ui_locale=='vi' else 'Check-in' }}</button>
       {% if record %}<button class="btn btn-sm btn-link" data-bs-toggle="modal" data-bs-target="#editRecord{{ record.record_id }}">{{ 'Sửa' if ui_locale=='vi' else 'Edit' }}</button>{% endif %}</div></article>
       {% endfor %}{% endfor %}
       {% if not day_items %}<p>{{ 'Không có khoản chi cho ngày này.' if ui_locale=='vi' else 'No tasks cover this date.' }}</p>{% endif %}
@@ -187,7 +187,7 @@
           <div class="list-group-item px-0 py-3">
             <div class="d-flex justify-content-between align-items-start gap-3">
               <div>
-                <a class="fw-semibold text-decoration-none" href="{{ url_for('expenses.index', view='day', date=(task.payment_due_date if not entry.assigned_in_period and task.payment_due_date else task.assigned_date).isoformat(), tag=tag) }}">{{ task.title or (task.plan_item.title if task.plan_item else '—') }}</a>
+                <a class="fw-semibold text-decoration-none" href="{{ url_for('expenses.index', view='day', date=(task.payment_due_date if not entry.assigned_in_period and task.payment_due_date else task.assigned_date).isoformat(), tag=tag) }}">{{ (task.title or (task.plan_item.title if task.plan_item else '—'))|budget_label }}</a>
                 <div class="small text-secondary">
                   {{ task.plan_item.schedule_tag|schedule_label if task.plan_item else '—' }}
                   · Phân bổ {{ task.assigned_date|date_vn }}
@@ -270,7 +270,7 @@
             <ul class="list-unstyled small mb-0">
               {% for task in (card.highlights if tag else card.highlights[:4]) %}
               <li class="d-flex justify-content-between gap-2 py-1 border-top">
-                <a class="text-decoration-none" href="{{ url_for('expenses.index', view='day', date=task.assigned_date.isoformat(), tag=tag) }}">{{ task.title or (task.plan_item.title if task.plan_item else '—') }}</a>
+                <a class="text-decoration-none" href="{{ url_for('expenses.index', view='day', date=task.assigned_date.isoformat(), tag=tag) }}">{{ (task.title or (task.plan_item.title if task.plan_item else '—'))|budget_label }}</a>
                 <span class="text-secondary text-nowrap">{{ task.assigned_date|date_vn }}</span>
               </li>
               {% endfor %}
