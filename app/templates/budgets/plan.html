@@ -1,4 +1,5 @@
 {% extends 'workspace_base.html' %}
+{% from 'budgets/_planning_hints.html' import target with context %}
 {% set vi=ui_locale=='vi' %}
 {% block title %}{{ t('plan_' ~ plan.plan_type) }} · {{ month.month_start.strftime('%m/%Y') }}{% endblock %}
 {% block extra_styles %}{{ super() }}<link rel="stylesheet" href="{{ url_for('static',filename='css/budget-planning.css') }}">{% endblock %}
@@ -7,13 +8,13 @@
 <a href="{{ url_for('budgets.month',month_id=month.id,_anchor='compare') }}">← {{ t('ui_compare_saved') }}</a>
 <h1 class="ws-page-title">{{ self.title() }}</h1>
 <p>{% if plan.status == 'GENERATED' %}<small>GENERATED</small> · {% endif %}{{ t('live_savings') }} · <strong>{{ money(plan.planned_savings) }} VND</strong></p>
-{% for a in plan.allocations|sort(attribute='budget_expense.expense_name') %}<div class="bp-block"><div class="bp-line"><strong>{{ a.budget_expense.expense_name }}</strong><span>{{ money(a.allocated_amount) }} VND</span></div><small>{{ a.budget_expense.priority }} · {{ t('live_frequency_' ~ a.budget_expense.allocation_frequency) }}</small></div>{% endfor %}
+{{ target(month) }}
+{% for a in plan.allocations|sort(attribute='budget_expense.expense_name') %}<div class="bp-block"><div class="bp-line"><strong>{{ a.budget_expense.expense_name|budget_label }}</strong><span>{{ money(a.allocated_amount) }} VND</span></div><small>{{ a.budget_expense.priority }} · {{ t('live_frequency_' ~ a.budget_expense.allocation_frequency) }}</small></div>{% endfor %}
 {% if not locked %}<p>{{ 'Xác nhận sẽ khóa các khoản phân bổ của tháng.' if vi else 'Confirming locks the allocations for this month.' }}</p>
 <form method="post" action="{{ url_for('budgets.confirm',month_id=month.id,plan_id=plan.id) }}">{{ action_form.hidden_tag() }}
 {% if plan.plan_type=='MANUAL' %}<input type="hidden" name="confirm_snapshot" value="{{ confirm_snapshot }}">{% endif %}
 <button class="ws-button ws-button-primary">{{ t('ui_confirm') }}</button>
 <a class="ws-button" href="{{ url_for('budgets.customize',month_id=month.id,plan_id=plan.id) }}">{{ 'Điều chỉnh' if vi else 'Customize' }}</a></form>
 {% elif plan.status=='CONFIRMED' %}<p>{{ t('ui_locked') }}</p>
-<a class="ws-button ws-button-primary" href="{{ url_for('budgets.schedule',month_id=month.id) }}">{{ 'Xem lịch phân bổ ban đầu' if vi else 'View original schedule' }}</a>
 <a class="ws-button" href="{{ url_for('expenses.index',budget_month_id=month.id,view='day') }}">{{ 'Mở lịch chi tiêu' if vi else 'Continue to Spending Schedule' }}</a>
 {% else %}<p>{{ t('ui_locked') }}</p>{% endif %}</section>{% endblock %}

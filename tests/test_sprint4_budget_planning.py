@@ -556,7 +556,7 @@ def test_BP_40_schedule_before_confirmation(app, client, d2):
         _generate(d2)
     _session(client, d2["owner"])
     page = client.get(f"/budget/{d2['month']}/schedule")
-    assert page.status_code == 302 and page.location.endswith(str(d2['month']))
+    assert page.status_code == 404
     with app.app_context():
         assert db.session.scalar(db.select(AssignedExpenseTask)) is None
 
@@ -567,7 +567,7 @@ def test_BP_41_incomplete_original_schedule(app, client, d2):
         budgets.confirm_plan(d2["owner"], d2["month"], plan.id)
     _session(client, d2["owner"])
     page = client.get(f"/budget/{d2['month']}/schedule")
-    assert page.status_code==200 and "schedule is not ready" in page.text
+    assert page.status_code == 404
     with app.app_context():
         assert db.session.scalar(db.select(AssignedExpenseTask)) is None
 
@@ -576,10 +576,8 @@ def test_BP_42_clipped_week(app, client, d2):
     with app.app_context():
         plan = _generate(d2)
         budgets.confirm_and_schedule(d2["owner"], d2["month"], plan.id)
-    _session(client, d2["owner"])
-    page = client.get(f"/budget/{d2['month']}/schedule?view=week&date=2026-11-07")
-    assert page.status_code == 200 and "06/11/2026 – 08/11/2026" in page.text
-    assert "Transportation" in page.text
+        first = next(t for t in plan.allocations if t.budget_expense.expense_name == "Transportation")
+        assert any(t.assigned_date.isoformat()=="2026-11-06" and t.period_end.isoformat()=="2026-11-08" for t in first.tasks)
 
 
 def test_BP_43_month_original_total(app, client, d2):
@@ -587,9 +585,16 @@ def test_BP_43_month_original_total(app, client, d2):
         plan = _generate(d2)
         total = sum(a.allocated_amount for a in plan.allocations)
         budgets.confirm_and_schedule(d2["owner"], d2["month"], plan.id)
-    _session(client, d2["owner"])
-    page = client.get(f"/budget/{d2['month']}/schedule?view=month")
-    assert page.status_code == 200 and f"{total:,} VND" in page.text
-    assert "Transportation" in page.text
-    with app.app_context():
+        assert sum(t.original_limit for a in plan.allocations for t in a.tasks) == total
         assert db.session.scalar(db.select(ExpenseRecord)) is None
+
+
+def test_BP_28_confirmed_month_handoff(app, client, d2):
+    with app.app_context():
+        plan = _generate(d2)
+        budgets.confirm_and_schedule(d2["owner"], d2["month"], plan.id)
+    _session(client, d2["owner"])
+    page = client.get(f"/budget/{d2['month']}")
+    assert page.status_code == 200
+    assert "/expenses?" in page.text and "View original schedule" not in page.text
+    assert client.get(f"/budget/{d2['month']}/schedule").status_code == 404

@@ -114,3 +114,19 @@ def test_tiny_remainder_still_funds_every_included_item(expenses):
     for plan in generate_plans(306, expenses):
         assert all(amount > 0 for _, amount in plan["allocations"])
         assert plan["planned_savings"] == 0
+
+
+def test_savings_target_uses_flexible_surplus_before_essentials(expenses):
+    unchanged = generate_plans(1300, expenses)
+    partly_adjusted = generate_plans(1300, expenses, savings_target=210)
+    assert unchanged[0] == partly_adjusted[0]
+    assert partly_adjusted[1]["planned_savings"] == 210
+    assert dict(partly_adjusted[1]["allocations"])[expenses[3].id] == 650
+    assert dict(partly_adjusted[1]["allocations"])[expenses[4].id] == 140
+    maximum = generate_plans(1300, expenses, savings_target=699)
+    for plan in maximum:
+        assert plan["planned_savings"] == 699
+        assert dict(plan["allocations"])[expenses[3].id] == 300
+        assert dict(plan["allocations"])[expenses[4].id] == 1
+    with pytest.raises(BudgetError, match="699 VND"):
+        generate_plans(1300, expenses, savings_target=700)

@@ -1,6 +1,7 @@
 """Authorized persistence for budget setup, generated/manual plans and confirmation."""
 
 from contextlib import contextmanager
+from datetime import timedelta
 import hashlib
 import json
 from uuid import UUID
@@ -249,6 +250,48 @@ def delete_expense(user_id, month_id, expense_id):
         db.session.delete(expense)
 
 
+def previous_confirmed_month(month):
+    if month.month_start.year == 1 and month.month_start.month == 1:
+        return None
+    previous = (month.month_start - timedelta(days=1)).replace(day=1)
+    return db.session.scalar(db.select(BudgetMonth).where(
+        BudgetMonth.user_id == month.user_id,
+        BudgetMonth.month_start == previous,
+        BudgetMonth.plans.any(BudgetPlan.status == "CONFIRMED"),
+    ))
+
+
+def reuse_previous_setup(user_id, month_id, source_id, mode):
+    if mode not in ("all", "recurring"):
+        raise BudgetError("Choose which expenses to reuse.")
+    with _write_month(user_id, month_id) as month:
+        _assert_editable(month)
+        if month.budget_expenses or month.plans:
+            raise BudgetConflict("Reuse is available only before adding expenses.")
+        source = previous_confirmed_month(month)
+        if source is None or str(source.id) != str(source_id):
+            raise BudgetConflict("The previous confirmed month is unavailable.")
+        get_month(user_id, source.id, lock=True)
+        rows = list_expenses(user_id, source.id)
+        if mode == "recurring":
+            rows = [row for row in rows if row.is_recurring]
+        if not rows:
+            raise BudgetError("No expenses are marked to repeat.")
+        # Preserve exact setup values, even from a legacy single-VND month.
+        # The user can revise them before the new month's unit checks at generation.
+        for row in rows:
+            db.session.add(BudgetExpense(
+                budget_month_id=month.id, category_id=row.category_id, expense_name=row.expense_name,
+                priority=row.priority, estimated_amount=row.estimated_amount,
+                minimum_amount=row.minimum_amount, allocation_frequency=row.allocation_frequency,
+                due_day=row.due_day, is_recurring=row.is_recurring,
+            ))
+        month.setup_reuse_mode = mode
+        needs_unit_review = any(amount is not None and amount % month.planning_unit
+                                for row in rows for amount in (row.minimum_amount, row.estimated_amount))
+        return len(rows), needs_unit_review
+
+
 def apply_suggested_expenses(user_id, month_id, selected_keys, values=None):
     """Atomically add selected hints through the normal Budget write path.
 
@@ -287,6 +330,7 @@ def _add_suggestions(month, selected_keys, values):
             "minimum_amount": fields.get("minimum_amount"),
             "allocation_frequency": fields.get("allocation_frequency", suggestion.frequency),
             "due_day": fields.get("due_day"),
+            "is_recurring": fields.get("is_recurring", False),
         }))
         existing.add(suggestion.name.casefold())
     return created
@@ -306,14 +350,17 @@ def _inputs(user_id, month_id):
     return [ExpenseInput(e.id, e.expense_name, e.priority, e.estimated_amount, e.minimum_amount) for e in expenses]
 
 
-def generate_budget_plans(user_id, month_id, *, selected=(), values=None, custom=None):
+def generate_budget_plans(user_id, month_id, *, selected=(), values=None, custom=None, savings_target=None):
     with _write_month(user_id, month_id) as month:
         _assert_editable(month)
         if selected:
             _add_suggestions(month, selected, values)
         if custom:
             _save_expense(month, custom)
-        proposals = generate_plans(month.available_vnd, _inputs(user_id, month.id), month.planning_unit)
+        if savings_target is not None:
+            month.savings_target = money(savings_target, "Savings target", optional=True)
+        proposals = generate_plans(month.available_vnd, _inputs(user_id, month.id), month.planning_unit,
+                                   savings_target=month.savings_target)
         _discard_drafts(month)
         plans = []
         for proposal in proposals:
@@ -421,6 +468,7 @@ def save_manual_plan(user_id, month_id, source_plan_id, editable_amounts, *, exp
         saved_savings = month.available_vnd - sum(amount for _, amount in allocations)
         if saved_savings < 0:
             raise BudgetError("Allocations exceed available funds.")
+        _check_savings_target(month, saved_savings)
         validate_allocations(month.available_vnd, inputs, allocations, saved_savings)
 
         manual_candidates = list(db.session.scalars(db.select(BudgetPlan).where(
@@ -475,6 +523,11 @@ def confirm_and_schedule(user_id, month_id, plan_id, expected_fingerprint=None):
         return plan
 
 
+def _check_savings_target(month, savings):
+    if month.savings_target is not None and savings < month.savings_target:
+        raise BudgetError("Planned savings must meet the monthly savings target.")
+
+
 def _confirm_locked(user_id, month, plan_id, expected_fingerprint):
     plan = get_plan(user_id, month.id, plan_id)
     if plan.status == "CONFIRMED":
@@ -493,6 +546,7 @@ def _confirm_locked(user_id, month, plan_id, expected_fingerprint):
         [(a.budget_expense_id, a.allocated_amount) for a in plan.allocations],
         plan.planned_savings,
     )
+    _check_savings_target(month, plan.planned_savings)
     if any(a.tasks for a in plan.allocations):
         raise BudgetConflict("Tasks must be scheduled after confirmation.")
     plan.status = "CONFIRMED"

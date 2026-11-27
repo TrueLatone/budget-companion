@@ -1,7 +1,8 @@
 {% extends 'pages/budget.html' %}
+{% from 'budgets/_planning_hints.html' import target with context %}
 {% block budget_editor %}
 <h2 class="ws-card-title">{{ t("live_budget_setup") }}</h2>
-{% for message in get_flashed_messages() %}<p class="alert alert-success" role="status">{{ message }}</p>{% endfor %}
+{% for level, message in get_flashed_messages(with_categories=true) %}<p class="alert alert-{{ level }}" role="status">{{ message }}</p>{% endfor %}
 
 {% if month %}
 <section class="bp-panel" id="setup">
@@ -9,6 +10,19 @@
 {% if locked %}<p role="status">{{ t('ui_locked') }}</p>
 {% else %}
 {% if setup_error %}<p class="text-danger" role="alert">{{ setup_error|ui_error }}</p>{% endif %}
+{% if previous %}
+<div class="bp-reuse">
+  <form method="post" action="{{ url_for('budgets.reuse_setup',month_id=month.id) }}">
+    {{ action_form.hidden_tag() }}
+    <input type="hidden" name="source_month" value="{{ previous.id }}">
+    <strong>{{ t('bp_previous') }} · {{ previous.month_start.strftime('%m/%Y') }}</strong>
+    <button class="ws-button" name="mode" value="all">{{ t('bp_copy') }}</button>
+    {% if previous.budget_expenses|selectattr('is_recurring')|list %}
+      <button class="ws-button" name="mode" value="recurring">{{ t('bp_only_repeats') }}</button>
+    {% else %}<small>{{ t('bp_no_repeats') }}</small>{% endif %}
+  </form>
+</div>
+{% endif %}
 <form method="post" action="{{ url_for('budgets.generate', month_id=month.id) }}" id="suggested-expenses" novalidate>
 {{ action_form.hidden_tag() }}
 {% include 'budgets/_suggestions.html' %}
@@ -17,16 +31,24 @@
 <label data-field="{{ field.name }}">{{ ('Tối thiểu P1' if ui_locale=='vi' else 'P1 minimum') if field.name=='minimum_amount' else ('Ngày đến hạn' if ui_locale=='vi' else 'Due day') if field.name=='due_day' else field.label.text }} {{ field(class_='form-check-input' if field.type == 'BooleanField' else 'form-control') }}{% for error in field.errors %}<small role="alert" class="text-danger">{{ error|ui_error }}</small>{% endfor %}</label>{% endfor %}</div>
 <button type="submit" class="ws-button" formaction="{{ url_for('budgets.create_expense',month_id=month.id) }}">{{ t('ui_save_another') }}</button>
 </details>
+{% set target_value = request.form.get('savings_target', month.savings_target if month.savings_target is not none else '') %}
+<details class="bp-option" {% if target_value != '' %}open{% endif %}>
+  <summary>{{ t('bp_target') }}</summary>
+  <label>{{ t('bp_at_least') }}
+    <input class="form-control" inputmode="numeric" name="savings_target" value="{{ target_value }}">
+  </label>
+</details>
 <button class="ws-button ws-button-primary" type="submit">{{ t('ui_generate') }}</button>
 </form>{% endif %}
-{% if expenses %}<details><summary>{{ 'Khoản chi đã lưu' if ui_locale=='vi' else 'Saved expenses' }} ({{ expenses|length }})</summary>
+{% if expenses %}<details id="saved-expenses" {% if month.setup_reuse_mode %}open{% endif %}><summary>{{ 'Khoản chi đã lưu' if ui_locale=='vi' else 'Saved expenses' }} ({{ expenses|length }})</summary>
 <div class="table-responsive"><table class="table">
   <thead><tr><th>{{ t('ui_name') }}</th><th>{{ t('ui_category') }}</th><th>{{ t('ui_priority') }}</th><th>{{ t('ui_estimate') }}</th><th>{{ t('ui_minimum') }}</th><th>{{ t('ui_frequency') }}</th><th>{{ t('ui_actions') }}</th></tr></thead>
   <tbody>{% for expense in expenses %}<tr>
-    <td>{{ expense.expense_name }}</td><td>{{ expense.category.category_name }}</td><td>{{ expense.priority }}</td>
+    <td>{{ expense.expense_name|budget_label }}</td><td>{{ expense.category.category_name|budget_label }}</td><td>{{ expense.priority }}</td>
     <td>{{ t('live_unknown') if expense.estimated_amount is none else money(expense.estimated_amount) }}</td>
     <td>{{ t('ui_not_specified') if expense.minimum_amount is none else money(expense.minimum_amount) }}</td>
-    <td>{{ t('live_frequency_' ~ expense.allocation_frequency) }}{% if expense.due_day %} · {{ t('ui_due_day') }} {{ expense.due_day }}{% endif %}</td>
+    <td>{{ t('live_frequency_' ~ expense.allocation_frequency) }}{% if expense.due_day %} · {{ t('ui_due_day') }} {{ expense.due_day }}{% endif %}
+      {% if expense.is_recurring %}<small class="bp-reference">{{ t('live_field_is_recurring') }}</small>{% endif %}</td>
     <td>{% if not locked %}<div class="bp-actions"><a href="{{ url_for('budgets.edit_expense', month_id=month.id, expense_id=expense.id) }}">{{ t('ui_edit') }}</a>
       <form method="post" action="{{ url_for('budgets.delete_expense', month_id=month.id, expense_id=expense.id) }}">
         {{ action_form.hidden_tag() }}<button class="btn btn-sm btn-outline-danger" type="submit">{{ 'Xóa' if ui_locale=='vi' else 'Delete' }}</button>
@@ -38,6 +60,7 @@
 {% endblock %}
 {% block budget_comparison %}{% if month and plans %}<section class="ws-card mt-3 bp-panel" id="compare" aria-label="Plan comparison">
 <h2 class="mt-4">{{ t('ui_compare_saved') }}</h2>
+{{ target(month) }}
 {% if identical %}<p>{{ 'Ba phương án có cùng phân bổ.' if ui_locale=='vi' else 'All three strategies have the same allocation.' }}</p>{% endif %}
 <div class="row g-3">{% for plan in plans %}{% set totals = breakdowns[plan.id] %}<article class="col-md-4"><div class="card h-100"><div class="card-body">
   <h3 class="h5">{{ t('plan_' ~ plan.plan_type) }}</h3>

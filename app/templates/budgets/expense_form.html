@@ -1,16 +1,18 @@
 {% extends 'workspace_base.html' %}
-{% block title %}{{ 'Edit' if expense else 'Add' }} budget expense{% endblock %}
+{% from 'budgets/_planning_hints.html' import reference with context %}
+{% block title %}{{ ('Sửa khoản chi' if expense else 'Thêm khoản chi') if ui_locale=='vi' else ('Edit expense' if expense else 'Add expense') }}{% endblock %}
 {% block workspace_content %}
 <h1>{{ ('Sửa khoản chi' if expense else 'Thêm khoản chi') if ui_locale=='vi' else ('Edit expense' if expense else 'Add expense') }} · {{ month.month_start.strftime('%m/%Y') }}</h1>
 <form method="post">
   {{ form.hidden_tag() }}
   {% for field in form if field.type not in ('CSRFTokenField', 'SubmitField') and (expense or field.name not in ('category_id','category_name')) %}
     <div class="mb-3">{{ field.label(class_='form-label') }} {{ field(class_='form-check-input' if field.type == 'BooleanField' else 'form-control') }}
+      {% if expense and form.priority.data == "P1" and field.name == "minimum_amount" %}{{ reference(ranges.get(expense.expense_name|lower)) }}{% endif %}
       {% for error in field.errors %}<p class="text-danger" role="alert">{{ error|ui_error }}</p>{% endfor %}
     </div>
   {% endfor %}
   {{ form.submit(class_='btn btn-primary') }}
-  <a href="{{ url_for('budgets.month', month_id=month.id) }}">Back to budget</a>
+  <a href="{{ url_for('budgets.month', month_id=month.id) }}">{{ t('bp_back') }}</a>
 </form>
 {% endblock %}
 

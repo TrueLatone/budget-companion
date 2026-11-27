@@ -44,6 +44,11 @@ VI = {
     "as_of must be within the selected month and cannot be a future date": "Chọn ngày trong tháng đã chọn và không sau hôm nay.",
     "decision must be ACCEPT or REJECT": "Hãy chọn chấp nhận hoặc từ chối.",
     "This recommendation has already been decided": "Bạn đã phản hồi đề xuất này.",
+    "Choose which expenses to reuse.": "Hãy chọn các khoản chi muốn dùng lại.",
+    "Reuse is available only before adding expenses.": "Chỉ có thể dùng lại thiết lập khi tháng mới chưa có khoản chi.",
+    "The previous confirmed month is unavailable.": "Không tìm thấy kế hoạch đã xác nhận cho tháng liền trước.",
+    "No expenses are marked to repeat.": "Chưa có khoản chi nào được đánh dấu lặp lại.",
+    "Planned savings must meet the monthly savings target.": "Số tiền tiết kiệm dự kiến phải đạt mục tiêu của tháng.",
     'Budget month not found.': 'Không tìm thấy tháng ngân sách.',
     'Budget month not found': 'Không tìm thấy tháng ngân sách.',
     'Budget month was not found for this user': 'Không tìm thấy tháng ngân sách.',
@@ -116,6 +121,9 @@ def ui_error(value):
     for label, translated in (("Monthly allocation","Phân bổ tháng"),("Payment status","Trạng thái thanh toán"),("Priority","Mức ưu tiên")):
         if text.startswith(label + " ") and not text.isascii():
             return translated + text[len(label):]
+    if text.startswith("Maximum savings with these expenses: "):
+        amount = text.split(": ", 1)[1].replace(",", ".")
+        return f"Với các khoản chi hiện tại, bạn có thể tiết kiệm tối đa {amount}"
     if text in VI:
         return VI[text]
     if text.startswith("Required P0 expenses are missing:"):
@@ -128,7 +136,7 @@ def ui_error(value):
         return "Số tiền của khoản P0 phải bằng đúng mức đã thiết lập."
     if "integer VND" in text or "VND limit" in text:
         field = text.split(" must")[0].split(" exceeds")[0]
-        name = {"Available funds":"Nguồn tiền","Minimum amount":"Mức tối thiểu","Estimated amount":"Ước tính","Allocated amount":"Số phân bổ","Planned savings":"Tiết kiệm"}.get(field, field.replace(" amount","") if field.startswith("P0 ") else "Số tiền")
+        name = {"Savings target":"Mục tiêu tiết kiệm","Available funds":"Nguồn tiền","Minimum amount":"Mức tối thiểu","Estimated amount":"Ước tính","Allocated amount":"Số phân bổ","Planned savings":"Tiết kiệm"}.get(field, field.replace(" amount","") if field.startswith("P0 ") else "Số tiền")
         rule = "là số nguyên dương" if "positive" in text else "là số nguyên không âm"
         return f"{name} phải {rule} trong giới hạn cho phép (VND)."
     groups = [
