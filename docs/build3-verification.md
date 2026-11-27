@@ -13,6 +13,6 @@ On 26 November 2026 the team verified runtime source `bdb4825` using disposable 
 | Recommendations | Tests covered early guidance and data-ready recommendations. Accepting a supported recommendation updates its status and preserves confirmed allocations, task limits and savings. |
 | Browser checks | All 16 Chrome HTTP and layout checks passed across four routes, two languages and desktop/mobile viewport sizes. The run used synthetic data in a disposable local database. |
 
-The [API contracts](architecture/api-contracts.md) describe the implemented scheduling and data-completeness rules. The [pytest guide](../tests/README.md) provides regression commands.
+The [API contracts](architecture/api-contracts.md) describe the implemented scheduling and data-completeness rules. The [v1.2 baseline review](requirements/baseline-review.md) records the difference between the verified automatic scheduling behavior and the explicit UC10/UC11 handoff. The [pytest guide](../tests/README.md) provides regression commands.
 
 The browser run used viewport emulation. Physical devices, additional browsers, and live PostgreSQL migration and concurrency remained outside that run. The payment-status and budget-impact-scope controls, History ordering, and some translated strings remained open UI issues. The automated and browser summaries cover the recorded runs. The official PA4 case designs, raw evidence and consolidated execution report are maintained separately in restricted project storage. See the [public component testing scope](pa4-test-coverage-matrix.md).

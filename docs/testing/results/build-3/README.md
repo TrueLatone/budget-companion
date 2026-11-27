@@ -2,10 +2,10 @@
 
 | Component | Use-case scope |
 | --- | --- |
-| [Account and period](account-and-period/) | UC01–UC07 |
-| [Budget planning](budget-planning/) | UC08–UC12, UC27 |
+| [Account and period](account-and-period/) | UC01–UC07, UC31 (planned) |
+| [Budget planning](budget-planning/) | UC08–UC12, UC27–UC29 (UC28/UC29 proposed) |
 | [Expense and check-in](expense-and-checkin/) | UC11–UC21, including the schedule handoff |
-| [Dashboard](dashboard/) | UC22 |
+| [Dashboard](dashboard/) | UC22, UC30 (comparison unavailable) |
 | [Recommendation](recommendation/) | UC23–UC26 |
 | [Integration](integration/) | The use cases exercised by each cross-component flow |
 

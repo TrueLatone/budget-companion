@@ -2,10 +2,22 @@
 
 This repository contains the public technical documentation for the PA4 submission. Official academic artifacts, assignment revision histories, internal management records, and supporting evidence are maintained separately in restricted project storage.
 
+## PA4 artifact index
+
+| Official artifact | Reviewed baseline | Public technical reference |
+| --- | --- | --- |
+| Vision Document | v1.2 · 27 November 2026 | [Functional and quality requirements](requirements/functional-requirements.md) |
+| Use-Case Specification and embedded model | v1.2 · 27 November 2026 | [UC01–UC31 and Feature–UC mapping](requirements/use-case-index.md) |
+| Software Development Plan | v1.2 · 27 November 2026 | [Roadmap and release scope](management/README.md) |
+
+See the [baseline review](requirements/baseline-review.md) for unresolved requirements and differences from the reviewed Build 3 code. The revised academic SAD is tracked separately.
+
+## Public repository documentation
+
 | Area | Public documentation |
 | --- | --- |
-| Management | [Project planning and reporting](management/README.md) |
-| Requirements | [Requirements and test traceability](requirements/README.md) |
+| Management | [Project roadmap and release scope](management/README.md) |
+| Requirements | [Requirements baseline v1.2](requirements/README.md) |
 | Architecture | [Initial design](architecture/architecture.md), [API contracts](architecture/api-contracts.md), [database design](architecture/database-design.md), and [entity dictionary](architecture/entity-dictionary.md) |
 | Diagrams | [Requirements diagrams](requirements/diagrams/) and [architecture diagrams](architecture/diagrams/) |
 | Technical decisions | [Technology stack](decisions/tech_stack.md) and [component notes](architecture/components/) |

@@ -2,6 +2,13 @@
 
 This log records changes to the public project documentation. Official academic documents and their revision histories are maintained separately in restricted project storage. The [software changelog](../CHANGELOG.md) records application builds.
 
+## 2026-11-28 · Requirements baseline v1.2 (KAN-75)
+
+- Documented the 27 November 2026 Vision, Use-Case Specification and Software Development Plan v1.2 revisions. Recorded Vision priorities and quality requirements, the model's feature links, and the Build 3 and Build 4 planning targets.
+- Synchronized the public use-case and PA4 testing indexes through UC31. UC28 covers prior-month expense reuse, UC29 covers a monthly savings target, UC30 covers same-period spending comparisons, and UC31 covers in-app payment reminders.
+- Recorded unresolved History, scheduling, duplicate-submission and Dashboard differences. The API contracts continue to describe observed runtime behavior, with links to the applicable v1.2 requirements.
+- Kept the Build 3 verification evidence tied to its original source revision. Product implementation, PA4 system-test completion and release status are tracked by their own records. See the [baseline review](requirements/baseline-review.md).
+
 ## 2026-11-27 · Public documentation and testing organization
 
 - Grouped public implementation references under architecture, requirements, management, UI design and testing. Added a documentation index and spaces for reviewed architecture and requirements diagrams.

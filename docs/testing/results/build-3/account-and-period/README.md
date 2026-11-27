@@ -2,7 +2,7 @@
 
 Use this workspace to record Build 3 functional execution and supporting regression tests for account and period.
 
-Exercise registration, login and logout (UC01–UC03), and budget-period creation and switching (UC05–UC06). Keep UC04 (profile and budgeting preferences) and UC07 (notification preferences) in the design inventory and check their availability in the tested build. See the [requirements and traceability](../../../../requirements/README.md), [PA4 component testing scope](../../../../pa4-test-coverage-matrix.md) and [Build 3 verification](../../../../build3-verification.md).
+Exercise registration, login and logout (UC01–UC03), and budget-period creation and switching (UC05–UC06). Keep UC04 (profile and budgeting preferences) and UC07 (notification preferences) in the design inventory and check their availability in the tested build. Also retain design coverage for the planned UC31 in-app reminders and record unavailability as NOT RUN. See the [requirements and traceability](../../../../requirements/README.md), [PA4 component testing scope](../../../../pa4-test-coverage-matrix.md) and [Build 3 verification](../../../../build3-verification.md).
 
 1. Record the run's commit, tester, environment, case IDs and commands in the [execution report](test-execution.md). Enter each observed outcome and evidence reference in [test results](test-results.csv).
 2. Capture the registration or login outcome and the selected budget period with synthetic account data. Save reviewed screenshots in [evidence/](evidence/) and approved pytest XML and logs in [automated/](automated/). Use the [shared naming and relative path conventions](../../../README.md#evidence-and-defects).

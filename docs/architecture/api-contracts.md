@@ -4,6 +4,10 @@ The health, KAN-15, KAN-21, KAN-23, KAN-25 and KAN-27 routes below are implement
 Budget, Expense and Recommendation services share the
 canonical database, authenticated session and global CSRF protection.
 
+This page documents observed runtime behavior. Review differences from the
+[v1.2 requirements baseline](../requirements/baseline-review.md) before using
+these routes as PA4 acceptance expectations.
+
 ## Build 1 status and boundaries
 
 This section records the earlier baseline. The final section below defines the
@@ -122,7 +126,7 @@ must consume it before scheduling. This is a Python service, not a new HTTP API.
 |---|---|---|
 | GET | `/expenses?budget_month_id=<uuid>` | Open an owned month; otherwise use the active session month or date navigation |
 | GET | `/expenses?view=day\|month\|year&date=YYYY-MM-DD` | Calendar, assigned periods, due bills and recorded spending |
-| GET | `/expenses/history?start=YYYY-MM-DD&end=YYYY-MM-DD` | Owned spending history; FUNDS_ADDED is excluded |
+| GET | `/expenses/history?start=YYYY-MM-DD&end=YYYY-MM-DD` | Date-range spending history across owned months, sorted by ascending expense date and ID. FUNDS_ADDED is excluded. |
 | POST | `/expenses/months/<uuid:month_id>/schedule` | Idempotently schedule only confirmed allocations, conserving each monthly total |
 | POST | `/expenses/tasks/<uuid:task_id>/checkin` | Add a positive actual transaction or explicitly confirm NO_EXPENSE |
 | POST | `/expenses/tasks/<uuid:task_id>/payment-status` | Set self-reported PAID/UNPAID on a bill task; no money is moved |
@@ -154,6 +158,12 @@ its database key is derived from the pending confirmation and owner. The
 existing `idempotency_key` interface retains its payload-checked retry behavior.
 Confirmation metadata expires after one hour, but committed retry protection
 does not depend on session metadata or a particular application worker.
+For UC16 and UC18, key-only requests and browser form replays are distinct paths.
+The service reuses the existing record for a matching key and payload. HTML write
+routes redirect. An existing browser token shows the stored purchase and permits
+explicit confirmation or dismissal. Planned-limit mode cannot create a second
+copy. See the [UC16 and UC18 review](../requirements/baseline-review.md#open-requirements-and-implementation-questions).
+
 `planned` explicitly records current_limit once and is rejected if it is zero or
 other purchases already exist. NO_EXPENSE creates no zero-amount record, is
 repeat-safe, and conflicts while transactions exist. Future tasks cannot be
@@ -187,6 +197,9 @@ spending and nullable remaining allocation using canonical services. It adds no
 financial write endpoint. The shared Workspace carries that owned month across
 Budget, Expense and Recommendation pages. See the
 [KAN-25 contract](components/kan25-workspace-dashboard.md) for formulas and UI behavior.
+The current route summarizes the selected month. UC22 category detail, multi-month
+trends and daily goals, and the dedicated UC30 same-period comparison, are tracked
+in the [v1.2 baseline review](../requirements/baseline-review.md).
 
 ## Implemented by KAN-27 — Spending analysis
 
@@ -254,6 +267,11 @@ conflicts return 409. Success redirects to `/expenses?budget_month_id=...&view=m
 The internal `confirm_plan()` remains a confirmation-only service, useful for
 legacy callers/tests. The explicit Expense schedule POST remains a repeat-safe
 repair/verification action for already confirmed budgets.
+
+Vision F08 and UCS UC10/UC11 require confirmation followed by a separate initial
+Create / Verify action. UCS UC29 describes automatic creation in its proposed
+savings-target flow. Current confirmation and the existing integration tests
+exercise automatic creation. The v1.2 handoff remains an open release decision.
 
 New months default to `planning_unit=1000`; budget funding, estimates, minima,
 custom allocations and schedule splits must respect that unit. Existing migrated

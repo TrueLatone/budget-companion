@@ -1,13 +1,16 @@
 # PA4 component testing scope
 
-Use the official Use-Case Specification and case inventory in restricted project storage to confirm expected behavior and count designed cases. The public component mappings below support navigation and traceability.
+Use the official Use-Case Specification and case inventory in restricted project storage to confirm expected behavior and count designed cases. The [v1.2 use-case index](requirements/use-case-index.md) lists UC01–UC31.
+The design minimum is **155 functional cases** across all 31 use cases. Include
+planned flows in design coverage and record unavailable execution as NOT RUN
+with the reason. The public component mappings support planning.
 
 | Workspace | Use cases |
 | --- | --- |
-| [Account and period](testing/results/build-3/account-and-period/) | UC01–UC07 |
-| [Budget planning](testing/results/build-3/budget-planning/) | UC08–UC12, UC27 |
+| [Account and period](testing/results/build-3/account-and-period/) | UC01–UC07, UC31 (planned) |
+| [Budget planning](testing/results/build-3/budget-planning/) | UC08–UC12, UC27–UC29 (UC28/UC29 proposed) |
 | [Expense and check-in](testing/results/build-3/expense-and-checkin/) | UC11–UC21, including schedule handoff |
-| [Dashboard](testing/results/build-3/dashboard/) | UC22 |
+| [Dashboard](testing/results/build-3/dashboard/) | UC22, UC30 (comparison unavailable) |
 | [Recommendation](testing/results/build-3/recommendation/) | UC23–UC26 |
 | [Integration](testing/results/build-3/integration/) | Applicable IDs for each cross-component workflow |
 

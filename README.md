@@ -162,7 +162,7 @@ No financial localStorage prototype or ui_demo data is used by live pages.
 
 ## Project documentation
 
-Start with the [documentation index](docs/README.md) for the PA1–PA3 baseline,
+Start with the [documentation index](docs/README.md) for the v1.2 requirements,
 architecture and revision history. The [testing guide](docs/testing/README.md)
 links the PA4 templates and Build 3 component workspaces for execution, results,
 defects and reviewed evidence. Official academic artifacts are maintained
