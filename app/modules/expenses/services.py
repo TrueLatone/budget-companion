@@ -402,7 +402,7 @@ def list_records(user_id, start, end, *, schedule_tag=None):
         ExpenseRecord.expense_date <= end, ExpenseRecord.record_type.in_(("PLANNED", "UNEXPECTED")),
     )
     records = []
-    for record in db.session.scalars(statement.order_by(ExpenseRecord.expense_date, ExpenseRecord.id)):
+    for record in db.session.scalars(statement.order_by(ExpenseRecord.expense_date.desc(), ExpenseRecord.id.desc())):
         record = _get_record(record.id, user_id)
         adapter = ExpenseRecordAdapter(record)
         if not schedule_tag or (adapter.task and adapter.task.schedule_tag == schedule_tag):
