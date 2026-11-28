@@ -1,0 +1,50 @@
+........................................................................ [ 11%]
+........................................................................ [ 23%]
+........................................................................ [ 34%]
+........................................................................ [ 46%]
+........................................................................ [ 57%]
+........................................................................ [ 69%]
+........................................................................ [ 81%]
+........................................................................ [ 92%]
+..............................................                           [100%]
+=============================== warnings summary ===============================
+tests/test_budget_customization.py: 2 warnings
+tests/test_budget_setup_parity.py: 32 warnings
+tests/test_budgets.py: 40 warnings
+tests/test_build1_integration.py: 18 warnings
+tests/test_dashboard.py: 18 warnings
+tests/test_pa4_integration.py: 12 warnings
+tests/test_planning_revision.py: 6 warnings
+tests/test_recommendations.py: 4 warnings
+tests/test_sprint4_budget_planning.py: 4 warnings
+  <dependencies>/wtforms/fields/core.py:427: DeprecationWarning: Passing SelectField choices as tuples is deprecated and will be removed in wtforms 3.4. Please use SelectChoice instead.
+    return self.field_class(*self.args, **kw)
+
+tests/test_budgets.py: 2 warnings
+tests/test_build1_integration.py: 8 warnings
+tests/test_expenses.py: 2 warnings
+tests/test_migrations.py: 13 warnings
+tests/test_pa4_integration.py: 22 warnings
+tests/test_recommendations.py: 2 warnings
+tests/test_schema_constraints.py: 96 warnings
+  <repository>/migrations/env.py:21: DeprecationWarning: 'get_engine' is deprecated and will be removed in Flask-SQLAlchemy 3.2. Use 'engine' or 'engines[key]' instead. If you're using Flask-Migrate or Alembic, you'll need to update your 'env.py' file.
+    return current_app.extensions['migrate'].db.get_engine()
+
+tests/test_migrations.py::test_upgrade_preserves_existing_data_and_explicit_tracking_dates
+  <dependencies>/sqlalchemy/engine/default.py:1192: DeprecationWarning: The default date adapter is deprecated as of Python 3.12; see the sqlite3 documentation for suggested replacement recipes
+    cursor.execute(statement, parameters)
+
+tests/test_pa4_integration.py::test_build2_upgrade_preserves_financial_rows_and_legacy_units[4000000]
+tests/test_pa4_integration.py::test_build2_upgrade_preserves_financial_rows_and_legacy_units[5000000]
+tests/test_pa4_integration.py::test_build2_upgrade_preserves_financial_rows_and_legacy_units[6000000]
+  <repository>/tests/test_pa4_integration.py:27: SAWarning: Skipped unsupported reflection of expression-based index uq_expense_categories_builtin_name
+    legacy.reflect(bind=db.engine)
+
+tests/test_pa4_integration.py::test_build2_upgrade_preserves_financial_rows_and_legacy_units[4000000]
+tests/test_pa4_integration.py::test_build2_upgrade_preserves_financial_rows_and_legacy_units[5000000]
+tests/test_pa4_integration.py::test_build2_upgrade_preserves_financial_rows_and_legacy_units[6000000]
+  <repository>/tests/test_pa4_integration.py:27: SAWarning: Skipped unsupported reflection of expression-based index uq_expense_categories_owned_name
+    legacy.reflect(bind=db.engine)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+622 passed, 288 warnings in 88.62s (0:01:28)
