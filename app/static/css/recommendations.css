@@ -1,0 +1,43 @@
+/* Recommendation controls remain readable even when the Bootstrap CDN is unavailable. */
+.rec-page { color: #252842; line-height: 1.6; }
+.rec-page h1, .rec-page h2, .rec-page h3, .rec-page h4 { color: #25243e; line-height: 1.3; }
+.rec-page h1 { margin: 0 0 12px; font-size: clamp(26px, 3vw, 34px); }
+.rec-page h2 { margin: 0 0 12px; font-size: 22px; }
+.rec-page h3 { font-size: 17px; }
+.rec-page p { margin: 0 0 12px; }
+.rec-page > section { margin: 22px 0; }
+.rec-page label { display: inline-block; margin: 0 8px 4px 0; font-weight: 500; }
+.rec-page select, .rec-page input[type="date"], .rec-page textarea {
+  max-width: 100%; padding: 8px 10px; border: 1px solid #dbe0ec; border-radius: 8px;
+  background: #fff; color: #252842; font: inherit;
+}
+.rec-page textarea { display: block; width: 100%; min-height: 86px; resize: vertical; }
+.rec-page .d-block { display: block; }
+.rec-page .btn {
+  display: inline-block; padding: 8px 13px; border: 1px solid #665cdd; border-radius: 9px;
+  background: #fff; color: #584ecc; font: inherit; font-size: 13px; text-decoration: none; cursor: pointer;
+}
+.rec-page .btn-primary { background: #665cdd; color: #fff; }
+.rec-page .btn-secondary { border-color: #dbe0ec; color: #454b65; }
+.rec-page .btn-link { border-color: transparent; color: #584ecc; }
+.rec-page .btn:disabled { opacity: .55; cursor: not-allowed; }
+.rec-page .alert { padding: 12px 15px; border: 1px solid #dcd9f4; border-radius: 10px; background: #f0eefb; color: #48416f; }
+.rec-page .card { margin: 12px 0; border: 1px solid #e7eaf3; border-radius: 12px; background: #fff; }
+.rec-page .card-body { padding: 17px; }
+.rec-page .badge { display: inline-block; padding: 3px 8px; border-radius: 6px; background: #efecff; color: #5b50c8; font-size: 10px; font-weight: 700; }
+.rec-page .small, .rec-page small { font-size: 12px; }
+.rec-page .text-muted { color: #68718a !important; }
+.rec-page .table-responsive { max-width: 100%; overflow-x: auto; }
+.rec-page .table { width: 100%; border-collapse: collapse; text-align: left; }
+.rec-page .table th, .rec-page .table td { padding: 8px; border-bottom: 1px solid #edf0f6; text-align: left; }
+.rec-page details { margin: 8px 0; }
+.rec-page summary { cursor: pointer; }
+.rec-page .mt-2 { margin-top: 8px; }
+.rec-page .mt-3 { margin-top: 16px; }
+.rec-page .mb-1 { margin-bottom: 4px; }
+.rec-page .mb-0 { margin-bottom: 0; }
+@media (max-width: 575px) {
+  .rec-page h2 { font-size: 19px; }
+  .rec-page .card-body { padding: 14px; }
+  .rec-page select, .rec-page input[type="date"] { margin-bottom: 8px; }
+}
