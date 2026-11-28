@@ -1,0 +1,5 @@
+Chromium 158.0.8127.0
+BP-04 PASS December and January selected; original funds 4,000,000 and 7,000,000. BP-14 PASS fixed Rent; saved six allocations 5,550,000 and savings 1,450,000. BP-28 PASS confirmed plan link, original Day, Week and Month open.
+BP-05 PASS both visible form submissions saved Entertainment.
+BP-59 {"lang":"vi","status":200,"labels":["Water","Rent","Electricity","Food","Cinema"],"expenseStatus":200,"trackingShowsExpected":false,"trackingShowsCinema":true,"expected":"Tiền trọ","originalShowsExpected":false,"originalShowsCinema":true}
+BP-60 {"lang":"en","status":200,"labels":["Water","Rent","Electricity","Food","Cinema"],"expenseStatus":200,"trackingShowsExpected":true,"trackingShowsCinema":true,"expected":"Rent","originalShowsExpected":true,"originalShowsCinema":true}

@@ -1,0 +1,9 @@
+BP-40: confirm-first guidance visible True status after redirect 200
+BP-39: before explicit Create / Verify, count after confirm: 34 actual records: 0
+BP-39: explicit verification HTTP 302 task count 34 IDs preserved True
+Route/status for confirmed month
+confirm 302 tracking adjustment fixture original,current 90000 100000
+before checkin original page (200, ['90,000 VND']) tracking page (200, ['100.000 ₫'])
+POST actual checkin 302 redirect destination status 200
+after checkin original page (200, ['90,000 VND']) tracking page (200, ['100.000 ₫'])
+limits after actual checkin 90000 100000 actual records [12345]

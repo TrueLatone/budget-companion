@@ -1,0 +1,58 @@
+============================= test session starts ==============================
+platform linux -- Python 3.12.14, pytest-9.2.0, pluggy-1.7.0 -- python
+rootdir: <repository>
+collecting ... collected 43 items
+
+tests/test_sprint4_budget_planning.py::test_BP_01_create_budget_month PASSED [  2%]
+tests/test_sprint4_budget_planning.py::test_BP_02_prevent_duplicate_month PASSED [  4%]
+tests/test_sprint4_budget_planning.py::test_BP_03_reject_invalid_month PASSED [  6%]
+tests/test_sprint4_budget_planning.py::test_BP_05_persist_seven_expenses PASSED [  9%]
+tests/test_sprint4_budget_planning.py::test_BP_06_reject_case_insensitive_duplicate PASSED [ 11%]
+tests/test_sprint4_budget_planning.py::test_BP_07_reject_noninteger_and_negative_amounts PASSED [ 13%]
+tests/test_sprint4_budget_planning.py::test_BP_08_reject_invalid_priority_and_frequency PASSED [ 16%]
+tests/test_sprint4_budget_planning.py::test_BP_09_reject_invalid_due_day PASSED [ 18%]
+tests/test_sprint4_budget_planning.py::test_BP_10_generate_three_draft_plans PASSED [ 20%]
+tests/test_sprint4_budget_planning.py::test_BP_11_conserve_funds_and_respect_floors PASSED [ 23%]
+tests/test_sprint4_budget_planning.py::test_BP_12_reject_missing_required_P0 PASSED [ 25%]
+tests/test_sprint4_budget_planning.py::test_BP_13_reject_insufficient_funds PASSED [ 27%]
+tests/test_sprint4_budget_planning.py::test_BP_15_reject_forged_P0_field PASSED [ 30%]
+tests/test_sprint4_budget_planning.py::test_BP_16_reject_P1_below_minimum PASSED [ 32%]
+tests/test_sprint4_budget_planning.py::test_BP_17_reject_overbudget_MANUAL PASSED [ 34%]
+tests/test_sprint4_budget_planning.py::test_BP_18_reject_malformed_manual_submission PASSED [ 37%]
+tests/test_sprint4_budget_planning.py::test_BP_19_reject_stale_manual_edit PASSED [ 39%]
+tests/test_sprint4_budget_planning.py::test_BP_20_confirm_generated_and_reload PASSED [ 41%]
+tests/test_sprint4_budget_planning.py::test_BP_21_confirm_custom_plan_1250000_savings PASSED [ 44%]
+tests/test_sprint4_budget_planning.py::test_BP_22_reject_confirming_different_plan PASSED [ 46%]
+tests/test_sprint4_budget_planning.py::test_BP_23_reject_financial_edits_after_confirmation PASSED [ 48%]
+tests/test_sprint4_budget_planning.py::test_BP_24_block_scheduling_before_confirmation PASSED [ 51%]
+tests/test_sprint4_budget_planning.py::test_BP_25_generate_34_initial_tasks PASSED [ 53%]
+tests/test_sprint4_budget_planning.py::test_BP_26_dates_due_day_and_exact_integer_split PASSED [ 55%]
+tests/test_sprint4_budget_planning.py::test_BP_27_repeat_schedule_preserves_saved_tasks PASSED [ 58%]
+tests/test_sprint4_budget_planning.py::test_BP_29_reject_cross_user_budget_access PASSED [ 60%]
+tests/test_sprint4_budget_planning.py::test_BP_30_reject_cross_user_schedule_access PASSED [ 62%]
+tests/test_sprint4_budget_planning.py::test_BP_31_zero_funds PASSED      [ 65%]
+tests/test_sprint4_budget_planning.py::test_BP_32_reject_fraction_of_planning_unit PASSED [ 67%]
+tests/test_sprint4_budget_planning.py::test_BP_33_no_months PASSED       [ 69%]
+tests/test_sprint4_budget_planning.py::test_BP_34_foreign_month_selection PASSED [ 72%]
+tests/test_sprint4_budget_planning.py::test_BP_35_missing_month PASSED   [ 74%]
+tests/test_sprint4_budget_planning.py::test_BP_36_year_filter PASSED     [ 76%]
+tests/test_sprint4_budget_planning.py::test_BP_37_regenerate_unconfirmed PASSED [ 79%]
+tests/test_sprint4_budget_planning.py::test_BP_38_review_another_option PASSED [ 81%]
+tests/test_sprint4_budget_planning.py::test_BP_39_confirm_generates_schedule PASSED [ 83%]
+tests/test_sprint4_budget_planning.py::test_BP_40_schedule_before_confirmation PASSED [ 86%]
+tests/test_sprint4_budget_planning.py::test_BP_41_incomplete_original_schedule PASSED [ 88%]
+tests/test_sprint4_budget_planning.py::test_BP_42_clipped_week PASSED    [ 90%]
+tests/test_sprint4_budget_planning.py::test_BP_43_month_original_total PASSED [ 93%]
+tests/test_pa4_integration.py::test_visible_custom_expense_without_category_controls[expenses/new] PASSED [ 95%]
+tests/test_pa4_integration.py::test_visible_custom_expense_without_category_controls[plans/generate] PASSED [ 97%]
+tests/test_budget_customization.py::test_t2_budget_schedule_displays_original_not_adjusted_limits PASSED [100%]
+
+=============================== warnings summary ===============================
+tests/test_sprint4_budget_planning.py: 4 warnings
+tests/test_pa4_integration.py: 8 warnings
+  <dependencies>/wtforms/fields/core.py:427: DeprecationWarning: Passing SelectField choices as tuples is deprecated and will be removed in wtforms 3.4. Please use SelectChoice instead.
+    return self.field_class(*self.args, **kw)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+----- generated xml file: <evidence>/focused.xml -----
+======================= 43 passed, 12 warnings in 4.48s ========================
