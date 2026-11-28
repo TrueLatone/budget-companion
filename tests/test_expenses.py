@@ -14,6 +14,7 @@ from app.extensions import db
 from app.models import AssignedExpenseTask, BudgetAllocation, BudgetMonth, BudgetPlan, ExpenseRecord, User
 from app.modules.budget_periods.services import create_budget_month, update_available_vnd
 from app.modules.budgets import services as budgets
+from app.modules.dashboard.services import build_dashboard
 from app.modules.expenses import presentation, services
 from app.modules.expenses.validators import ValidationError
 
@@ -883,6 +884,54 @@ def test_payment_status_is_independent_of_checkin_edit_and_delete(app, setup):
         assert services.get_task(setup["user"], rent.id).payment_status == "PAID"
         services.delete_record(setup["user"], record.id)
         assert services.get_task(setup["user"], rent.id).payment_status == "PAID"
+
+
+@pytest.mark.parametrize("view,locale,labels", [
+    ("day", "en", ("Mark paid", "Mark unpaid")),
+    ("month", "vi", ("Đánh dấu đã thanh toán", "Đánh dấu chưa thanh toán")),
+])
+def test_bill_payment_controls_in_active_views(app, setup, signed_client, view, locale, labels):
+    def dashboard_totals():
+        dashboard = build_dashboard(setup["user"], setup["month"])
+        return {key: dashboard[key] for key in ("planned", "savings", "spent", "remaining", "counts")}
+
+    with app.app_context():
+        tasks = schedule(setup)
+        bill = next(task for task in tasks if task.allocation.budget_expense.expense_name == "Electricity")
+        assert bill.payment_status == "UNPAID"
+        bill_id, food_id = bill.id, food_task(tasks).id
+        task_status = bill.task_status
+        before = dashboard_totals()
+
+    app.config["WTF_CSRF_ENABLED"] = True
+    route = f"/expenses?view={view}&date=2026-10-15"
+    payment = f"/expenses/tasks/{bill_id}/payment-status"
+    pattern = rf'<form method="post" action="{re.escape(payment)}"[^>]*>(.*?)</form>'
+    page = signed_client.get(f"{route}&lang={locale}")
+    assert f"/expenses/tasks/{food_id}/payment-status" not in page.text
+    assert signed_client.post(payment, data={"payment_status": "PAID"}).status_code == 400
+
+    for status, label in zip(("PAID", "UNPAID"), labels):
+        forms = re.findall(pattern, page.text, re.DOTALL)
+        assert len(forms) == 1 and label in forms[0]
+        fields = dict(re.findall(r'<input type="hidden" name="([^"]+)" value="([^"]*)">', forms[0]))
+        assert fields["payment_status"] == status and fields["csrf_token"]
+        response = signed_client.post(payment, data=fields)
+        assert response.status_code == 302 and response.location == route
+        page = signed_client.get(response.location)
+        with app.app_context():
+            saved = db.session.get(AssignedExpenseTask, bill_id)
+            assert (saved.payment_status, saved.task_status) == (status, task_status)
+            assert db.session.scalar(db.select(db.func.count(ExpenseRecord.id))) == 0
+            assert dashboard_totals() == before
+
+    other = app.test_client()
+    with other.session_transaction() as session:
+        session["user_id"] = str(setup["other"])
+    token = csrf_token(other.get(route))
+    assert other.post(payment, data={"payment_status": "PAID", "csrf_token": token}).status_code == 404
+    with app.app_context():
+        assert db.session.get(AssignedExpenseTask, bill_id).payment_status == "UNPAID"
 
 
 def test_canonical_schema_has_no_single_planned_record_per_task_constraint(app, setup):

@@ -119,16 +119,20 @@
 </div>
 {% endmacro %}
 
-{% macro render_task_meta(entry) %}
-{% set task = entry.task %}
-<div class="d-flex flex-wrap gap-1 mb-1">
-  {% if entry.assigned_in_period %}<span class="badge text-bg-secondary">Phân bổ trong ngày</span>{% endif %}
-  {% if entry.due_in_period %}<span class="badge text-bg-primary">Đến hạn trong ngày</span>{% endif %}
-  {% if not entry.assigned_in_period and entry.due_in_period %}<span class="badge text-bg-warning text-dark">Chỉ đến hạn, phân bổ {{ task.assigned_date|date_vn }}</span>{% endif %}
-  {% if not entry.assigned_in_period and not entry.due_in_period %}<span class="badge text-bg-info">Continuing period; excluded from today's assigned total</span>{% endif %}
-  {% if task.payment_status == "PAID" %}<span class="badge bg-success-subtle text-success border border-success-subtle">Đã thanh toán</span>{% elif task.payment_status == "UNPAID" %}<span class="badge bg-warning-subtle text-warning border border-warning-subtle">Chưa thanh toán</span>{% endif %}
-</div>
-{% if task.period_end != task.assigned_date %}<p class="small text-secondary mb-1">Period: {{ task.assigned_date|date_vn }} - {{ task.period_end|date_vn }}. The displayed limit applies to this entire period.</p>{% endif %}
+{% macro render_payment(task, period, tag) %}
+{% if task.payment_due_date %}
+  {% set paid = task.payment_status == 'PAID' %}
+  {% set vi = ui_locale == 'vi' %}
+  <form method="post" action="{{ url_for('expenses.set_payment_status', task_id=task.task_id) }}" class="d-grid gap-1 mt-1" data-no-double-submit>
+    <span class="badge {{ 'text-bg-success' if paid else 'text-bg-warning' }}">{{ ('Đã thanh toán' if paid else 'Chưa thanh toán') if vi else ('Paid' if paid else 'Unpaid') }}</span>
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="view" value="{{ period.view }}">
+    <input type="hidden" name="date" value="{{ period.anchor.isoformat() }}">
+    <input type="hidden" name="tag" value="{{ tag }}">
+    <input type="hidden" name="payment_status" value="{{ 'UNPAID' if paid else 'PAID' }}">
+    <button type="submit" class="btn btn-outline-secondary btn-sm">{{ ('Đánh dấu chưa thanh toán' if paid else 'Đánh dấu đã thanh toán') if vi else ('Mark unpaid' if paid else 'Mark paid') }}</button>
+  </form>
+{% endif %}
 {% endmacro %}
 
 {% block extra_styles %}{{ super() }}<link rel="stylesheet" href="{{ url_for('static', filename='css/expenses.css') }}">{% endblock %}
@@ -163,7 +167,8 @@
       <article class="schedule-row"><div><strong>{{ task.title }}</strong><small>{{ task.assigned_date|date_vn }}{% if task.period_end!=task.assigned_date %} – {{ task.period_end|date_vn }}{% endif %}{% if task.payment_due_date %} · {{ 'Hạn' if ui_locale=='vi' else 'Due' }} {{ task.payment_due_date|date_vn }}{% endif %}</small>
       {{ render_meal_guidance(task) }}</div><div class="schedule-value"><strong>{{ task.planned_amount|vnd }}</strong><small>{{ task.display_status|status_label }}{% if record %} · {{ record.amount|vnd }}{% endif %}</small></div>
       <div class="schedule-actions"><button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#checkin{{ task.task_id }}">Check-in</button>
-      {% if record %}<button class="btn btn-sm btn-link" data-bs-toggle="modal" data-bs-target="#editRecord{{ record.record_id }}">{{ 'Sửa' if ui_locale=='vi' else 'Edit' }}</button>{% endif %}</div></article>
+      {% if record %}<button class="btn btn-sm btn-link" data-bs-toggle="modal" data-bs-target="#editRecord{{ record.record_id }}">{{ 'Sửa' if ui_locale=='vi' else 'Edit' }}</button>{% endif %}
+      {{ render_payment(task, period, tag) }}</div></article>
       {% endfor %}{% endfor %}
       {% if not day_items %}<p>{{ 'Không có khoản chi cho ngày này.' if ui_locale=='vi' else 'No tasks cover this date.' }}</p>{% endif %}
       </div>
@@ -203,6 +208,7 @@
                 <span class="badge text-bg-{{ task.display_status|status_class }}">{{ task.display_status|status_label }}</span>
                 <div class="small mt-1">KH: <strong>{{ task.planned_amount|vnd }}</strong></div>
                 <div class="small">TT: {{ record.amount|vnd if record else ('0 ₫' if task.task_status == 'NO_EXPENSE' else '—') }}</div>
+                {{ render_payment(task, period, tag) }}
               </div>
             </div>
           </div>
@@ -328,12 +334,23 @@
             <label for="unexpected-category" class="form-label">Danh mục</label>
             <input type="text" id="unexpected-category" name="category" class="form-control" maxlength="100" required>
           </div>
-          <div>
-            <label for="unexpected-priority" class="form-label">Priority</label>
-            <select id="unexpected-priority" name="priority" class="form-select" required>
-              <option value="">Choose a priority</option>
-              {% for code, label in priority_labels.items() %}<option value="{{ code }}">{{ label }}</option>{% endfor %}
-            </select>
+          <div class="row g-2">
+            <div class="col-6">
+              <label for="unexpected-priority" class="form-label">Priority</label>
+              <select id="unexpected-priority" name="priority" class="form-select" required>
+                <option value="">Choose a priority</option>
+                {% for code, label in priority_labels.items() %}<option value="{{ code }}">{{ label }}</option>{% endfor %}
+              </select>
+            </div>
+            <div class="col-6">
+              <label for="unexpected-scope" class="form-label">Phạm vi ảnh hưởng ngân sách</label>
+              <select id="unexpected-scope" name="budget_impact_scope" class="form-select">
+                <option value="">Không xác định (Not specified)</option>
+                <option value="DAILY">DAILY (Theo ngày)</option>
+                <option value="WEEKLY">WEEKLY (Theo tuần)</option>
+                <option value="MONTHLY">MONTHLY (Theo tháng)</option>
+              </select>
+            </div>
           </div>
           <div>
             <label for="unexpected-note" class="form-label">Ghi chú (tùy chọn)</label>

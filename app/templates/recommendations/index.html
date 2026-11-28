@@ -1,6 +1,8 @@
 {% extends 'workspace_base.html' %}
 {% block title %}Gợi ý chi tiêu · Budget Companion{% endblock %}
+{% block extra_styles %}{{ super() }}<link rel="stylesheet" href="{{ url_for('static', filename='css/recommendations.css') }}">{% endblock %}
 {% block workspace_content %}
+<div class="rec-page">
 <h1>Gợi ý chi tiêu</h1>
 {% for message in get_flashed_messages() %}<p class="alert alert-info" role="status">{{ message }}</p>{% endfor %}
 <p>Gợi ý được tạo từ ngân sách và các khoản chi bạn đã ghi nhận. Khi dữ liệu còn ít, gợi ý chỉ mang tính tham khảo và có thể thay đổi khi bạn cập nhật thêm. Hệ thống không tự thay đổi ngân sách hay khoản chi.</p>
@@ -131,7 +133,7 @@
               <li>Mở Lịch chi tiêu và tạo lịch từ phương án đã xác nhận.</li>
               <li>Ghi các khoản chi thực tế; khi một kỳ kết thúc, xác nhận các khoản đã chi hoặc xác nhận không phát sinh nếu đúng.</li>
             </ol>
-            <p class="small">Không cần đợi hết tháng: sau một kỳ đã kết thúc và được xác nhận, gợi ý sớm có thể xuất hiện nếu chi tiêu vượt 110% hoặc thấp hơn 80% mức dự kiến của kỳ đó. Nếu chi tiêu nằm giữa hai mức này, hệ thống chưa có tín hiệu để đề xuất điều chỉnh.</p>
+            <p class="small">Không cần đợi hết tháng: sau một kỳ đã kết thúc và được xác nhận, gợi ý sớm có thể xuất hiện nếu chi tiêu từ 110% trở lên hoặc từ 80% trở xuống so với mức dự kiến của kỳ đó. Nếu chi tiêu nằm giữa hai mức này, hệ thống chưa có tín hiệu để đề xuất điều chỉnh.</p>
             <p class="small">Để có phân tích cá nhân hóa đầy đủ hơn, cần ít nhất 10 khoản chi hợp lệ ở 3 danh mục, dữ liệu trải dài ít nhất 30 ngày, các kỳ đã qua được xác nhận và dữ liệu đạt độ đầy đủ cần thiết.</p>
             <a class="btn btn-outline-primary btn-sm" href="{{ url_for('expenses.index', budget_month_id=month.id, view='month') }}">Mở lịch chi tiêu</a>
           {% endif %}
@@ -185,11 +187,6 @@
       {% endif %}
       <p class="small text-muted">{{ item.expected_impact }}</p>
       {% if item.status == 'PENDING' %}
-        <form method="post" action="{{ url_for('recommendations.decide', recommendation_id=item.id) }}" class="d-flex gap-2">
-          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-          <button class="btn btn-primary" type="submit" name="decision" value="ACCEPT">Chấp nhận đề xuất</button>
-          <button class="btn btn-outline-secondary" type="submit" name="decision" value="REJECT">Từ chối</button>
-        </form>
         <form method="post" action="{{ url_for('recommendations.dismiss', recommendation_id=item.id) }}" class="mt-2">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <button class="btn btn-link btn-sm" type="submit">Ẩn gợi ý</button>
@@ -203,4 +200,5 @@
 <p>Tạo tháng ngân sách và ghi lại các khoản chi để bắt đầu nhận gợi ý.</p>
 <a href="{{ url_for('budget_periods.create') }}">Tạo tháng ngân sách</a>
 {% endif %}
+</div>
 {% endblock %}
