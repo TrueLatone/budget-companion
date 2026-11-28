@@ -1449,3 +1449,36 @@ def test_kan65_ui_e2e_01_budget_expense_to_recommendations(app, client, monkeypa
     with app.app_context():
         assert row_count(ExpenseRecord) == 1 and row_count(Recommendation) == 0
         assert financial_snapshot() == before
+
+
+@pytest.mark.parametrize("kan65_month", [{
+    "month": "2026-11", "today": date(2026, 11, 15),
+}], indirect=True)
+def test_kan65_f19_08_open_month_feedback_preserves_provisional_review(app, client, kan65_month):
+    """UC26 BF5: feedback persists without making an open month's balance reliable."""
+    with app.app_context():
+        _kan65_add_history(kan65_month, count=3, categories=3, coverage_days=15)
+        before = financial_snapshot()
+
+    review_path = "/recommendations/monthly-review?month=2026-11&as_of=2026-11-15"
+    initial = client.get(review_path)
+    assert initial.status_code == 200
+    assert initial.json["review_status"] == "INCOMPLETE_DATA"
+    assert initial.json["remaining_vs_plan"] is None
+    assert initial.json["recorded_expense_total"] == 3_000
+
+    saved = client.post("/recommendations/monthly-review/feedback", json={
+        "month": "2026-11", "rating": 4, "comment": "Needs review",
+    })
+    assert saved.status_code == 200 and saved.json["status"] == "SAVED"
+
+    reloaded = client.get(review_path)
+    assert reloaded.status_code == 200
+    review = reloaded.json
+    assert review["rating"] == 4 and review["comment"] == "Needs review"
+    assert review["review_status"] == "INCOMPLETE_DATA"
+    assert review["remaining_vs_plan"] is None and review["planned_task_total"] is None
+    assert review["recorded_expense_total"] == 3_000
+    with app.app_context():
+        assert row_count(MonthlyReview) == 1 and row_count(Recommendation) == 0
+        assert financial_snapshot() == before

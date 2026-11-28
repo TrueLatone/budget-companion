@@ -1,0 +1,68 @@
+{
+  "commit": "440b3f75a9e233b08bed74e6053e36ce089df307",
+  "execution_date": "2026-11-28",
+  "case_id": "UI-E2E-01",
+  "journey": "Budget → Expense → Recommendations",
+  "status": "PASS",
+  "environment": {
+    "os": "Windows 11",
+    "viewport": "1440x1000",
+    "csrf": true,
+    "database": "isolated migrated SQLite",
+    "application_date": "2026-11-28",
+    "browser": "Chrome/158.0.8127.37"
+  },
+  "steps": [
+    {
+      "step": "Budget",
+      "result": "PASS",
+      "available_vnd": 7000000,
+      "tracking_start": "2026-11-28",
+      "plan": "BALANCED",
+      "confirmed": true,
+      "screenshot": "20261128-440b3f7-UI-E2E-01-step-01.png"
+    },
+    {
+      "step": "Expense",
+      "result": "PASS",
+      "record_count": 1,
+      "amount": 12785,
+      "expense_date": "2026-11-28",
+      "visible_in_history": true,
+      "screenshot": "20261128-440b3f7-UI-E2E-01-step-02.png"
+    },
+    {
+      "step": "Recommendations",
+      "result": "PASS",
+      "selected_month_preserved": true,
+      "valid_transactions": 1,
+      "categories": 1,
+      "coverage_days": 1,
+      "readiness": "INSUFFICIENT",
+      "recorded_expense_total": 12785,
+      "monthly_review": "INCOMPLETE_DATA",
+      "remaining_vs_plan": null,
+      "personalized_recommendations": 0,
+      "baseline_guidance_count": 3,
+      "financial_rows_unchanged": true,
+      "screenshot": "20261128-440b3f7-UI-E2E-01-step-03.png"
+    }
+  ],
+  "month": "2026-11",
+  "network_failures": [],
+  "runtime_errors": [],
+  "attempt_history": [
+    {
+      "attempt": 1,
+      "status": "BLOCKED",
+      "phase": "login prerequisite",
+      "reason": "Synthetic email used a reserved .test domain rejected by the existing Email validator; the Recommendation component was not reached."
+    },
+    {
+      "attempt": 2,
+      "status": "PASS",
+      "reason": "Corrected only the synthetic fixture to an example.com address and reran the full browser journey. No application change."
+    }
+  ],
+  "counting_note": "One supporting journey, UI-E2E-01. The initial fixture setup attempt is not an executed UC23-UC26 functional case."
+}

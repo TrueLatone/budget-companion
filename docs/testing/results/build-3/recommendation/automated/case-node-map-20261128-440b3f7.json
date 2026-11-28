@@ -1,0 +1,109 @@
+{
+  "F16-02": [
+    "tests/test_recommendations.py::test_kan65_f16_02_nine_purchases_allow_only_provisional_guidance"
+  ],
+  "F16-05": [
+    "tests/test_recommendations.py::test_kan65_f16_05_completed_period_boundaries_and_p0[79999-REVIEW_UNDER_BUDGET-kan65_month0]",
+    "tests/test_recommendations.py::test_kan65_f16_05_completed_period_boundaries_and_p0[79999-REVIEW_UNDER_BUDGET-kan65_month1]",
+    "tests/test_recommendations.py::test_kan65_f16_05_completed_period_boundaries_and_p0[79999-REVIEW_UNDER_BUDGET-kan65_month2]",
+    "tests/test_recommendations.py::test_kan65_f16_05_completed_period_boundaries_and_p0[80000-REVIEW_UNDER_BUDGET-kan65_month0]",
+    "tests/test_recommendations.py::test_kan65_f16_05_completed_period_boundaries_and_p0[80000-REVIEW_UNDER_BUDGET-kan65_month1]",
+    "tests/test_recommendations.py::test_kan65_f16_05_completed_period_boundaries_and_p0[80000-REVIEW_UNDER_BUDGET-kan65_month2]",
+    "tests/test_recommendations.py::test_kan65_f16_05_completed_period_boundaries_and_p0[80001-None-kan65_month0]",
+    "tests/test_recommendations.py::test_kan65_f16_05_completed_period_boundaries_and_p0[80001-None-kan65_month1]",
+    "tests/test_recommendations.py::test_kan65_f16_05_completed_period_boundaries_and_p0[80001-None-kan65_month2]",
+    "tests/test_recommendations.py::test_kan65_f16_05_completed_period_boundaries_and_p0[109999-None-kan65_month0]",
+    "tests/test_recommendations.py::test_kan65_f16_05_completed_period_boundaries_and_p0[109999-None-kan65_month1]",
+    "tests/test_recommendations.py::test_kan65_f16_05_completed_period_boundaries_and_p0[109999-None-kan65_month2]",
+    "tests/test_recommendations.py::test_kan65_f16_05_completed_period_boundaries_and_p0[110000-REVIEW_OVER_BUDGET-kan65_month0]",
+    "tests/test_recommendations.py::test_kan65_f16_05_completed_period_boundaries_and_p0[110000-REVIEW_OVER_BUDGET-kan65_month1]",
+    "tests/test_recommendations.py::test_kan65_f16_05_completed_period_boundaries_and_p0[110000-REVIEW_OVER_BUDGET-kan65_month2]",
+    "tests/test_recommendations.py::test_kan65_f16_05_completed_period_boundaries_and_p0[110001-REVIEW_OVER_BUDGET-kan65_month0]",
+    "tests/test_recommendations.py::test_kan65_f16_05_completed_period_boundaries_and_p0[110001-REVIEW_OVER_BUDGET-kan65_month1]",
+    "tests/test_recommendations.py::test_kan65_f16_05_completed_period_boundaries_and_p0[110001-REVIEW_OVER_BUDGET-kan65_month2]"
+  ],
+  "F16-06": [
+    "tests/test_recommendations.py::test_kan65_f16_06_open_period_signal_waits_for_low_spend_closure[110000-REVIEW_OVER_BUDGET-kan65_month0]",
+    "tests/test_recommendations.py::test_kan65_f16_06_open_period_signal_waits_for_low_spend_closure[80000-None-kan65_month0]"
+  ],
+  "F17-04": [
+    "tests/test_recommendations.py::test_kan65_f17_04_legacy_changes_are_withheld_and_refused"
+  ],
+  "F17-05": [
+    "tests/test_recommendations.py::test_kan65_f17_05_repeated_decisions_preserve_finances"
+  ],
+  "F17-06": [
+    "tests/test_recommendations.py::test_kan65_f17_06_foreign_and_missing_recommendations_are_hidden[foreign]",
+    "tests/test_recommendations.py::test_kan65_f17_06_foreign_and_missing_recommendations_are_hidden[missing]"
+  ],
+  "F18-01": [
+    "tests/test_recommendations.py::test_kan65_f18_01_incomplete_transaction_is_reported_without_blocking_valid_history"
+  ],
+  "F18-02": [
+    "tests/test_recommendations.py::test_kan65_f18_02_overdue_active_and_no_expense_counters"
+  ],
+  "F18-05": [
+    "tests/test_recommendations.py::test_kan65_f18_05_exact_readiness_thresholds[10-3-30-None]",
+    "tests/test_recommendations.py::test_kan65_f18_05_exact_readiness_thresholds[9-3-30-minimum_complete_transactions]",
+    "tests/test_recommendations.py::test_kan65_f18_05_exact_readiness_thresholds[10-2-30-minimum_categories]",
+    "tests/test_recommendations.py::test_kan65_f18_05_exact_readiness_thresholds[10-3-29-minimum_coverage_days]",
+    "tests/test_recommendations.py::test_kan65_f18_05_rate_gate_includes_invalid_records_in_denominator[3-0.8-True]",
+    "tests/test_recommendations.py::test_kan65_f18_05_rate_gate_includes_invalid_records_in_denominator[4-0.75-False]"
+  ],
+  "F18-06": [
+    "tests/test_recommendations.py::test_kan65_f18_06_prerequisites_explain_insufficient_data[plan-confirmed_plan]",
+    "tests/test_recommendations.py::test_kan65_f18_06_prerequisites_explain_insufficient_data[schedule-complete_schedule]",
+    "tests/test_recommendations.py::test_kan65_f18_06_prerequisites_explain_insufficient_data[tracking-tracking_started]"
+  ],
+  "F18-07": [
+    "tests/test_recommendations.py::test_kan65_f18_07_february_does_not_lower_coverage_requirement[kan65_month0]"
+  ],
+  "F19-06": [
+    "tests/test_recommendations.py::test_kan65_f19_06_closed_no_expense_month_is_complete_without_personalization"
+  ],
+  "F19-07": [
+    "tests/test_recommendations.py::test_kan65_f19_07_last_day_is_not_a_closed_month"
+  ],
+  "F16-01": [
+    "tests/test_recommendations.py::test_kan65_f16_01_sufficient_recorded_expenses_generate_explained_guidance"
+  ],
+  "F16-03": [
+    "tests/test_recommendations.py::test_kan65_f16_03_no_confirmed_plan_blocks_personalization"
+  ],
+  "F16-04": [
+    "tests/test_recommendations.py::test_kan65_f16_04_on_budget_history_requires_no_action"
+  ],
+  "F17-01": [
+    "tests/test_recommendations.py::test_kan65_f17_01_explanation_and_rejection_are_read_only"
+  ],
+  "F17-02": [
+    "tests/test_recommendations.py::test_kan65_f17_02_accept_records_only_the_decision"
+  ],
+  "F17-03": [
+    "tests/test_recommendations.py::test_kan65_f17_03_changed_source_refuses_stale_acceptance"
+  ],
+  "F18-03": [
+    "tests/test_recommendations.py::test_kan65_f18_03_no_expense_is_not_purchase_history"
+  ],
+  "F18-04": [
+    "tests/test_recommendations.py::test_kan65_f18_04_contradictory_no_expense_is_not_zero"
+  ],
+  "F19-01": [
+    "tests/test_recommendations.py::test_kan65_f19_01_closed_resolved_month_has_supported_totals"
+  ],
+  "F19-02": [
+    "tests/test_recommendations.py::test_kan65_f19_02_missing_checkin_withholds_midmonth_balance[kan65_month0]"
+  ],
+  "F19-03": [
+    "tests/test_recommendations.py::test_kan65_f19_03_no_plan_shows_only_observed_expenses"
+  ],
+  "F19-04": [
+    "tests/test_recommendations.py::test_kan65_f19_04_no_purchases_with_pending_periods_are_incomplete"
+  ],
+  "F19-05": [
+    "tests/test_recommendations.py::test_kan65_f19_05_feedback_boundaries_preserve_valid_response"
+  ],
+  "F19-08": [
+    "tests/test_recommendations.py::test_kan65_f19_08_open_month_feedback_preserves_provisional_review[kan65_month0]"
+  ]
+}
